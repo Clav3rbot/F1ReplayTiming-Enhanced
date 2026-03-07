@@ -1,0 +1,143 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { wsUrl } from "@/lib/api";
+
+export interface ReplayDriver {
+  abbr: string;
+  x: number;
+  y: number;
+  color: string;
+  position: number | null;
+  compound: string | null;
+  tyre_life: number | null;
+}
+
+export interface ReplayFrame {
+  timestamp: number;
+  lap: number;
+  total_laps: number;
+  drivers: ReplayDriver[];
+  status: string;
+}
+
+interface ReplayState {
+  connected: boolean;
+  ready: boolean;
+  loading: boolean;
+  playing: boolean;
+  speed: number;
+  frame: ReplayFrame | null;
+  totalTime: number;
+  totalLaps: number;
+  finished: boolean;
+  error: string | null;
+}
+
+export function useReplaySocket(year: number, round: number, sessionType: string = "R") {
+  const wsRef = useRef<WebSocket | null>(null);
+  const [state, setState] = useState<ReplayState>({
+    connected: false,
+    ready: false,
+    loading: true,
+    playing: false,
+    speed: 1,
+    frame: null,
+    totalTime: 0,
+    totalLaps: 0,
+    finished: false,
+    error: null,
+  });
+
+  useEffect(() => {
+    const url = wsUrl(`/ws/replay/${year}/${round}?type=${sessionType}`);
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setState((s) => ({ ...s, connected: true }));
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      switch (msg.type) {
+        case "status":
+          setState((s) => ({ ...s, loading: true }));
+          break;
+        case "ready":
+          setState((s) => ({
+            ...s,
+            ready: true,
+            loading: false,
+            totalTime: msg.total_time,
+            totalLaps: msg.total_laps,
+          }));
+          break;
+        case "frame":
+          setState((s) => ({
+            ...s,
+            frame: {
+              timestamp: msg.timestamp,
+              lap: msg.lap,
+              total_laps: msg.total_laps,
+              drivers: msg.drivers,
+              status: msg.status,
+            },
+          }));
+          break;
+        case "finished":
+          setState((s) => ({ ...s, playing: false, finished: true }));
+          break;
+        case "error":
+          setState((s) => ({ ...s, error: msg.message, loading: false }));
+          break;
+      }
+    };
+
+    ws.onerror = () => {
+      setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+    };
+
+    ws.onclose = () => {
+      setState((s) => ({ ...s, connected: false }));
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [year, round, sessionType]);
+
+  const send = useCallback((msg: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(msg);
+    }
+  }, []);
+
+  const play = useCallback(() => {
+    send("play");
+    setState((s) => ({ ...s, playing: true, finished: false }));
+  }, [send]);
+
+  const pause = useCallback(() => {
+    send("pause");
+    setState((s) => ({ ...s, playing: false }));
+  }, [send]);
+
+  const setSpeed = useCallback((speed: number) => {
+    send(`speed:${speed}`);
+    setState((s) => ({ ...s, speed }));
+  }, [send]);
+
+  const seek = useCallback((time: number) => {
+    send(`seek:${time}`);
+    setState((s) => ({ ...s, finished: false }));
+  }, [send]);
+
+  const reset = useCallback(() => {
+    send("reset");
+    setState((s) => ({ ...s, playing: false, finished: false }));
+  }, [send]);
+
+  return { ...state, play, pause, setSpeed, seek, reset };
+}
