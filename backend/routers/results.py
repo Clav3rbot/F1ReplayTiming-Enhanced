@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Query
-from services.f1_data import get_race_results
+import logging
 
+from fastapi import APIRouter, Query, HTTPException
+from services.storage import get_json
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["results"])
 
 
@@ -10,5 +13,10 @@ async def race_results(
     round_num: int,
     type: str = Query("R", description="Session type"),
 ):
-    results = await get_race_results(year, round_num, type)
-    return {"results": results}
+    data = get_json(f"sessions/{year}/{round_num}/{type}/results.json")
+    if data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Results not available for this session.",
+        )
+    return {"results": data}

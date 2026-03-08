@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Query
-from services.f1_data import get_lap_data
+import logging
 
+from fastapi import APIRouter, Query, HTTPException
+from services.storage import get_json
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["laps"])
 
 
@@ -10,5 +13,10 @@ async def lap_data(
     round_num: int,
     type: str = Query("R", description="Session type"),
 ):
-    laps = await get_lap_data(year, round_num, type)
-    return {"laps": laps}
+    data = get_json(f"sessions/{year}/{round_num}/{type}/laps.json")
+    if data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Lap data not available for this session.",
+        )
+    return {"laps": data}

@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useReplaySocket } from "@/hooks/useReplaySocket";
+import { useSettings } from "@/hooks/useSettings";
 import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PlaybackControls from "@/components/PlaybackControls";
 import TelemetryChart from "@/components/TelemetryChart";
+import SyncPhoto from "@/components/SyncPhoto";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
@@ -39,22 +41,50 @@ export default function ReplayPage() {
   const round = Number(params.round);
   const sessionType = searchParams.get("type") || "R";
 
-  const [highlightedDriver, setHighlightedDriver] = useState<string | null>(null);
+  const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [showSyncPhoto, setShowSyncPhoto] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
+  const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
+  const [mobileTelemetryOpen, setMobileTelemetryOpen] = useState(false);
 
-  const { data: sessionData, loading: sessionLoading } = useApi<SessionData>(
+  useEffect(() => {
+    function check() { setIsMobile(window.innerWidth < 640); }
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  function handleDriverClick(abbr: string) {
+    setSelectedDrivers((prev) => {
+      if (prev.includes(abbr)) {
+        return prev.filter((d) => d !== abbr);
+      }
+      if (prev.length >= 2) {
+        // Replace the oldest selection
+        return [prev[1], abbr];
+      }
+      return [...prev, abbr];
+    });
+  }
+  const { settings, update: updateSetting } = useSettings();
+
+  const { data: sessionData, loading: sessionLoading, error: sessionError } = useApi<SessionData>(
     `/api/sessions/${year}/${round}?type=${sessionType}`,
   );
 
-  const { data: trackData, loading: trackLoading } = useApi<TrackData>(
+  const { data: trackData, loading: trackLoading, error: trackError } = useApi<TrackData>(
     `/api/sessions/${year}/${round}/track?type=${sessionType}`,
   );
 
   const replay = useReplaySocket(year, round, sessionType);
 
-  const isLoading = sessionLoading || trackLoading || replay.loading;
+  const isLoading = sessionLoading || trackLoading;
+  const dataError = sessionError || trackError;
 
-  if (isLoading) {
+  // Show loading until session + track + replay frames are all ready
+  if (isLoading || (!dataError && replay.loading)) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
         <div className="text-center">
@@ -68,13 +98,18 @@ export default function ReplayPage() {
     );
   }
 
-  if (replay.error) {
+  if (dataError) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 text-lg mb-2">Error</p>
-          <p className="text-f1-muted">{replay.error}</p>
-          <a href="/" className="inline-block mt-4 text-f1-red hover:underline">
+        <div className="text-center max-w-md">
+          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
+          <p className="text-f1-muted mb-1">
+            Data for this session is not available yet.
+          </p>
+          <p className="text-f1-muted text-sm mb-6">
+            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
+          </p>
+          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
             Back to session picker
           </a>
         </div>
@@ -85,6 +120,24 @@ export default function ReplayPage() {
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
   const drivers = replay.frame?.drivers || [];
+  const trackStatus = replay.frame?.status || "green";
+  const weather = replay.frame?.weather;
+  const isRace = sessionType === "R" || sessionType === "S";
+
+  // Calculate leaderboard width based on active columns
+  const leaderboardWidth = (() => {
+    let w = 106; // base: position(24) + team bar(12) + driver(30) + flags(16) + padding(16) + right padding(8)
+    if (settings.showTeamAbbr) w += 28;
+    if (!isRace) w += 18; // pit indicator (P box + margin)
+    if (isRace && settings.showGridChange) w += 24;
+    if (settings.showGapToLeader) w += 56;
+    if (isRace && settings.showPitStops) w += 24;
+    if (isRace && settings.showTyreHistory) w += 36;
+    if (settings.showTyreType) w += 24;
+    if (settings.showTyreAge) w += 20;
+    if (isRace && settings.showPitPrediction) w += 40;
+    return w;
+  })();
 
   return (
     <div className="h-screen flex flex-col bg-f1-dark overflow-hidden">
@@ -96,49 +149,152 @@ export default function ReplayPage() {
           country={sessionData.country}
           sessionType={sessionType}
           year={year}
+          settings={settings}
+          onSettingChange={updateSetting}
+          weather={weather}
         />
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex min-h-0">
-        {/* Track */}
-        <div className="flex-1 relative">
-          <TrackCanvas
-            trackPoints={trackPoints}
-            rotation={rotation}
-            drivers={drivers.map((d) => ({
-              abbr: d.abbr,
-              x: d.x,
-              y: d.y,
-              color: d.color,
-              position: d.position,
-            }))}
-            highlightedDriver={highlightedDriver}
-          />
+      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden">
+        {/* Track section */}
+        <div className="sm:flex-1 relative">
+          {/* Mobile section header */}
+          {isMobile && (
+            <button
+              onClick={() => setMobileTrackOpen(!mobileTrackOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+            >
+              <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
+              <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTrackOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
 
-          {/* Telemetry toggle */}
+          {(!isMobile || mobileTrackOpen) && (
+            <div className="h-[35vh] sm:h-full relative">
+              {/* Flag badge */}
+              {trackStatus !== "green" && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
+                  <div
+                    className={`px-3 py-1 rounded text-xs font-extrabold uppercase ${
+                      trackStatus === "red"
+                        ? "bg-red-600 text-white"
+                        : trackStatus === "sc"
+                        ? "bg-yellow-500 text-black"
+                        : trackStatus === "vsc"
+                        ? "bg-yellow-500/80 text-black"
+                        : "bg-yellow-400 text-black"
+                    }`}
+                  >
+                    {trackStatus === "red"
+                      ? "Red Flag"
+                      : trackStatus === "sc"
+                      ? "Safety Car"
+                      : trackStatus === "vsc"
+                      ? "Virtual Safety Car"
+                      : "Yellow Flag"}
+                  </div>
+                </div>
+              )}
+
+              <TrackCanvas
+                trackPoints={trackPoints}
+                rotation={rotation}
+                trackStatus={trackStatus}
+                drivers={drivers.filter((d) => !d.retired).map((d) => ({
+                  abbr: d.abbr,
+                  x: d.x,
+                  y: d.y,
+                  color: d.color,
+                  position: d.position,
+                }))}
+                highlightedDrivers={selectedDrivers}
+                playbackSpeed={replay.speed}
+                showDriverNames={settings.showDriverNames}
+              />
+
+              {/* Telemetry overlay - desktop only */}
+              {!isMobile && showTelemetry && (
+                <div className="absolute bottom-2 left-8 z-10">
+                  {selectedDrivers.map((abbr) => {
+                    const drv = drivers.find((d) => d.abbr === abbr) || null;
+                    return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                  })}
+                  {selectedDrivers.length === 0 && (
+                    <TelemetryChart visible driver={null} year={year} />
+                  )}
+                </div>
+              )}
+
+              {/* Telemetry toggle - desktop only */}
+              {!isMobile && (
+                <button
+                  onClick={() => setShowTelemetry(!showTelemetry)}
+                  className="absolute bottom-2 right-2 z-20 px-2 py-1 bg-f1-card border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white transition-colors"
+                >
+                  {showTelemetry ? "Hide" : "Show"} Telemetry
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Telemetry section - mobile only, collapsible like leaderboard */}
+        <div className="sm:hidden">
           <button
-            onClick={() => setShowTelemetry(!showTelemetry)}
-            className="absolute bottom-4 right-4 px-3 py-1.5 bg-f1-card border border-f1-border rounded text-xs text-f1-muted hover:text-white transition-colors"
+            onClick={() => setMobileTelemetryOpen(!mobileTelemetryOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
           >
-            {showTelemetry ? "Hide" : "Show"} Telemetry
+            <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
+            <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
+          {mobileTelemetryOpen && (
+            <div className="bg-f1-card px-3 py-2 space-y-1">
+              {selectedDrivers.length > 0 ? (
+                selectedDrivers.map((abbr) => {
+                  const drv = drivers.find((d) => d.abbr === abbr) || null;
+                  return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                })
+              ) : (
+                <TelemetryChart visible driver={null} year={year} />
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Leaderboard sidebar */}
-        <div className="w-72 flex-shrink-0">
-          <Leaderboard
-            drivers={drivers}
-            highlightedDriver={highlightedDriver}
-            onDriverClick={(abbr) =>
-              setHighlightedDriver(highlightedDriver === abbr ? null : abbr)
-            }
-          />
-        </div>
+        {/* Leaderboard section */}
+        {settings.showLeaderboard && (
+          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : leaderboardWidth }}>
+            {/* Mobile section header */}
+            {isMobile && (
+              <button
+                onClick={() => setMobileLeaderboardOpen(!mobileLeaderboardOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+
+            {(!isMobile || mobileLeaderboardOpen) && (
+              <Leaderboard
+                drivers={drivers}
+                highlightedDrivers={selectedDrivers}
+                onDriverClick={handleDriverClick}
+                settings={settings}
+                currentTime={replay.frame?.timestamp || 0}
+                isRace={isRace}
+              />
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Telemetry panel */}
-      <TelemetryChart visible={showTelemetry} />
 
       {/* Playback controls */}
       <PlaybackControls
@@ -149,12 +305,29 @@ export default function ReplayPage() {
         currentLap={replay.frame?.lap || 0}
         totalLaps={replay.totalLaps}
         finished={replay.finished}
+        showSessionTime={settings.showSessionTime}
         onPlay={replay.play}
         onPause={replay.pause}
         onSpeedChange={replay.setSpeed}
         onSeek={replay.seek}
+        onSeekToLap={replay.seekToLap}
         onReset={replay.reset}
+        isRace={isRace}
+        onSyncPhoto={() => setShowSyncPhoto(true)}
+        qualiPhase={replay.frame?.quali_phase}
+        qualiPhases={replay.qualiPhases}
       />
+
+      {/* Sync with photo modal */}
+      {showSyncPhoto && (
+        <SyncPhoto
+          year={year}
+          round={round}
+          sessionType={sessionType}
+          onSync={(timestamp) => replay.seek(timestamp)}
+          onClose={() => setShowSyncPhoto(false)}
+        />
+      )}
     </div>
   );
 }

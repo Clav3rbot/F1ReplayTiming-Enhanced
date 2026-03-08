@@ -1,51 +1,155 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import { drawTrack, drawDrivers, TrackPoint, DriverMarker } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
   rotation: number;
+  trackStatus?: string;
   drivers: DriverMarker[];
-  highlightedDriver: string | null;
+  highlightedDrivers: string[];
+  playbackSpeed?: number;
+  showDriverNames?: boolean;
 }
 
-export default function TrackCanvas({ trackPoints, rotation, drivers, highlightedDriver }: Props) {
+// Longer than the 500ms frame interval so the dot is always still moving
+// when the next target arrives - the more overlap, the smoother the motion
+const BASE_INTERP_MS = 750;
+
+interface PosEntry {
+  prevX: number;
+  prevY: number;
+  targetX: number;
+  targetY: number;
+  startTime: number;
+  duration: number;
+}
+
+
+export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
 
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const posRef = useRef<Map<string, PosEntry>>(new Map());
+  const driversRef = useRef<DriverMarker[]>([]);
+  const trackStatusRef = useRef(trackStatus);
+  trackStatusRef.current = trackStatus;
+  const speedRef = useRef(playbackSpeed);
+  speedRef.current = playbackSpeed;
+  const showNamesRef = useRef(showDriverNames);
+  showNamesRef.current = showDriverNames;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-
-    // Clear
-    ctx.clearRect(0, 0, rect.width, rect.height);
-
-    // Draw track
-    drawTrack(ctx, trackPoints, rect.width, rect.height, rotation);
-
-    // Draw drivers
-    drawDrivers(ctx, drivers, trackPoints, rect.width, rect.height, rotation, highlightedDriver);
-  }, [trackPoints, rotation, drivers, highlightedDriver]);
-
+  // Update targets when drivers prop changes
   useEffect(() => {
-    render();
-  }, [render]);
+    driversRef.current = drivers;
+    const now = performance.now();
+    // Scale interpolation duration with speed so dots keep up
+    const duration = BASE_INTERP_MS / Math.max(speedRef.current, 0.25);
 
+    for (const drv of drivers) {
+      const entry = posRef.current.get(drv.abbr);
+      if (!entry) {
+        // First time seeing driver - snap to position
+        posRef.current.set(drv.abbr, {
+          prevX: drv.x, prevY: drv.y,
+          targetX: drv.x, targetY: drv.y,
+          startTime: now,
+          duration,
+        });
+      } else {
+        // Start new interpolation from current visual position
+        const elapsed = now - entry.startTime;
+        const t = Math.min(elapsed / entry.duration, 1);
+        entry.prevX = entry.prevX + (entry.targetX - entry.prevX) * t;
+        entry.prevY = entry.prevY + (entry.targetY - entry.prevY) * t;
+        entry.targetX = drv.x;
+        entry.targetY = drv.y;
+        entry.startTime = now;
+        entry.duration = duration;
+      }
+    }
+  }, [drivers]);
+
+  // Continuous animation loop
   useEffect(() => {
-    const observer = new ResizeObserver(() => render());
-    if (containerRef.current) observer.observe(containerRef.current);
+    let running = true;
+
+    function animate() {
+      if (!running) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      const { w, h } = sizeRef.current;
+
+      if (w === 0 || h === 0) {
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+      }
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current);
+
+      const now = performance.now();
+      const curr = driversRef.current;
+      const interpolated: DriverMarker[] = curr.map((drv) => {
+        const entry = posRef.current.get(drv.abbr);
+        if (!entry) return drv;
+
+        const elapsed = now - entry.startTime;
+        const t = Math.min(elapsed / entry.duration, 1);
+        const x = entry.prevX + (entry.targetX - entry.prevX) * t;
+        const y = entry.prevY + (entry.targetY - entry.prevY) * t;
+
+        return { ...drv, x, y };
+      });
+
+      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current);
+
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+    return () => { running = false; };
+  }, [trackPoints, rotation, highlightedDrivers]);
+
+  // Track container size via ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    sizeRef.current = { w: rect.width, h: rect.height };
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        sizeRef.current = { w: entry.contentRect.width, h: entry.contentRect.height };
+      }
+    });
+
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [render]);
+  }, []);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-f1-dark">

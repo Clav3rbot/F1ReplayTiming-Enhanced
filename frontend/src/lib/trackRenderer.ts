@@ -11,20 +11,31 @@ export interface DriverMarker {
   position: number | null;
 }
 
+const TRACK_STATUS_COLORS: Record<string, string> = {
+  green: "#3A3A4A",
+  yellow: "#F5C518",
+  sc: "#F5C518",
+  vsc: "#F5C518",
+  red: "#E10600",
+};
+
 export function drawTrack(
   ctx: CanvasRenderingContext2D,
   points: TrackPoint[],
   width: number,
   height: number,
   rotation: number,
+  trackStatus: string = "green",
 ) {
   if (points.length === 0) return;
 
-  const padding = 40;
-  const w = width - padding * 2;
-  const h = height - padding * 2;
+  const padX = 40;
+  const padTop = 60;
+  const padBottom = 90;
+  const w = width - padX * 2;
+  const h = height - padTop - padBottom;
 
-  // Apply rotation
+  // Rotation is pre-applied in the backend; keep for any future manual override
   const rad = (rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
@@ -55,19 +66,19 @@ export function drawTrack(
   const rangeY = maxY - minY || 1;
   const scale = Math.min(w / rangeX, h / rangeY);
 
-  const offsetX = padding + (w - rangeX * scale) / 2;
-  const offsetY = padding + (h - rangeY * scale) / 2;
+  const offsetX = padX + (w - rangeX * scale) / 2;
+  const offsetY = padTop + (h - rangeY * scale) / 2;
 
   function toScreen(p: TrackPoint): [number, number] {
     return [
       offsetX + (p.x - minX) * scale,
-      offsetY + (p.y - minY) * scale,
+      offsetY + (maxY - p.y) * scale, // Flip Y: data Y-up → screen Y-down
     ];
   }
 
   // Draw track outline
   ctx.beginPath();
-  ctx.strokeStyle = "#3A3A4A";
+  ctx.strokeStyle = TRACK_STATUS_COLORS[trackStatus] || "#3A3A4A";
   ctx.lineWidth = 12;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -93,10 +104,19 @@ export function drawTrack(
   ctx.closePath();
   ctx.stroke();
 
-  // Start/finish marker
+  // Start/finish marker  - drawn perpendicular to track direction
   const [fx, fy] = toScreen(rotated[0]);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(fx - 2, fy - 8, 4, 16);
+  const [nx, ny] = toScreen(rotated[1]);
+  const trackAngle = Math.atan2(ny - fy, nx - fx);
+  const perpAngle = trackAngle + Math.PI / 2;
+  const markerLen = 8;
+  ctx.beginPath();
+  ctx.moveTo(fx - Math.cos(perpAngle) * markerLen, fy - Math.sin(perpAngle) * markerLen);
+  ctx.lineTo(fx + Math.cos(perpAngle) * markerLen, fy + Math.sin(perpAngle) * markerLen);
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.stroke();
 }
 
 export function drawDrivers(
@@ -106,13 +126,16 @@ export function drawDrivers(
   width: number,
   height: number,
   rotation: number,
-  highlightedDriver: string | null,
+  highlightedDrivers: string[],
+  showNames: boolean = true,
 ) {
   if (trackPoints.length === 0) return;
 
-  const padding = 40;
-  const w = width - padding * 2;
-  const h = height - padding * 2;
+  const padX = 40;
+  const padTop = 60;
+  const padBottom = 90;
+  const w = width - padX * 2;
+  const h = height - padTop - padBottom;
 
   const rad = (rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -120,7 +143,6 @@ export function drawDrivers(
   const cx = 0.5;
   const cy = 0.5;
 
-  // Compute rotation bounds from track points
   const rotatedTrack = trackPoints.map((p) => {
     const dx = p.x - cx;
     const dy = p.y - cy;
@@ -138,8 +160,8 @@ export function drawDrivers(
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
   const scale = Math.min(w / rangeX, h / rangeY);
-  const offsetX = padding + (w - rangeX * scale) / 2;
-  const offsetY = padding + (h - rangeY * scale) / 2;
+  const offsetX = padX + (w - rangeX * scale) / 2;
+  const offsetY = padTop + (h - rangeY * scale) / 2;
 
   for (const drv of drivers) {
     // Rotate driver position
@@ -149,10 +171,12 @@ export function drawDrivers(
     const ry = dx * sin + dy * cos + cy;
 
     const sx = offsetX + (rx - minX) * scale;
-    const sy = offsetY + (ry - minY) * scale;
+    const sy = offsetY + (maxY - ry) * scale; // Flip Y: data Y-up → screen Y-down
 
-    const isHighlighted = highlightedDriver === drv.abbr;
+    const isHighlighted = highlightedDrivers.includes(drv.abbr);
     const radius = isHighlighted ? 8 : 5;
+
+    ctx.save();
 
     // Glow effect for highlighted
     if (isHighlighted) {
@@ -166,15 +190,19 @@ export function drawDrivers(
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, Math.PI * 2);
     ctx.fillStyle = drv.color;
+    ctx.strokeStyle = drv.color;
+    ctx.lineWidth = 1;
     ctx.fill();
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1.5;
     ctx.stroke();
 
+    ctx.restore();
+
     // Driver label
-    ctx.font = isHighlighted ? "bold 11px monospace" : "10px monospace";
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textAlign = "center";
-    ctx.fillText(drv.abbr, sx, sy - radius - 4);
+    if (showNames) {
+      ctx.font = isHighlighted ? "800 12px system-ui, -apple-system, sans-serif" : "800 10px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.textAlign = "center";
+      ctx.fillText(drv.abbr, sx, sy - radius - 4);
+    }
   }
 }
