@@ -99,6 +99,7 @@ export default function SessionPicker() {
   const [year, setYear] = useState(currentYear);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -145,7 +146,7 @@ export default function SessionPicker() {
     return (
       <div
         ref={isLatest && !isLatestFeature ? latestRef : undefined}
-        onClick={() => setSelectedEvent(isSelected ? null : evt)}
+        onClick={() => { if (!isSelected) setSelectedEvent(evt); }}
         className={`bg-f1-card border rounded-xl overflow-hidden transition-all cursor-pointer ${
           isSelected
             ? "border-white/60 ring-1 ring-white/20"
@@ -175,7 +176,7 @@ export default function SessionPicker() {
 
         {/* Session buttons (shown when selected) */}
         {isSelected && (
-          <div className="px-4 pb-4 flex flex-wrap gap-2 border-t border-f1-border pt-3">
+          <div className="px-4 pb-4 flex flex-wrap gap-2 border-t border-f1-border pt-3" onClick={(e) => e.stopPropagation()}>
             {evt.sessions.map((session) => {
               const code = SESSION_LABELS[session.name];
               if (!code) return null;
@@ -184,6 +185,10 @@ export default function SessionPicker() {
                   <a
                     key={session.name}
                     href={`/replay/${year}/${evt.round_number}?type=${code}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNavigating(true);
+                    }}
                     className="px-3 py-1.5 bg-f1-border text-white text-xs font-bold rounded hover:bg-f1-red transition-colors"
                   >
                     {session.name}
@@ -210,6 +215,15 @@ export default function SessionPicker() {
 
   return (
     <div className="min-h-screen bg-f1-dark">
+      {/* Loading overlay */}
+      {navigating && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-3 border-f1-muted border-t-f1-red rounded-full animate-spin" />
+            <p className="text-white font-bold text-sm">Loading session...</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-f1-card border-b border-f1-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 flex items-center gap-3 sm:gap-4">

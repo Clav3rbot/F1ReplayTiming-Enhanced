@@ -360,14 +360,25 @@ export default function SessionBanner({
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
                   Driver positions and gap times are sourced directly from the official
-                  F1 live timing feed  - the same data used by the broadcast. Positions
+                  F1 live timing feed — the same data used by the broadcast. Positions
                   are determined by sorting drivers on their gap to the leader, which
                   updates multiple times per lap at sector and mini-sector boundaries.
                 </p>
+              </div>
+
+              {/* Starting Grid */}
+              <div>
+                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+                  Starting grid
+                </h3>
+                <p className="text-sm text-f1-muted leading-relaxed">
+                  For the first 10 seconds of the race, the leaderboard displays the
+                  starting grid order before live timing data takes over.
+                </p>
                 <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  For the first few seconds of the race, the starting grid order is
-                  shown before timing data becomes available. Grid position changes
-                  are only displayed after 10 seconds to ensure accuracy.
+                  Where official starting grid data is unavailable, qualifying
+                  positions are used as a fallback. This may not reflect grid
+                  penalties or other post-qualifying changes to the starting order.
                 </p>
               </div>
 
