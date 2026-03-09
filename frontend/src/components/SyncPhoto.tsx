@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { getToken } from "@/lib/auth";
 
 interface Props {
@@ -49,6 +49,26 @@ export default function SyncPhoto({
   const [manualProcessing, setManualProcessing] = useState(false);
 
   const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB backend limit
+
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) handleFile(file);
+        return;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (step === "processing" || step === "result") return;
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [step, handlePaste]);
 
   async function handleFile(file: File) {
     setStep("processing");
@@ -315,6 +335,19 @@ export default function SyncPhoto({
                     </svg>
                     Upload Image
                   </button>
+
+                  <div className="flex items-center gap-2 justify-center">
+                    <div className="h-px flex-1 bg-f1-border" />
+                    <span className="text-xs text-f1-muted">or</span>
+                    <div className="h-px flex-1 bg-f1-border" />
+                  </div>
+
+                  <p className="text-center text-sm text-f1-muted">
+                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">Ctrl</kbd>{" "}
+                    +{" "}
+                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">V</kbd>{" "}
+                    to paste from clipboard
+                  </p>
 
                   <input
                     ref={cameraInputRef}
