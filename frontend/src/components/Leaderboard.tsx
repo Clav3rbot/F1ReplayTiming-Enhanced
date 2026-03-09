@@ -12,6 +12,7 @@ interface Props {
   settings: ReplaySettings;
   currentTime: number;
   isRace: boolean;
+  compact?: boolean;
 }
 
 function formatGap(gap: string | null): string {
@@ -70,7 +71,7 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, compact }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,10 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
   useEffect(() => {
     function updateScale() {
+      if (compact) {
+        setScale(1);
+        return;
+      }
       if (!containerRef.current || !contentRef.current) return;
       // On mobile (< 640px), don't scale - let it scroll instead
       if (window.innerWidth < 640) {
@@ -95,7 +100,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [drivers.length, settings.showGapToLeader, isRace]);
+  }, [drivers.length, settings.showGapToLeader, isRace, compact]);
 
   const sorted = [...drivers].sort(
     (a, b) => (a.position ?? 999) - (b.position ?? 999),
@@ -104,7 +109,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
   const intervals = isRace && showInterval ? computeIntervals(sorted) : null;
 
   return (
-    <div ref={containerRef} className="bg-f1-card border-f1-border h-full overflow-y-auto sm:overflow-hidden">
+    <div ref={containerRef} className={`bg-f1-card border-f1-border h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
       <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%` }}>
       {/* Interval / Leader toggle - race only */}
       {isRace && settings.showGapToLeader && (
