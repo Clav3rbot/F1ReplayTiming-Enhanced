@@ -507,7 +507,24 @@ def _get_driver_positions_by_time_sync(
         grid = row.get("GridPosition")
         if pd.notna(grid):
             grid_val = int(grid)
-            grid_positions[abbr] = grid_val
+            if grid_val > 0:
+                grid_positions[abbr] = grid_val
+
+    # If grid positions are missing (e.g. F1 API returns -1 for all),
+    # fall back to qualifying results position as grid order
+    if is_race and not grid_positions:
+        quali_type = "SQ" if session_type == "S" else "Q"
+        try:
+            quali_session = _load_session(year, round_num, quali_type)
+            for _, row in quali_session.results.iterrows():
+                q_abbr = str(row.get("Abbreviation", ""))
+                q_pos = row.get("Position")
+                if q_abbr and pd.notna(q_pos) and int(q_pos) > 0:
+                    grid_positions[q_abbr] = int(q_pos)
+            if grid_positions:
+                logger.info(f"Grid positions unavailable, using {quali_type} results as fallback ({len(grid_positions)} drivers)")
+        except Exception as e:
+            logger.warning(f"Could not load {quali_type} session for grid fallback: {e}")
 
     # Pre-compute fastest lap holder by lap number
     fastest_by_lap = {}
@@ -848,9 +865,12 @@ def _get_driver_positions_by_time_sync(
     # Load real-time gap-to-leader data from F1 timing feed
     # abbr -> (times_array, gap_strings_array)
     timing_lookup: dict[str, tuple] = {}
+    # abbr -> (times_array, interval_strings_array)
+    interval_lookup: dict[str, tuple] = {}
     try:
         _, timing_df = f1api.timing_data(session.api_path)
         if timing_df is not None and "GapToLeader" in timing_df.columns:
+            has_interval = "IntervalToPositionAhead" in timing_df.columns
             num_to_abbr = {}
             for _, row in session.results.iterrows():
                 num_to_abbr[str(row.get("DriverNumber", ""))] = str(row.get("Abbreviation", ""))
@@ -863,7 +883,10 @@ def _get_driver_positions_by_time_sync(
                 times = drv_data["Time"].dt.total_seconds().values.astype(np.float64)
                 gap_strs = drv_data["GapToLeader"].values
                 timing_lookup[abbr] = (times, gap_strs)
-            logger.info(f"Loaded F1 timing data for {len(timing_lookup)} drivers ({len(timing_df)} entries)")
+                if has_interval:
+                    interval_vals = drv_data["IntervalToPositionAhead"].values
+                    interval_lookup[abbr] = (times, interval_vals)
+            logger.info(f"Loaded F1 timing data for {len(timing_lookup)} drivers ({len(timing_df)} entries), intervals={'yes' if has_interval else 'no'}")
     except Exception as e:
         logger.error(f"Failed to load timing data: {e}")
 
@@ -878,6 +901,21 @@ def _get_driver_positions_by_time_sync(
         if idx < 0:
             return None
         val = gap_strs[idx]
+        if pd.isna(val) or val is None:
+            return None
+        return str(val)
+
+    def _get_interval(abbr: str, t_sec: float) -> str | None:
+        """Get the most recent IntervalToPositionAhead for a driver at time t_sec."""
+        entry = interval_lookup.get(abbr)
+        if entry is None:
+            return None
+        times, interval_vals = entry
+        session_t = t_sec + session_time_offset
+        idx = np.searchsorted(times, session_t, side="right") - 1
+        if idx < 0:
+            return None
+        val = interval_vals[idx]
         if pd.isna(val) or val is None:
             return None
         return str(val)
@@ -900,6 +938,8 @@ def _get_driver_positions_by_time_sync(
 
     # Track last known state for each driver (for showing retired drivers)
     last_known: dict[str, dict] = {}
+    # Track drivers that have ever appeared in telemetry
+    ever_seen: set[str] = set()
 
     for i in range(min(num_samples, 50000)):  # cap to prevent excessive data
         t_sec = i * sample_interval
@@ -921,6 +961,7 @@ def _get_driver_positions_by_time_sync(
                 continue
 
             seen_drivers.add(drv)
+            ever_seen.add(drv)
             def _safe_float(v) -> float:
                 f = float(v)
                 return 0.0 if np.isnan(f) or np.isinf(f) else f
@@ -935,6 +976,7 @@ def _get_driver_positions_by_time_sync(
             drs_val = int(arrays["drs"][idx]) if not np.isnan(arrays["drs"][idx]) else 0
 
             gap = _get_gap_to_leader(drv, t_sec) if is_race else None
+            interval = _get_interval(drv, t_sec) if is_race else None
             grid_pos = grid_positions.get(drv) if is_race else None
             is_pit_lane_starter = grid_pos == 0 if is_race else False
             show_pit_badge = is_pit_lane_starter and t_sec < 10
@@ -965,6 +1007,7 @@ def _get_driver_positions_by_time_sync(
                 "has_fastest_lap": False,  # set after sorting
                 "flag": _get_driver_flag(drv, t_sec),
                 "gap": gap,
+                "interval": interval,
                 "no_timing": gap is None,
                 "retired": False,
                 "relative_distance": rel_dist,
@@ -978,21 +1021,99 @@ def _get_driver_positions_by_time_sync(
             last_known[drv] = drv_data
             frame_drivers.append(drv_data)
 
-        # Add retired drivers that have dropped out of telemetry
+        # Add drivers that have dropped out of telemetry back to the frame
+        # so they always appear on the leaderboard
         for drv in driver_arrays:
-            if drv not in seen_drivers and drv in last_known and drv in retired_drivers:
-                retired_data = {**last_known[drv], "retired": True, "gap": None, "no_timing": False}
-                frame_drivers.append(retired_data)
+            if drv not in seen_drivers and drv in last_known:
+                is_retired = drv in retired_drivers
+                restored = {**last_known[drv], "gap": None, "interval": None}
+                if is_retired:
+                    restored["retired"] = True
+                    restored["no_timing"] = False
+                else:
+                    # Telemetry gap — grey out but keep on leaderboard
+                    restored["no_timing"] = True
+                frame_drivers.append(restored)
+
+        # Add drivers who have grid positions but never appeared in telemetry
+        # (e.g. DNS — crashed before formation lap). Show as "Out" after 10s.
+        if is_race and t_sec >= 10:
+            for drv, gp in grid_positions.items():
+                if drv not in seen_drivers and drv not in ever_seen:
+                    frame_drivers.append({
+                        "abbr": drv,
+                        "x": 0.0,
+                        "y": 0.0,
+                        "color": colors.get(drv, "#FFFFFF"),
+                        "team": teams.get(drv, ""),
+                        "position": None,
+                        "grid_position": gp if gp and gp > 0 else None,
+                        "pit_start": False,
+                        "in_pit": False,
+                        "compound": None,
+                        "tyre_life": None,
+                        "pit_stops": 0,
+                        "has_fastest_lap": False,
+                        "flag": None,
+                        "gap": None,
+                        "interval": None,
+                        "no_timing": False,
+                        "retired": True,
+                        "relative_distance": 0.0,
+                        "speed": 0.0,
+                        "throttle": 0.0,
+                        "brake": False,
+                        "gear": 0,
+                        "rpm": 0.0,
+                        "drs": 0,
+                        "tyre_history": [],
+                    })
 
         if is_race:
-            # First 10 seconds: use grid positions, no gap display, no greying
+            # First 10 seconds: use telemetry for track map x/y,
+            # but lock leaderboard positions to grid order
             if t_sec < 10:
+                # Add drivers missing from telemetry so they appear on leaderboard
+                for drv, gp in grid_positions.items():
+                    if gp is None or drv in seen_drivers:
+                        continue
+                    is_pit_lane = gp == 0
+                    frame_drivers.append({
+                        "abbr": drv,
+                        "x": 0.0,
+                        "y": 0.0,
+                        "color": colors.get(drv, "#FFFFFF"),
+                        "team": teams.get(drv, ""),
+                        "position": None,
+                        "grid_position": gp if not is_pit_lane else None,
+                        "pit_start": is_pit_lane,
+                        "in_pit": False,
+                        "compound": None,
+                        "tyre_life": None,
+                        "pit_stops": 0,
+                        "has_fastest_lap": False,
+                        "flag": None,
+                        "gap": None,
+                        "interval": None,
+                        "no_timing": True,
+                        "retired": False,
+                        "relative_distance": 0.0,
+                        "speed": 0.0,
+                        "throttle": 0.0,
+                        "brake": False,
+                        "gear": 0,
+                        "rpm": 0.0,
+                        "drs": 0,
+                        "tyre_history": [],
+                    })
+                # Override positions with grid order for all drivers
+                # All drivers appear normal on leaderboard during first 10 seconds
                 for d in frame_drivers:
                     gp = grid_positions.get(d["abbr"])
-                    d["position"] = gp if gp and gp > 0 else len(frame_drivers)
+                    d["position"] = gp if gp and gp > 0 else None
                     d["gap"] = None
                     d["no_timing"] = False
-                frame_drivers.sort(key=lambda d: d["position"])
+                frame_drivers.sort(key=lambda d: (d["position"] is None, d["position"] or 0))
             else:
                 # Derive positions by sorting on gap-to-leader
                 # Drivers with gap data are ranked by gap value; drivers without go to the bottom

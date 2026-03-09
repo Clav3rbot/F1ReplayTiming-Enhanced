@@ -156,7 +156,7 @@ export default function ReplayPage() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden">
+      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden pb-20 sm:pb-0">
         {/* Track section */}
         <div className="sm:flex-1 relative">
           {/* Mobile section header */}
@@ -173,7 +173,7 @@ export default function ReplayPage() {
           )}
 
           {(!isMobile || mobileTrackOpen) && (
-            <div className="h-[35vh] sm:h-full relative">
+            <div className="h-[42vh] sm:h-full relative">
               {/* Flag badge */}
               {trackStatus !== "green" && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
@@ -203,7 +203,7 @@ export default function ReplayPage() {
                 trackPoints={trackPoints}
                 rotation={rotation}
                 trackStatus={trackStatus}
-                drivers={drivers.filter((d) => !d.retired).map((d) => ({
+                drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
                   abbr: d.abbr,
                   x: d.x,
                   y: d.y,

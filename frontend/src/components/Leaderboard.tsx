@@ -16,9 +16,17 @@ interface Props {
 
 function formatGap(gap: string | null): string {
   if (!gap) return "";
-  const match = gap.match(/^(\d+)\s*L$/);
-  if (match) {
-    const n = parseInt(match[1]);
+  // Handle "1L", "2L" format (gap to leader)
+  const lapped = gap.match(/^(\d+)\s*L$/);
+  if (lapped) {
+    const n = parseInt(lapped[1]);
+    return `+${n} Lap${n > 1 ? "s" : ""}`;
+  }
+  // Handle "LAP 1", "LAP 0" format (interval data)
+  const lapFormat = gap.match(/^LAP\s+(\d+)$/i);
+  if (lapFormat) {
+    const n = parseInt(lapFormat[1]);
+    if (n === 0) return "Interval";
     return `+${n} Lap${n > 1 ? "s" : ""}`;
   }
   return gap;
@@ -44,24 +52,14 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
       intervals.set(drv.abbr, "Leader");
       continue;
     }
-    const currGap = parseGapSeconds(drv.gap);
-    const prevGap = parseGapSeconds(sorted[i - 1].gap);
-    // Lapped cars: show laps behind
-    const lapped = drv.gap?.match(/^(\d+)\s*L$/);
-    if (lapped) {
-      const prevLapped = sorted[i - 1].gap?.match(/^(\d+)\s*L$/);
-      if (prevLapped) {
-        const diff = parseInt(lapped[1]) - parseInt(prevLapped[1]);
-        if (diff > 0) {
-          intervals.set(drv.abbr, `+${diff} Lap${diff > 1 ? "s" : ""}`);
-        } else {
-          intervals.set(drv.abbr, "+0.000");
-        }
-      } else {
-        intervals.set(drv.abbr, `+${lapped[1]} Lap${parseInt(lapped[1]) > 1 ? "s" : ""}`);
-      }
+    // Use real interval data from F1 timing feed if available
+    if (drv.interval) {
+      intervals.set(drv.abbr, formatGap(drv.interval));
       continue;
     }
+    // Fallback: compute from gap-to-leader differences
+    const currGap = parseGapSeconds(drv.gap);
+    const prevGap = parseGapSeconds(sorted[i - 1].gap);
     if (currGap !== null && prevGap !== null) {
       const diff = currGap - prevGap;
       intervals.set(drv.abbr, `+${diff.toFixed(3)}`);
@@ -240,7 +238,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Gap / best time - 56px */}
               {settings.showGapToLeader && (
-                <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && isRace ? "text-yellow-400" : isRace ? "text-f1-muted" : drv.position === 1 ? "text-purple-400" : "text-f1-muted"}`}>
+                <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && isRace && !drv.retired ? "text-yellow-400" : isRace ? "text-f1-muted" : drv.position === 1 ? "text-purple-400" : "text-f1-muted"}`}>
                   {displayGap}
                 </span>
               )}
