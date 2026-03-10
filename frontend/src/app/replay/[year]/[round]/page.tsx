@@ -141,7 +141,8 @@ export default function ReplayPage() {
     if (isRace && settings.showTyreHistory) w += 36;
     if (settings.showTyreType) w += 24;
     if (settings.showTyreAge) w += 20;
-    if (isRace && settings.showPitPrediction) w += 40;
+    if (isRace && settings.showPitPrediction) w += 40; // pit prediction
+    if (isRace && settings.showPitPrediction && settings.showPitFreeAir) w += 36; // pit gaps (ahead/behind)
     return w;
   })();
 
@@ -329,7 +330,7 @@ export default function ReplayPage() {
 
       {/* Document PiP window — visible across tabs */}
       {pipActive && !isMobile && (
-        <PiPWindow onClose={() => setPipActive(false)} width={365} height={780}>
+        <PiPWindow onClose={() => setPipActive(false)} width={400} height={780}>
           <div className="flex flex-col h-full bg-f1-dark">
             {/* PiP Track Map */}
             <div>

@@ -10,6 +10,9 @@ All notable changes to F1 Timing Replay will be documented in this file.
 - Clipboard paste support for leaderboard sync — users can now paste a screenshot of the F1 TV broadcast leaderboard directly from clipboard (Ctrl+V) instead of uploading a file, with a visual Ctrl+V hint in the UI (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 
 ### Improvements
+- Pit prediction now shows both gap ahead (↑) and gap behind (↓) instead of just free air, giving a clearer picture of track position after pitting
+- Pit return icon replaced with an inline SVG that colour-matches the confidence indicator (red/yellow/default)
+- Sub-settings (Confidence, Pit gaps) now appear visually nested with smaller text and toggles
 - Season schedule data is now fetched on demand from FastF1 when not already in storage, removing the need to run precompute before using the app
 - Leaderboard interval/leader toggle replaced with a clickable pill on the P1 row
 - Leaderboard no longer wastes horizontal space when scaled down to fit shorter viewports

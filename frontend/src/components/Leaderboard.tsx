@@ -258,9 +258,44 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                 <span className="w-9 flex-shrink-0 flex items-center justify-end gap-0.5 ml-1">
                   {drv.pit_prediction != null && (
                     <>
-                      <img src="/pit-return.png" alt="" className="w-3 h-3 opacity-50 invert" />
-                      <span className="text-[10px] font-bold text-f1-muted">
+                      <span className={`flex items-center gap-0.5 text-[10px] font-bold ${
+                        settings.showPitConfidence && drv.pit_prediction_margin != null
+                          ? drv.pit_prediction_margin < 1 ? "text-red-400"
+                          : drv.pit_prediction_margin < 2.5 ? "text-yellow-400"
+                          : "text-f1-muted"
+                          : "text-f1-muted"
+                      }`}>
+                        <svg className="w-4 h-4 opacity-70 -scale-y-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 14l-4-4 4-4" />
+                          <path d="M5 10h11a4 4 0 0 1 0 8h-1" />
+                        </svg>
                         P{drv.pit_prediction}
+                      </span>
+                    </>
+                  )}
+                </span>
+              )}
+
+              {/* Pit gaps (ahead / behind) stacked - race only, shown with pit prediction */}
+              {isRace && settings.showPitPrediction && settings.showPitFreeAir && (
+                <span className="w-9 flex-shrink-0 flex flex-col items-end leading-tight">
+                  {drv.pit_prediction != null && (
+                    <>
+                      <span className="text-[8px] font-bold text-f1-muted">
+                        {drv.pit_prediction_free_air != null
+                          ? `↑${drv.pit_prediction_free_air.toFixed(1)}s`
+                          : "—"}
+                      </span>
+                      <span className={`text-[8px] font-bold ${
+                        settings.showPitConfidence && drv.pit_prediction_margin != null
+                          ? drv.pit_prediction_margin < 1 ? "text-red-400"
+                          : drv.pit_prediction_margin < 2.5 ? "text-yellow-400"
+                          : "text-f1-muted"
+                          : "text-f1-muted"
+                      }`}>
+                        {drv.pit_prediction_margin != null
+                          ? `↓${drv.pit_prediction_margin.toFixed(1)}s`
+                          : "—"}
                       </span>
                     </>
                   )}
