@@ -11,6 +11,11 @@ export interface DriverMarker {
   position: number | null;
 }
 
+export interface SectorOverlay {
+  boundaries: { s1_end: number; s2_end: number; total: number };
+  colors: { s1: string; s2: string; s3: string };
+}
+
 const TRACK_STATUS_COLORS: Record<string, string> = {
   green: "#3A3A4A",
   yellow: "#F5C518",
@@ -26,6 +31,7 @@ export function drawTrack(
   height: number,
   rotation: number,
   trackStatus: string = "green",
+  sectorOverlay?: SectorOverlay | null,
 ) {
   if (points.length === 0) return;
 
@@ -76,26 +82,66 @@ export function drawTrack(
     ];
   }
 
-  // Draw track outline
-  ctx.beginPath();
-  ctx.strokeStyle = TRACK_STATUS_COLORS[trackStatus] || "#3A3A4A";
-  ctx.lineWidth = 12;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+  // Draw track outline (optionally colored by sector)
+  if (sectorOverlay) {
+    const { boundaries, colors } = sectorOverlay;
+    const segments = [
+      { start: 0, end: boundaries.s1_end, color: colors.s1 },
+      { start: boundaries.s1_end, end: boundaries.s2_end, color: colors.s2 },
+      { start: boundaries.s2_end, end: rotated.length - 1, color: colors.s3 },
+    ];
+    // Draw base track first (so gaps between segments aren't visible)
+    ctx.beginPath();
+    ctx.strokeStyle = "#3A3A4A";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const [bx, by] = toScreen(rotated[0]);
+    ctx.moveTo(bx, by);
+    for (let i = 1; i < rotated.length; i++) {
+      const [px, py] = toScreen(rotated[i]);
+      ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
 
-  const [sx, sy] = toScreen(rotated[0]);
-  ctx.moveTo(sx, sy);
-  for (let i = 1; i < rotated.length; i++) {
-    const [px, py] = toScreen(rotated[i]);
-    ctx.lineTo(px, py);
+    // Draw colored sector segments on top
+    for (const seg of segments) {
+      ctx.beginPath();
+      ctx.strokeStyle = seg.color;
+      ctx.lineWidth = 12;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const [sx2, sy2] = toScreen(rotated[seg.start]);
+      ctx.moveTo(sx2, sy2);
+      for (let i = seg.start + 1; i <= seg.end && i < rotated.length; i++) {
+        const [px, py] = toScreen(rotated[i]);
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.strokeStyle = TRACK_STATUS_COLORS[trackStatus] || "#3A3A4A";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    const [sx, sy] = toScreen(rotated[0]);
+    ctx.moveTo(sx, sy);
+    for (let i = 1; i < rotated.length; i++) {
+      const [px, py] = toScreen(rotated[i]);
+      ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
   }
-  ctx.closePath();
-  ctx.stroke();
 
   // Draw track center line
   ctx.beginPath();
   ctx.strokeStyle = "#4A4A5A";
   ctx.lineWidth = 2;
+  const [sx, sy] = toScreen(rotated[0]);
   ctx.moveTo(sx, sy);
   for (let i = 1; i < rotated.length; i++) {
     const [px, py] = toScreen(rotated[i]);

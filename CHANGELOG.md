@@ -2,7 +2,7 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
-## Unreleased
+## 1.1.0 - 2026-03-10
 
 ### New Features
 - Docker Compose support for self-hosting — run the full app with `docker compose up`
@@ -10,6 +10,7 @@ All notable changes to F1 Timing Replay will be documented in this file.
 - Clipboard paste support for leaderboard sync — users can now paste a screenshot of the F1 TV broadcast leaderboard directly from clipboard (Ctrl+V) instead of uploading a file, with a visual Ctrl+V hint in the UI (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 - Pit prediction now shows both gap ahead (↑) and gap behind (↓) after pitting
 - Live sector indicators for qualifying and sprint qualifying. Colour-coded bars (purple/green/yellow) show sector times as they complete during flying laps. Also shown in the telemetry panel. Togglable via settings.
+- Sector overlay on track map during qualifying. Select a driver to see the track coloured by their sector performance (purple/green/yellow). Toggle between two selected drivers with individual buttons.
 
 ### Improvements
 - Pit predictiction now colour coded based on gap to re-enter the field (risk of losing additional place/s) 
@@ -18,7 +19,7 @@ All notable changes to F1 Timing Replay will be documented in this file.
 - Leaderboard no longer wastes horizontal space when scaled down to fit shorter viewports
 
 ### Note
-For live sector indicators to take effect, you'll need to re-run precompute for any Qualifying sessions.
+For live sector indicators and track sector overlay to take effect, you'll need to re-run precompute for any Qualifying sessions.
 
 ## 1.0.1 - 2026-03-07
 

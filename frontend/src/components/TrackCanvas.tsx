@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { drawTrack, drawDrivers, TrackPoint, DriverMarker } from "@/lib/trackRenderer";
+import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
@@ -11,6 +11,7 @@ interface Props {
   highlightedDrivers: string[];
   playbackSpeed?: number;
   showDriverNames?: boolean;
+  sectorOverlay?: SectorOverlay | null;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -27,7 +28,7 @@ interface PosEntry {
 }
 
 
-export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true }: Props) {
+export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -40,6 +41,8 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
   speedRef.current = playbackSpeed;
   const showNamesRef = useRef(showDriverNames);
   showNamesRef.current = showDriverNames;
+  const sectorOverlayRef = useRef(sectorOverlay);
+  sectorOverlayRef.current = sectorOverlay;
 
   // Update targets when drivers prop changes
   useEffect(() => {
@@ -107,7 +110,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current);
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current);
 
       const now = performance.now();
       const curr = driversRef.current;
