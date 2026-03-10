@@ -98,23 +98,41 @@ def _add_pit_predictions(frame: dict, pit_loss_green: float, pit_loss_sc: float,
 
         projected_gap = current_gap + pit_loss
 
+        # Build gap list excluding this driver
+        other_gaps = [g for abbr, g in driver_gaps if abbr != d["abbr"]]
+
         # Find what position this projected gap would be
         predicted_pos = 1
-        for g in gap_values:
+        for g in other_gaps:
             if projected_gap > g:
                 predicted_pos += 1
             else:
                 break
 
-        # Don't count the driver themselves
-        # If they'd be behind everyone, cap at field size
-        predicted_pos = min(predicted_pos, len(driver_gaps))
+        # Cap at field size
+        predicted_pos = min(predicted_pos, len(other_gaps) + 1)
 
         # Only show if they'd lose at least 1 position
         if predicted_pos > (d.get("position") or 0):
             d["pit_prediction"] = predicted_pos
+            # Margin to the driver one position behind
+            behind_idx = predicted_pos - 1  # index into other_gaps for car behind
+            if behind_idx < len(other_gaps):
+                margin = other_gaps[behind_idx] - projected_gap
+                d["pit_prediction_margin"] = round(max(0.0, margin), 3)
+            else:
+                d["pit_prediction_margin"] = None
+            # Free air — gap to the car one position ahead
+            ahead_idx = predicted_pos - 2  # index into other_gaps for car ahead
+            if ahead_idx >= 0:
+                free_air = projected_gap - other_gaps[ahead_idx]
+                d["pit_prediction_free_air"] = round(max(0.0, free_air), 1)
+            else:
+                d["pit_prediction_free_air"] = None
         else:
             d["pit_prediction"] = None
+            d["pit_prediction_margin"] = None
+            d["pit_prediction_free_air"] = None
 
 
 def _sanitize_frame(frame: dict) -> dict:

@@ -11,11 +11,14 @@ import Leaderboard from "@/components/Leaderboard";
 import PlaybackControls from "@/components/PlaybackControls";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
+import PiPWindow from "@/components/PiPWindow";
+import type { SectorOverlay } from "@/lib/trackRenderer";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
   rotation: number;
   circuit_name: string;
+  sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
 }
 
 interface SessionData {
@@ -44,10 +47,17 @@ export default function ReplayPage() {
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
   const [mobileTelemetryOpen, setMobileTelemetryOpen] = useState(false);
+  const [leaderboardScale, setLeaderboardScale] = useState(1);
+  const [pipTrackOpen, setPipTrackOpen] = useState(true);
+  const [pipTelemetryOpen, setPipTelemetryOpen] = useState(false);
+  const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
+  const [showSectorOverlay, setShowSectorOverlay] = useState(false);
+  const [sectorFocusDriver, setSectorFocusDriver] = useState<string | null>(null);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -123,6 +133,28 @@ export default function ReplayPage() {
   const trackStatus = replay.frame?.status || "green";
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
+  const isQualifying = sessionType === "Q" || sessionType === "SQ";
+
+  // Compute sector overlay for track map
+  const SECTOR_HEX: Record<string, string> = { purple: "#A855F7", green: "#22C55E", yellow: "#EAB308" };
+  const DEFAULT_SECTOR = "#3A3A4A";
+  const sectorOverlay: SectorOverlay | null = (() => {
+    if (!isQualifying || !showSectorOverlay || !trackData?.sector_boundaries) return null;
+    const target = (sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver))
+      ? sectorFocusDriver
+      : selectedDrivers[0] ?? null;
+    if (!target) return null;
+    const drv = drivers.find((d) => d.abbr === target);
+    const sectors = drv?.sectors;
+    return {
+      boundaries: trackData.sector_boundaries,
+      colors: {
+        s1: SECTOR_HEX[sectors?.find((s) => s.num === 1)?.color ?? ""] ?? DEFAULT_SECTOR,
+        s2: SECTOR_HEX[sectors?.find((s) => s.num === 2)?.color ?? ""] ?? DEFAULT_SECTOR,
+        s3: SECTOR_HEX[sectors?.find((s) => s.num === 3)?.color ?? ""] ?? DEFAULT_SECTOR,
+      },
+    };
+  })();
 
   // Calculate leaderboard width based on active columns
   const leaderboardWidth = (() => {
@@ -131,11 +163,13 @@ export default function ReplayPage() {
     if (!isRace) w += 18; // pit indicator (P box + margin)
     if (isRace && settings.showGridChange) w += 24;
     if (settings.showGapToLeader) w += 56;
+    if (isQualifying && settings.showSectors) w += 36; // sector indicators (28 + 8 margin)
     if (isRace && settings.showPitStops) w += 24;
     if (isRace && settings.showTyreHistory) w += 36;
     if (settings.showTyreType) w += 24;
     if (settings.showTyreAge) w += 20;
-    if (isRace && settings.showPitPrediction) w += 40;
+    if (isRace && settings.showPitPrediction) w += 40; // pit prediction
+    if (isRace && settings.showPitPrediction && settings.showPitFreeAir) w += 36; // pit gaps (ahead/behind)
     return w;
   })();
 
@@ -213,6 +247,7 @@ export default function ReplayPage() {
                 highlightedDrivers={selectedDrivers}
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
+                sectorOverlay={sectorOverlay}
               />
 
               {/* Telemetry overlay - desktop only */}
@@ -220,11 +255,58 @@ export default function ReplayPage() {
                 <div className="absolute bottom-2 left-8 z-10">
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
-                    return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
                   })}
                   {selectedDrivers.length === 0 && (
                     <TelemetryChart visible driver={null} year={year} />
                   )}
+                </div>
+              )}
+
+              {/* Sector overlay info panel - desktop qualifying only */}
+              {!isMobile && isQualifying && showSectorOverlay && selectedDrivers.length === 0 && (
+                <div className="absolute bottom-2 left-8 z-10">
+                  <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
+                    <p className="text-[10px] text-f1-muted">
+                      Select a driver to view sectors
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Sector overlay toggle - desktop qualifying only */}
+              {!isMobile && isQualifying && trackData?.sector_boundaries && (
+                <div className="absolute bottom-2 right-36 z-20 flex items-center gap-1">
+                  {showSectorOverlay && selectedDrivers.length === 2 && (
+                    selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr);
+                      const isActive = sectorFocusDriver === abbr || (!sectorFocusDriver && abbr === selectedDrivers[0]);
+                      return (
+                        <button
+                          key={abbr}
+                          onClick={() => setSectorFocusDriver(abbr)}
+                          className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
+                            isActive
+                              ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
+                              : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                          }`}
+                        >
+                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: drv?.color }} />
+                          {abbr}
+                        </button>
+                      );
+                    })
+                  )}
+                  <button
+                    onClick={() => setShowSectorOverlay(!showSectorOverlay)}
+                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                      showSectorOverlay
+                        ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
+                        : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                    }`}
+                  >
+                    {showSectorOverlay ? "Hide" : "Show"} Sectors
+                  </button>
                 </div>
               )}
 
@@ -257,7 +339,7 @@ export default function ReplayPage() {
               {selectedDrivers.length > 0 ? (
                 selectedDrivers.map((abbr) => {
                   const drv = drivers.find((d) => d.abbr === abbr) || null;
-                  return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                  return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
                 })
               ) : (
                 <TelemetryChart visible driver={null} year={year} />
@@ -268,7 +350,7 @@ export default function ReplayPage() {
 
         {/* Leaderboard section */}
         {settings.showLeaderboard && (
-          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : leaderboardWidth }}>
+          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : Math.ceil(leaderboardWidth * leaderboardScale) }}>
             {/* Mobile section header */}
             {isMobile && (
               <button
@@ -290,6 +372,8 @@ export default function ReplayPage() {
                 settings={settings}
                 currentTime={replay.frame?.timestamp || 0}
                 isRace={isRace}
+                isQualifying={isQualifying}
+                onScaleChange={setLeaderboardScale}
               />
             )}
           </div>
@@ -314,9 +398,149 @@ export default function ReplayPage() {
         onReset={replay.reset}
         isRace={isRace}
         onSyncPhoto={() => setShowSyncPhoto(true)}
+        onPiP={!isMobile ? () => setPipActive(true) : undefined}
+        pipActive={pipActive}
         qualiPhase={replay.frame?.quali_phase}
         qualiPhases={replay.qualiPhases}
       />
+
+      {/* Document PiP window — visible across tabs */}
+      {pipActive && !isMobile && (
+        <PiPWindow onClose={() => setPipActive(false)} width={400} height={780}>
+          <div className="flex flex-col h-full bg-f1-dark">
+            {/* PiP Track Map */}
+            <div>
+              <button
+                onClick={() => setPipTrackOpen(!pipTrackOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTrackOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipTrackOpen && (
+                <div className="relative" style={{ height: "40vh" }}>
+                  {trackStatus !== "green" && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+                      <div
+                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                          trackStatus === "red"
+                            ? "bg-red-600 text-white"
+                            : trackStatus === "sc"
+                            ? "bg-yellow-500 text-black"
+                            : trackStatus === "vsc"
+                            ? "bg-yellow-500/80 text-black"
+                            : "bg-yellow-400 text-black"
+                        }`}
+                      >
+                        {trackStatus === "red"
+                          ? "Red Flag"
+                          : trackStatus === "sc"
+                          ? "Safety Car"
+                          : trackStatus === "vsc"
+                          ? "Virtual Safety Car"
+                          : "Yellow Flag"}
+                      </div>
+                    </div>
+                  )}
+                  <TrackCanvas
+                    trackPoints={trackPoints}
+                    rotation={rotation}
+                    trackStatus={trackStatus}
+                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                      abbr: d.abbr,
+                      x: d.x,
+                      y: d.y,
+                      color: d.color,
+                      position: d.position,
+                    }))}
+                    highlightedDrivers={selectedDrivers}
+                    playbackSpeed={replay.speed}
+                    showDriverNames={settings.showDriverNames}
+                    sectorOverlay={sectorOverlay}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* PiP Telemetry */}
+            <div className="border-t border-f1-border">
+              <button
+                onClick={() => setPipTelemetryOpen(!pipTelemetryOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipTelemetryOpen && (
+                <div className="bg-f1-card px-3 py-2 space-y-1">
+                  {selectedDrivers.length > 0 ? (
+                    selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr) || null;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                    })
+                  ) : (
+                    <TelemetryChart visible driver={null} year={year} />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* PiP Leaderboard */}
+            <div className="flex-1 min-h-0 flex flex-col border-t border-f1-border">
+              <button
+                onClick={() => setPipLeaderboardOpen(!pipLeaderboardOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border flex-shrink-0"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipLeaderboardOpen && (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <Leaderboard
+                    drivers={drivers}
+                    highlightedDrivers={selectedDrivers}
+                    onDriverClick={handleDriverClick}
+                    settings={settings}
+                    currentTime={replay.frame?.timestamp || 0}
+                    isRace={isRace}
+                    isQualifying={isQualifying}
+                    compact
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* PiP Playback Controls */}
+            <div className="flex-shrink-0">
+              <PlaybackControls
+                playing={replay.playing}
+                speed={replay.speed}
+                currentTime={replay.frame?.timestamp || 0}
+                totalTime={replay.totalTime}
+                currentLap={replay.frame?.lap || 0}
+                totalLaps={replay.totalLaps}
+                finished={replay.finished}
+                showSessionTime={settings.showSessionTime}
+                onPlay={replay.play}
+                onPause={replay.pause}
+                onSpeedChange={replay.setSpeed}
+                onSeek={replay.seek}
+                onSeekToLap={replay.seekToLap}
+                onReset={replay.reset}
+                isRace={isRace}
+                qualiPhase={replay.frame?.quali_phase}
+                qualiPhases={replay.qualiPhases}
+              />
+            </div>
+          </div>
+        </PiPWindow>
+      )}
 
       {/* Sync with photo modal */}
       {showSyncPhoto && (
