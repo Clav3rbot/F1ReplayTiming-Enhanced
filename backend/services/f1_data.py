@@ -272,12 +272,34 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     x_norm = ((x - x_min) / scale).tolist()
     y_norm = ((y - y_min) / scale).tolist()
 
+    # Compute sector boundaries from fastest lap sector session times
+    sector_boundaries = None
+    try:
+        s1_session_time = fastest_lap["Sector1SessionTime"]
+        s2_session_time = fastest_lap["Sector2SessionTime"]
+        if pd.notna(s1_session_time) and pd.notna(s2_session_time):
+            session_times = telemetry["SessionTime"]
+            s1_idx = int((session_times - s1_session_time).abs().idxmin())
+            s2_idx = int((session_times - s2_session_time).abs().idxmin())
+            # Convert DataFrame index to positional index
+            s1_pos = telemetry.index.get_loc(s1_idx)
+            s2_pos = telemetry.index.get_loc(s2_idx)
+            sector_boundaries = {
+                "s1_end": int(s1_pos),
+                "s2_end": int(s2_pos),
+                "total": len(telemetry),
+            }
+            logger.info(f"Sector boundaries: S1 ends at point {s1_pos}/{len(telemetry)}, S2 ends at {s2_pos}/{len(telemetry)}")
+    except Exception as e:
+        logger.warning(f"Could not compute sector boundaries: {e}")
+
     return {
         "track_points": [{"x": px, "y": py} for px, py in zip(x_norm, y_norm)],
         "rotation": rotation,
         "circuit_name": str(session.event.get("Location", "")),
         # Raw normalization params so driver positions use the same reference
         "norm": {"x_min": x_min, "y_min": y_min, "scale": scale},
+        "sector_boundaries": sector_boundaries,
     }
 
 

@@ -12,11 +12,13 @@ import PlaybackControls from "@/components/PlaybackControls";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
+import type { SectorOverlay } from "@/lib/trackRenderer";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
   rotation: number;
   circuit_name: string;
+  sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
 }
 
 interface SessionData {
@@ -54,6 +56,8 @@ export default function ReplayPage() {
   const [pipTrackOpen, setPipTrackOpen] = useState(true);
   const [pipTelemetryOpen, setPipTelemetryOpen] = useState(false);
   const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
+  const [showSectorOverlay, setShowSectorOverlay] = useState(false);
+  const [sectorFocusDriver, setSectorFocusDriver] = useState<string | null>(null);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -130,6 +134,27 @@ export default function ReplayPage() {
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
+
+  // Compute sector overlay for track map
+  const SECTOR_HEX: Record<string, string> = { purple: "#A855F7", green: "#22C55E", yellow: "#EAB308" };
+  const DEFAULT_SECTOR = "#3A3A4A";
+  const sectorOverlay: SectorOverlay | null = (() => {
+    if (!isQualifying || !showSectorOverlay || !trackData?.sector_boundaries) return null;
+    const target = (sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver))
+      ? sectorFocusDriver
+      : selectedDrivers[0] ?? null;
+    if (!target) return null;
+    const drv = drivers.find((d) => d.abbr === target);
+    const sectors = drv?.sectors;
+    return {
+      boundaries: trackData.sector_boundaries,
+      colors: {
+        s1: SECTOR_HEX[sectors?.find((s) => s.num === 1)?.color ?? ""] ?? DEFAULT_SECTOR,
+        s2: SECTOR_HEX[sectors?.find((s) => s.num === 2)?.color ?? ""] ?? DEFAULT_SECTOR,
+        s3: SECTOR_HEX[sectors?.find((s) => s.num === 3)?.color ?? ""] ?? DEFAULT_SECTOR,
+      },
+    };
+  })();
 
   // Calculate leaderboard width based on active columns
   const leaderboardWidth = (() => {
@@ -222,6 +247,7 @@ export default function ReplayPage() {
                 highlightedDrivers={selectedDrivers}
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
+                sectorOverlay={sectorOverlay}
               />
 
               {/* Telemetry overlay - desktop only */}
@@ -234,6 +260,53 @@ export default function ReplayPage() {
                   {selectedDrivers.length === 0 && (
                     <TelemetryChart visible driver={null} year={year} />
                   )}
+                </div>
+              )}
+
+              {/* Sector overlay info panel - desktop qualifying only */}
+              {!isMobile && isQualifying && showSectorOverlay && selectedDrivers.length === 0 && (
+                <div className="absolute bottom-2 left-8 z-10">
+                  <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
+                    <p className="text-[10px] text-f1-muted">
+                      Select a driver to view sectors
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Sector overlay toggle - desktop qualifying only */}
+              {!isMobile && isQualifying && trackData?.sector_boundaries && (
+                <div className="absolute bottom-2 right-36 z-20 flex items-center gap-1">
+                  {showSectorOverlay && selectedDrivers.length === 2 && (
+                    selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr);
+                      const isActive = sectorFocusDriver === abbr || (!sectorFocusDriver && abbr === selectedDrivers[0]);
+                      return (
+                        <button
+                          key={abbr}
+                          onClick={() => setSectorFocusDriver(abbr)}
+                          className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
+                            isActive
+                              ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
+                              : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                          }`}
+                        >
+                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: drv?.color }} />
+                          {abbr}
+                        </button>
+                      );
+                    })
+                  )}
+                  <button
+                    onClick={() => setShowSectorOverlay(!showSectorOverlay)}
+                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                      showSectorOverlay
+                        ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
+                        : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                    }`}
+                  >
+                    {showSectorOverlay ? "Hide" : "Show"} Sectors
+                  </button>
                 </div>
               )}
 
@@ -385,6 +458,7 @@ export default function ReplayPage() {
                     highlightedDrivers={selectedDrivers}
                     playbackSpeed={replay.speed}
                     showDriverNames={settings.showDriverNames}
+                    sectorOverlay={sectorOverlay}
                   />
                 </div>
               )}
