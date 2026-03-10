@@ -116,7 +116,7 @@ export default function PlaybackControls({
   return (
     <div className="bg-f1-card border-t border-f1-border fixed bottom-0 left-0 right-0 z-40 sm:relative sm:z-auto">
       {/* Mobile: compact bar always visible */}
-      <div className="sm:hidden px-3 pt-2 pb-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))" }}>
+      <div className="sm:hidden px-3 pt-2 pb-4" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
         <div className="mb-2">{progressBar}</div>
         <div className="flex items-center gap-2">
           {playPauseBtn}
@@ -151,7 +151,7 @@ export default function PlaybackControls({
 
       {/* Mobile: expanded controls */}
       {expanded && (
-        <div className="sm:hidden px-3 space-y-2 border-t border-f1-border/50 pt-2 pb-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))" }}>
+        <div className="sm:hidden px-3 space-y-2 border-t border-f1-border/50 pt-2 pb-4" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
           {/* Skip buttons */}
           <div className="flex items-center justify-center gap-1">
             {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (

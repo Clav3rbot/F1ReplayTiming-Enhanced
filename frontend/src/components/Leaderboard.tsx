@@ -13,6 +13,7 @@ interface Props {
   currentTime: number;
   isRace: boolean;
   compact?: boolean;
+  onScaleChange?: (scale: number) => void;
 }
 
 function formatGap(gap: string | null): string {
@@ -71,7 +72,7 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, compact }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, compact, onScaleChange }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,26 +82,29 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     function updateScale() {
       if (compact) {
         setScale(1);
+        onScaleChange?.(1);
         return;
       }
       if (!containerRef.current || !contentRef.current) return;
       // On mobile (< 640px), don't scale - let it scroll instead
       if (window.innerWidth < 640) {
         setScale(1);
+        onScaleChange?.(1);
         return;
       }
       const containerH = containerRef.current.clientHeight;
       const contentH = contentRef.current.scrollHeight;
+      let newScale = 1;
       if (contentH > containerH && contentH > 0) {
-        setScale(Math.max(0.55, containerH / contentH));
-      } else {
-        setScale(1);
+        newScale = Math.max(0.55, containerH / contentH);
       }
+      setScale(newScale);
+      onScaleChange?.(newScale);
     }
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [drivers.length, settings.showGapToLeader, isRace, compact]);
+  }, [drivers.length, settings.showGapToLeader, isRace, compact, onScaleChange]);
 
   const sorted = [...drivers].sort(
     (a, b) => (a.position ?? 999) - (b.position ?? 999),
@@ -111,27 +115,6 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
   return (
     <div ref={containerRef} className={`bg-f1-card border-f1-border h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
       <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%` }}>
-      {/* Interval / Leader toggle - race only */}
-      {isRace && settings.showGapToLeader && (
-        <div className="flex border-b border-f1-border/50">
-          <button
-            onClick={() => setShowInterval(true)}
-            className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors ${
-              showInterval ? "text-white bg-white/5" : "text-f1-muted hover:text-white"
-            }`}
-          >
-            Interval
-          </button>
-          <button
-            onClick={() => setShowInterval(false)}
-            className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors ${
-              !showInterval ? "text-white bg-white/5" : "text-f1-muted hover:text-white"
-            }`}
-          >
-            Leader
-          </button>
-        </div>
-      )}
 
       <div className="divide-y divide-f1-border/50">
         {sorted.map((drv) => {
@@ -243,9 +226,20 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Gap / best time - 56px */}
               {settings.showGapToLeader && (
-                <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && isRace && !drv.retired ? "text-yellow-400" : isRace ? "text-f1-muted" : drv.position === 1 ? "text-purple-400" : "text-f1-muted"}`}>
-                  {displayGap}
-                </span>
+                isRace && isLeader && !drv.retired ? (
+                  <span
+                    className="w-14 flex-shrink-0 flex justify-end"
+                    onClick={(e) => { e.stopPropagation(); setShowInterval(!showInterval); }}
+                  >
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white cursor-pointer hover:bg-white/20 transition-colors">
+                      {showInterval ? "Interval" : "Leader"}
+                    </span>
+                  </span>
+                ) : (
+                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && isRace && !drv.retired ? "text-yellow-400" : isRace ? "text-f1-muted" : drv.position === 1 ? "text-purple-400" : "text-f1-muted"}`}>
+                    {displayGap}
+                  </span>
+                )
               )}
 
               {/* Pit stops - 20px (race only) */}

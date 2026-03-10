@@ -6,10 +6,13 @@ All notable changes to F1 Timing Replay will be documented in this file.
 
 ### New Features
 - Docker Compose support for self-hosting — run the full app with `docker compose up`
+- Picture-in-Picture popup window with collapsible track map, telemetry, and leaderboard sections (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 - Clipboard paste support for leaderboard sync — users can now paste a screenshot of the F1 TV broadcast leaderboard directly from clipboard (Ctrl+V) instead of uploading a file, with a visual Ctrl+V hint in the UI (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 
 ### Improvements
 - Season schedule data is now fetched on demand from FastF1 when not already in storage, removing the need to run precompute before using the app
+- Leaderboard interval/leader toggle replaced with a clickable pill on the P1 row
+- Leaderboard no longer wastes horizontal space when scaled down to fit shorter viewports
 
 ## 1.0.1 - 2026-03-07
 

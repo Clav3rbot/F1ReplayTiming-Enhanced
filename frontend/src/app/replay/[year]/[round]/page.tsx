@@ -50,6 +50,10 @@ export default function ReplayPage() {
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
   const [mobileTelemetryOpen, setMobileTelemetryOpen] = useState(false);
+  const [leaderboardScale, setLeaderboardScale] = useState(1);
+  const [pipTrackOpen, setPipTrackOpen] = useState(true);
+  const [pipTelemetryOpen, setPipTelemetryOpen] = useState(false);
+  const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -270,7 +274,7 @@ export default function ReplayPage() {
 
         {/* Leaderboard section */}
         {settings.showLeaderboard && (
-          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : leaderboardWidth }}>
+          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : Math.ceil(leaderboardWidth * leaderboardScale) }}>
             {/* Mobile section header */}
             {isMobile && (
               <button
@@ -292,6 +296,7 @@ export default function ReplayPage() {
                 settings={settings}
                 currentTime={replay.frame?.timestamp || 0}
                 isRace={isRace}
+                onScaleChange={setLeaderboardScale}
               />
             )}
           </div>
@@ -324,61 +329,112 @@ export default function ReplayPage() {
 
       {/* Document PiP window — visible across tabs */}
       {pipActive && !isMobile && (
-        <PiPWindow onClose={() => setPipActive(false)} width={520} height={780}>
+        <PiPWindow onClose={() => setPipActive(false)} width={365} height={780}>
           <div className="flex flex-col h-full bg-f1-dark">
             {/* PiP Track Map */}
-            <div className="flex-1 min-h-0 relative">
-              {trackStatus !== "green" && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-                  <div
-                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                      trackStatus === "red"
-                        ? "bg-red-600 text-white"
-                        : trackStatus === "sc"
-                        ? "bg-yellow-500 text-black"
-                        : trackStatus === "vsc"
-                        ? "bg-yellow-500/80 text-black"
-                        : "bg-yellow-400 text-black"
-                    }`}
-                  >
-                    {trackStatus === "red"
-                      ? "Red Flag"
-                      : trackStatus === "sc"
-                      ? "Safety Car"
-                      : trackStatus === "vsc"
-                      ? "Virtual Safety Car"
-                      : "Yellow Flag"}
-                  </div>
+            <div>
+              <button
+                onClick={() => setPipTrackOpen(!pipTrackOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTrackOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipTrackOpen && (
+                <div className="relative" style={{ height: "40vh" }}>
+                  {trackStatus !== "green" && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+                      <div
+                        className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                          trackStatus === "red"
+                            ? "bg-red-600 text-white"
+                            : trackStatus === "sc"
+                            ? "bg-yellow-500 text-black"
+                            : trackStatus === "vsc"
+                            ? "bg-yellow-500/80 text-black"
+                            : "bg-yellow-400 text-black"
+                        }`}
+                      >
+                        {trackStatus === "red"
+                          ? "Red Flag"
+                          : trackStatus === "sc"
+                          ? "Safety Car"
+                          : trackStatus === "vsc"
+                          ? "Virtual Safety Car"
+                          : "Yellow Flag"}
+                      </div>
+                    </div>
+                  )}
+                  <TrackCanvas
+                    trackPoints={trackPoints}
+                    rotation={rotation}
+                    trackStatus={trackStatus}
+                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                      abbr: d.abbr,
+                      x: d.x,
+                      y: d.y,
+                      color: d.color,
+                      position: d.position,
+                    }))}
+                    highlightedDrivers={selectedDrivers}
+                    playbackSpeed={replay.speed}
+                    showDriverNames={settings.showDriverNames}
+                  />
                 </div>
               )}
-              <TrackCanvas
-                trackPoints={trackPoints}
-                rotation={rotation}
-                trackStatus={trackStatus}
-                drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
-                  abbr: d.abbr,
-                  x: d.x,
-                  y: d.y,
-                  color: d.color,
-                  position: d.position,
-                }))}
-                highlightedDrivers={selectedDrivers}
-                playbackSpeed={replay.speed}
-                showDriverNames={settings.showDriverNames}
-              />
+            </div>
+
+            {/* PiP Telemetry */}
+            <div className="border-t border-f1-border">
+              <button
+                onClick={() => setPipTelemetryOpen(!pipTelemetryOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipTelemetryOpen && (
+                <div className="bg-f1-card px-3 py-2 space-y-1">
+                  {selectedDrivers.length > 0 ? (
+                    selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr) || null;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                    })
+                  ) : (
+                    <TelemetryChart visible driver={null} year={year} />
+                  )}
+                </div>
+              )}
             </div>
 
             {/* PiP Leaderboard */}
-            <div className="flex-1 min-h-0 overflow-y-auto border-t border-f1-border">
-              <Leaderboard
-                drivers={drivers}
-                highlightedDrivers={selectedDrivers}
-                onDriverClick={handleDriverClick}
-                settings={settings}
-                currentTime={replay.frame?.timestamp || 0}
-                isRace={isRace}
-                compact
-              />
+            <div className="flex-1 min-h-0 flex flex-col border-t border-f1-border">
+              <button
+                onClick={() => setPipLeaderboardOpen(!pipLeaderboardOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border flex-shrink-0"
+              >
+                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
+                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {pipLeaderboardOpen && (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <Leaderboard
+                    drivers={drivers}
+                    highlightedDrivers={selectedDrivers}
+                    onDriverClick={handleDriverClick}
+                    settings={settings}
+                    currentTime={replay.frame?.timestamp || 0}
+                    isRace={isRace}
+                    compact
+                  />
+                </div>
+              )}
             </div>
 
             {/* PiP Playback Controls */}
