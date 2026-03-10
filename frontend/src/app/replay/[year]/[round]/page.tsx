@@ -11,6 +11,7 @@ import Leaderboard from "@/components/Leaderboard";
 import PlaybackControls from "@/components/PlaybackControls";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
+import PiPWindow from "@/components/PiPWindow";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
@@ -44,6 +45,7 @@ export default function ReplayPage() {
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
@@ -314,9 +316,96 @@ export default function ReplayPage() {
         onReset={replay.reset}
         isRace={isRace}
         onSyncPhoto={() => setShowSyncPhoto(true)}
+        onPiP={!isMobile ? () => setPipActive(true) : undefined}
+        pipActive={pipActive}
         qualiPhase={replay.frame?.quali_phase}
         qualiPhases={replay.qualiPhases}
       />
+
+      {/* Document PiP window — visible across tabs */}
+      {pipActive && !isMobile && (
+        <PiPWindow onClose={() => setPipActive(false)} width={520} height={780}>
+          <div className="flex flex-col h-full bg-f1-dark">
+            {/* PiP Track Map */}
+            <div className="flex-1 min-h-0 relative">
+              {trackStatus !== "green" && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+                  <div
+                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                      trackStatus === "red"
+                        ? "bg-red-600 text-white"
+                        : trackStatus === "sc"
+                        ? "bg-yellow-500 text-black"
+                        : trackStatus === "vsc"
+                        ? "bg-yellow-500/80 text-black"
+                        : "bg-yellow-400 text-black"
+                    }`}
+                  >
+                    {trackStatus === "red"
+                      ? "Red Flag"
+                      : trackStatus === "sc"
+                      ? "Safety Car"
+                      : trackStatus === "vsc"
+                      ? "Virtual Safety Car"
+                      : "Yellow Flag"}
+                  </div>
+                </div>
+              )}
+              <TrackCanvas
+                trackPoints={trackPoints}
+                rotation={rotation}
+                trackStatus={trackStatus}
+                drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                  abbr: d.abbr,
+                  x: d.x,
+                  y: d.y,
+                  color: d.color,
+                  position: d.position,
+                }))}
+                highlightedDrivers={selectedDrivers}
+                playbackSpeed={replay.speed}
+                showDriverNames={settings.showDriverNames}
+              />
+            </div>
+
+            {/* PiP Leaderboard */}
+            <div className="flex-1 min-h-0 overflow-y-auto border-t border-f1-border">
+              <Leaderboard
+                drivers={drivers}
+                highlightedDrivers={selectedDrivers}
+                onDriverClick={handleDriverClick}
+                settings={settings}
+                currentTime={replay.frame?.timestamp || 0}
+                isRace={isRace}
+                compact
+              />
+            </div>
+
+            {/* PiP Playback Controls */}
+            <div className="flex-shrink-0">
+              <PlaybackControls
+                playing={replay.playing}
+                speed={replay.speed}
+                currentTime={replay.frame?.timestamp || 0}
+                totalTime={replay.totalTime}
+                currentLap={replay.frame?.lap || 0}
+                totalLaps={replay.totalLaps}
+                finished={replay.finished}
+                showSessionTime={settings.showSessionTime}
+                onPlay={replay.play}
+                onPause={replay.pause}
+                onSpeedChange={replay.setSpeed}
+                onSeek={replay.seek}
+                onSeekToLap={replay.seekToLap}
+                onReset={replay.reset}
+                isRace={isRace}
+                qualiPhase={replay.frame?.quali_phase}
+                qualiPhases={replay.qualiPhases}
+              />
+            </div>
+          </div>
+        </PiPWindow>
+      )}
 
       {/* Sync with photo modal */}
       {showSyncPhoto && (
