@@ -25,7 +25,7 @@ const SESSION_LABELS: Record<string, string> = {
   FP3: "Practice 3",
 };
 
-const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
+const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; qualiOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
   { key: "showTeamAbbr", label: "Team" },
   { key: "showGridChange", label: "Grid position change", raceOnly: true },
   { key: "showGapToLeader", label: "Gap" },
@@ -33,6 +33,7 @@ const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly
   { key: "showTyreType", label: "Tyre type" },
   { key: "showTyreAge", label: "Tyre age" },
   { key: "showTyreHistory", label: "Tyre history", raceOnly: true },
+  { key: "showSectors", label: "Live sectors", qualiOnly: true },
   { key: "showPitPrediction", label: "Pit prediction", raceOnly: true, badge: "Beta" },
   { key: "showPitConfidence", label: "Confidence", raceOnly: true, parent: "showPitPrediction" },
   { key: "showPitFreeAir", label: "Pit gaps", raceOnly: true, parent: "showPitPrediction" },
@@ -63,6 +64,7 @@ export default function SessionBanner({
 }: Props) {
   const settings = settingsProp || DEFAULT_SETTINGS;
   const isRace = sessionType === "R" || sessionType === "S";
+  const isQualifying = sessionType === "Q" || sessionType === "SQ";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -215,7 +217,7 @@ export default function SessionBanner({
                     />
                   </div>
                 </button>
-                {LEADERBOARD_SETTINGS.filter(s => !s.raceOnly || isRace).map(({ key, label, badge, parent }) => {
+                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
                   const parentOff = parent ? !settings[parent] : false;
                   const disabled = !settings.showLeaderboard || parentOff;
                   return (

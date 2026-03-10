@@ -22,6 +22,7 @@ export interface ReplaySettings {
   showPitPrediction: boolean;
   showPitConfidence: boolean;
   showPitFreeAir: boolean;
+  showSectors: boolean;
 }
 
 const STORAGE_KEY = "f1replay_settings";
@@ -46,6 +47,7 @@ export const DEFAULTS: ReplaySettings = {
   showPitPrediction: true,
   showPitConfidence: true,
   showPitFreeAir: true,
+  showSectors: true,
 };
 
 function loadSettings(): ReplaySettings {

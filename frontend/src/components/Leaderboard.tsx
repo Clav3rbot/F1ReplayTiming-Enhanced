@@ -12,6 +12,7 @@ interface Props {
   settings: ReplaySettings;
   currentTime: number;
   isRace: boolean;
+  isQualifying?: boolean;
   compact?: boolean;
   onScaleChange?: (scale: number) => void;
 }
@@ -72,7 +73,7 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, compact, onScaleChange }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, compact, onScaleChange }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -240,6 +241,26 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     {displayGap}
                   </span>
                 )
+              )}
+
+              {/* Live sector indicators - fixed width (qualifying only) */}
+              {isQualifying && settings.showSectors && (
+                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1">
+                  {[1, 2, 3].map((sn) => {
+                    const sec = drv.sectors?.find((s) => s.num === sn);
+                    const bg = sec
+                      ? sec.color === "purple" ? "bg-purple-500"
+                      : sec.color === "green" ? "bg-green-500"
+                      : "bg-yellow-500"
+                      : "bg-white/15";
+                    return (
+                      <span
+                        key={sn}
+                        className={`w-[6px] h-[14px] rounded-[1px] ${bg}`}
+                      />
+                    );
+                  })}
+                </span>
               )}
 
               {/* Pit stops - 20px (race only) */}

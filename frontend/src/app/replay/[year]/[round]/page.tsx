@@ -129,6 +129,7 @@ export default function ReplayPage() {
   const trackStatus = replay.frame?.status || "green";
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
+  const isQualifying = sessionType === "Q" || sessionType === "SQ";
 
   // Calculate leaderboard width based on active columns
   const leaderboardWidth = (() => {
@@ -137,6 +138,7 @@ export default function ReplayPage() {
     if (!isRace) w += 18; // pit indicator (P box + margin)
     if (isRace && settings.showGridChange) w += 24;
     if (settings.showGapToLeader) w += 56;
+    if (isQualifying && settings.showSectors) w += 36; // sector indicators (28 + 8 margin)
     if (isRace && settings.showPitStops) w += 24;
     if (isRace && settings.showTyreHistory) w += 36;
     if (settings.showTyreType) w += 24;
@@ -227,7 +229,7 @@ export default function ReplayPage() {
                 <div className="absolute bottom-2 left-8 z-10">
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
-                    return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
                   })}
                   {selectedDrivers.length === 0 && (
                     <TelemetryChart visible driver={null} year={year} />
@@ -264,7 +266,7 @@ export default function ReplayPage() {
               {selectedDrivers.length > 0 ? (
                 selectedDrivers.map((abbr) => {
                   const drv = drivers.find((d) => d.abbr === abbr) || null;
-                  return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                  return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
                 })
               ) : (
                 <TelemetryChart visible driver={null} year={year} />
@@ -297,6 +299,7 @@ export default function ReplayPage() {
                 settings={settings}
                 currentTime={replay.frame?.timestamp || 0}
                 isRace={isRace}
+                isQualifying={isQualifying}
                 onScaleChange={setLeaderboardScale}
               />
             )}
@@ -403,7 +406,7 @@ export default function ReplayPage() {
                   {selectedDrivers.length > 0 ? (
                     selectedDrivers.map((abbr) => {
                       const drv = drivers.find((d) => d.abbr === abbr) || null;
-                      return <TelemetryChart key={abbr} visible driver={drv} year={year} />;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
                     })
                   ) : (
                     <TelemetryChart visible driver={null} year={year} />
@@ -432,6 +435,7 @@ export default function ReplayPage() {
                     settings={settings}
                     currentTime={replay.frame?.timestamp || 0}
                     isRace={isRace}
+                    isQualifying={isQualifying}
                     compact
                   />
                 </div>
