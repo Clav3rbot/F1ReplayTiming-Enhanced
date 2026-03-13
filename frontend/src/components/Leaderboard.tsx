@@ -105,7 +105,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [drivers.length, settings.showGapToLeader, isRace, compact, onScaleChange]);
+  }, [drivers.length, settings.showGapToLeader, settings.showBestLapTime, isRace, compact, onScaleChange]);
 
   const sorted = [...drivers].sort(
     (a, b) => (a.position ?? 999) - (b.position ?? 999),
@@ -132,6 +132,11 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
             if (drv.gap === "No time") return "No time";
             if (isRace && intervals) {
               return intervals.get(drv.abbr) || formatGap(drv.gap);
+            }
+            if (!isRace) {
+              // For practice/qualifying: gap column shows gap to leader
+              if (drv.position === 1) return "";
+              return formatGap(drv.gap);
             }
             return formatGap(drv.gap);
           })();
@@ -205,8 +210,8 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               )}
 
               {/* Flags - 16px */}
-              <span className="w-4 flex-shrink-0 flex items-center justify-center">
-                {drv.has_fastest_lap && (
+              <span className={`w-4 flex-shrink-0 flex items-center justify-center ${!isRace ? "ml-1.5" : ""}`}>
+                {isRace && drv.has_fastest_lap && (
                   <svg className="w-3.5 h-3.5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
                     <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" />
                     <path d="M12 6v7l4.5 2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
@@ -225,7 +230,14 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                 )}
               </span>
 
-              {/* Gap / best time - 56px */}
+              {/* Best lap time (practice/qualifying only) */}
+              {!isRace && settings.showBestLapTime && (
+                <span className={`w-[60px] flex-shrink-0 text-xs font-bold text-right ${drv.position === 1 ? "text-purple-400" : "text-white"}`}>
+                  {drv.retired ? "Out" : (drv.best_lap_time || (drv.position === 1 ? formatGap(drv.gap) : null) || "")}
+                </span>
+              )}
+
+              {/* Gap to leader */}
               {settings.showGapToLeader && (
                 isRace && isLeader && !drv.retired ? (
                   <span
@@ -236,8 +248,12 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                       {showInterval ? "Interval" : "Leader"}
                     </span>
                   </span>
+                ) : isRace ? (
+                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && !drv.retired ? "text-yellow-400" : "text-f1-muted"}`}>
+                    {displayGap}
+                  </span>
                 ) : (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && isRace && !drv.retired ? "text-yellow-400" : isRace ? "text-f1-muted" : drv.position === 1 ? "text-purple-400" : "text-f1-muted"}`}>
+                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right text-f1-muted`}>
                     {displayGap}
                   </span>
                 )

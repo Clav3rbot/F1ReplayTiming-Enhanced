@@ -1,20 +1,26 @@
 <h1><img src="https://github.com/user-attachments/assets/158de3d0-8bd5-41a5-a34d-a3a92471cf96" width="50" align="absmiddle" /> F1 Replay Timing</h1>
 
 
-https://github.com/user-attachments/assets/618597ae-d6e6-4793-bc4d-3f72dd410973
+
+
+https://github.com/user-attachments/assets/952b8634-2470-46d9-96e2-67a820459a49
+
 
 
 > **Disclaimer:** This project is intended for **personal, non-commercial use only**. This website is unofficial and is not associated in any way with the Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks are trade marks of Formula One Licensing B.V.
 
-A web app that lets you replay past Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more. Built with Next.js and FastAPI.
+A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more - both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
 
 ## Features
 
+- **Live timing** (Beta) - connect to live F1 sessions during race weekends with real-time data from the F1 SignalR stream, including a broadcast delay slider and automatic detection of post-session replays
 - **Track map** with real-time car positions from GPS telemetry, updating every 0.5 seconds with smooth interpolation
-- **Driver leaderboard** sourced from the official F1 live timing feed, showing position, gap to leader, tyre compound and age, tyre history, pit stop count, grid position changes, and fastest lap indicator
-- **Pit position prediction** (Beta) estimates where a driver would rejoin if they pitted now, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
+- **Driver leaderboard** showing position, gap to leader, interval, tyre compound and age, tyre history, pit stop count, grid position changes, fastest lap indicator, and investigation/penalty status
+- **Race control messages** - steward decisions, investigations, penalties, track limits, and flag changes displayed in a resizable overlay on the track map
+- **Pit position prediction** (Beta) estimates where a driver would rejoin if they pitted now, with predicted gap ahead and behind, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
 - **Telemetry** for any driver showing speed, throttle, brake, gear, and DRS (2025 and earlier) plotted against track distance
-- **Broadcast sync** lets you match the replay to a recording of a session, either by uploading a screenshot of the timing tower (using AI vision) or by manually entering gap times
+- **Picture-in-Picture** mode for a compact floating window with track map, race control, leaderboard, and telemetry
+- **Broadcast sync** - match the replay to a recording of a session, either by uploading a screenshot of the timing tower (using AI vision) or by manually entering gap times
 - **Weather data** including air and track temperature, humidity, wind, and rainfall status
 - **Track status flags** for green, yellow, Safety Car, Virtual Safety Car, and red flag conditions
 - **Playback controls** with 0.5x to 20x speed, skip buttons (5s, 30s, 1m, 5m), lap jumping, and a progress bar
@@ -31,9 +37,48 @@ Session data is processed once and stored locally (or in R2 for remote access). 
 
 ## Self-Hosting Guide
 
-### Option A: Docker (recommended)
+### Option A: Docker with pre-built images (easiest)
 
 Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/adn8naiagent/f1replaytiming-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - FRONTEND_URL=http://localhost:3000
+      - DATA_DIR=/data
+    volumes:
+      - f1data:/data
+      - f1cache:/data/fastf1-cache
+
+  frontend:
+    image: ghcr.io/adn8naiagent/f1replaytiming-frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  f1data:
+  f1cache:
+```
+
+Then run:
+
+```bash
+docker compose up
+```
+
+Open http://localhost:3000. Select any past session and it will be processed on demand.
+
+### Option B: Docker from source
+
+If you prefer to build the images yourself, or want to make changes to the code:
 
 ```bash
 git clone <repo-url>
@@ -43,9 +88,15 @@ docker compose up
 
 Open http://localhost:3000. Select any past session and it will be processed on demand.
 
+### Docker configuration
+
 To enable optional features, edit the environment variables in `docker-compose.yml`:
-- `OPENROUTER_API_KEY` — enables the photo sync feature ([get a key](https://openrouter.ai/))
-- `AUTH_ENABLED` / `AUTH_PASSPHRASE` — restricts access with a passphrase
+- `OPENROUTER_API_KEY` - enables the photo sync feature ([get a key](https://openrouter.ai/))
+- `AUTH_ENABLED` / `AUTH_PASSPHRASE` - restricts access with a passphrase
+
+If you change ports, make sure to update:
+- `FRONTEND_URL` on the backend to match the URL you access the frontend on (used for CORS)
+- `NEXT_PUBLIC_API_URL` on the frontend to match the backend URL (this is baked in at build time, so rebuild with `docker compose up --build` after changing it)
 
 Session data is persisted in a Docker volume, so it survives restarts.
 
@@ -65,13 +116,13 @@ docker compose exec backend python precompute.py 2025 --skip-existing
 docker compose exec backend python precompute.py 2024 2025 --skip-existing
 ```
 
-### Option B: Manual setup
+### Option C: Manual setup
 
 #### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
-- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync — manual entry sync works without this)
+- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync - manual entry sync works without this)
 
 #### 1. Clone the repository
 
