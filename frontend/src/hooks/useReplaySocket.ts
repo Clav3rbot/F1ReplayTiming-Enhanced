@@ -18,6 +18,7 @@ export interface ReplayDriver {
   tyre_history: string[];
   gap: string | null;
   interval: string | null;
+  best_lap_time: string | null;
   has_fastest_lap: boolean;
   flag: "investigation" | "penalty" | null;
   retired: boolean;
@@ -51,6 +52,14 @@ export interface QualiPhase {
   remaining: number;
 }
 
+export interface RCMessage {
+  message: string;
+  category: string;
+  timestamp: number;
+  lap?: number;
+  racing_number?: string;
+}
+
 export interface ReplayFrame {
   timestamp: number;
   lap: number;
@@ -60,6 +69,8 @@ export interface ReplayFrame {
   status: string;
   weather?: WeatherData;
   quali_phase?: QualiPhase;
+  rc_messages?: RCMessage[];
+  red_flag_end?: number;
 }
 
 export interface QualiPhaseInfo {
@@ -139,6 +150,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
               status: msg.status,
               weather: msg.weather,
               quali_phase: msg.quali_phase,
+              rc_messages: msg.rc_messages,
             },
           }));
           break;
