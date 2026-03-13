@@ -385,8 +385,19 @@ class LiveStateManager:
                 drv.no_timing = False
 
     def _process_sectors(self, drv: _DriverState, sectors: dict) -> None:
-        """Update sector colour indicators for a driver."""
-        sector_list: list[dict[str, Any]] = []
+        """Update sector colour indicators for a driver.
+
+        Only updates when a sector has an actual Value (completed time).
+        When sector N completes, clears all sectors after N (new flying
+        lap progress). Ignores updates that only carry Segments
+        (mini-sector progress) without a finished sector time.
+        """
+        # Build lookup of existing sectors
+        existing: dict[int, dict[str, Any]] = {}
+        if drv.sectors:
+            for s in drv.sectors:
+                existing[s["num"]] = s
+
         for idx_str, sector_data in sorted(sectors.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
             if not isinstance(sector_data, dict):
                 continue
@@ -394,26 +405,32 @@ class LiveStateManager:
                 sector_idx = int(idx_str)
             except ValueError:
                 continue
-            sector_num = sector_idx + 1  # 0-based → 1-based
+            sector_num = sector_idx + 1  # 0-based -> 1-based
 
+            val_str = sector_data.get("Value", "")
+
+            # Only process sectors that have an actual completed time
+            if not val_str:
+                continue
+
+            # Only update colour when the API explicitly includes the
+            # fastest flags.  Re-sends of the same Value without flags
+            # should not reset the colour to yellow.
+            has_flags = "OverallFastest" in sector_data or "PersonalFastest" in sector_data
             overall_fastest = bool(sector_data.get("OverallFastest", False))
             personal_fastest = bool(sector_data.get("PersonalFastest", False))
 
-            # Parse time value for tracking bests
-            val_str = sector_data.get("Value", "")
-            if val_str:
-                try:
-                    sec_time = float(val_str)
-                    # Track personal bests
-                    current_pb = drv._sector_best_personal.get(sector_idx)
-                    if current_pb is None or sec_time < current_pb:
-                        drv._sector_best_personal[sector_idx] = sec_time
-                    # Track overall bests
-                    current_ob = self._overall_sector_bests.get(sector_idx)
-                    if current_ob is None or sec_time < current_ob:
-                        self._overall_sector_bests[sector_idx] = sec_time
-                except ValueError:
-                    pass
+            # Track personal/overall bests
+            try:
+                sec_time = float(val_str)
+                current_pb = drv._sector_best_personal.get(sector_idx)
+                if current_pb is None or sec_time < current_pb:
+                    drv._sector_best_personal[sector_idx] = sec_time
+                current_ob = self._overall_sector_bests.get(sector_idx)
+                if current_ob is None or sec_time < current_ob:
+                    self._overall_sector_bests[sector_idx] = sec_time
+            except ValueError:
+                pass
 
             # Determine colour
             if overall_fastest:
@@ -423,10 +440,20 @@ class LiveStateManager:
             else:
                 color = "yellow"
 
-            sector_list.append({"num": sector_num, "color": color})
+            # Only update the colour if the API sent explicit fastest flags.
+            # If no flags were present, keep the existing colour (if any).
+            if has_flags or sector_num not in existing:
+                existing[sector_num] = {"num": sector_num, "color": color}
+            else:
+                # Value present but no flags - keep existing entry as-is
+                pass
 
-        if sector_list:
-            drv.sectors = sector_list
+            # Clear any sectors after this one (new lap progress)
+            for later in list(existing):
+                if later > sector_num:
+                    del existing[later]
+
+        drv.sectors = [existing[k] for k in sorted(existing)] if existing else None
 
     # --- Position -----------------------------------------------------
 
@@ -748,26 +775,23 @@ class LiveStateManager:
 
     def _handle_session_data(self, data: dict, _ts: float) -> None:
         series = data.get("Series")
-        if not series or not isinstance(series, dict):
+        if not series:
             return
-        # Find the highest-index entry to get current qualifying part
-        max_idx = -1
-        latest: dict | None = None
-        for idx_str, entry in series.items():
-            if not isinstance(entry, dict):
-                continue
-            try:
-                idx = int(idx_str)
-            except ValueError:
-                continue
-            if idx > max_idx:
-                max_idx = idx
-                latest = entry
-        if latest and "QualifyingPart" in latest:
-            try:
-                self._quali_phase = int(latest["QualifyingPart"])
-            except (ValueError, TypeError):
-                pass
+        # Series can be a list or a dict with numeric string keys
+        if isinstance(series, list):
+            entries = [e for e in series if isinstance(e, dict)]
+        elif isinstance(series, dict):
+            entries = [e for e in series.values() if isinstance(e, dict)]
+        else:
+            return
+        # Use the last entry (highest qualifying part)
+        for entry in reversed(entries):
+            if "QualifyingPart" in entry:
+                try:
+                    self._quali_phase = int(entry["QualifyingPart"])
+                except (ValueError, TypeError):
+                    pass
+                break
 
     # ------------------------------------------------------------------
     # Handler dispatch table

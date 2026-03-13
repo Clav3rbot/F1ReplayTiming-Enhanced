@@ -957,6 +957,21 @@ def _get_driver_positions_by_time_sync(
         code = int(track_status_codes[idx])
         return STATUS_MAP.get(code, "green")
 
+    def _get_red_flag_end(t_sec: float) -> float | None:
+        """If currently red-flagged, return the replay timestamp when session goes non-red."""
+        if len(track_status_times) == 0:
+            return None
+        session_t = t_sec + session_time_offset
+        idx = np.searchsorted(track_status_times, session_t, side="right") - 1
+        if idx < 0:
+            return None
+        if int(track_status_codes[idx]) != 5:
+            return None
+        for j in range(idx + 1, len(track_status_codes)):
+            if int(track_status_codes[j]) != 5:
+                return float(track_status_times[j] - session_time_offset)
+        return None
+
     # Pre-convert telemetry to numpy arrays for fast lookup via searchsorted
     driver_arrays: dict[str, dict] = {}
     for drv, tel in driver_pos_data.items():
@@ -1476,6 +1491,10 @@ def _get_driver_positions_by_time_sync(
         rc_msgs = _get_rc_messages(i * sample_interval)
         if rc_msgs:
             frame["rc_messages"] = rc_msgs
+        if frame["status"] == "red":
+            rfe = _get_red_flag_end(i * sample_interval)
+            if rfe is not None:
+                frame["red_flag_end"] = round(rfe, 1)
         frames.append(frame)
 
     return frames

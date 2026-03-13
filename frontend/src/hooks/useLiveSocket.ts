@@ -32,6 +32,9 @@ export function useLiveSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const bufferRef = useRef<BufferedFrame[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const delayRef = useRef(delayOffset);
+  delayRef.current = delayOffset;
+  const hasShownFirstFrame = useRef(false);
   const [state, setState] = useState<LiveState>({
     connected: false,
     ready: false,
@@ -43,12 +46,11 @@ export function useLiveSocket(
     error: null,
   });
 
-  // Delay processing: when delayOffset > 0, buffer frames and release them
-  // after the delay. When delayOffset < 0, skip frames (show "future" = instant).
-  // When delayOffset === 0, pass frames through immediately.
+  // Delay processing: buffer frames and release them after |delayOffset| seconds.
+  // Any non-zero value (positive or negative) activates buffering.
+  const absDelay = Math.abs(delayOffset);
   useEffect(() => {
-    if (delayOffset <= 0) {
-      // No positive delay — clear buffer and timer
+    if (absDelay === 0) {
       bufferRef.current = [];
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -57,8 +59,7 @@ export function useLiveSocket(
       return;
     }
 
-    // Positive delay: set up an interval to check buffer and release frames
-    const delayMs = delayOffset * 1000;
+    const delayMs = absDelay * 1000;
     timerRef.current = setInterval(() => {
       const now = Date.now();
       const buffer = bufferRef.current;
@@ -84,7 +85,7 @@ export function useLiveSocket(
         timerRef.current = null;
       }
     };
-  }, [delayOffset]);
+  }, [absDelay]);
 
   useEffect(() => {
     let aborted = false;
@@ -124,11 +125,16 @@ export function useLiveSocket(
           };
           const rcMessages: RCMessage[] = msg.rc_messages || [];
 
-          if (delayOffset > 0) {
-            // Buffer the frame for delayed release
+          if (delayRef.current !== 0) {
+            // Show first frame immediately so the user sees data right away,
+            // then buffer subsequent frames for delayed release
+            if (!hasShownFirstFrame.current) {
+              hasShownFirstFrame.current = true;
+              setState((s) => ({ ...s, frame, rcMessages }));
+            }
             bufferRef.current.push({ frame, receivedAt: Date.now() });
           } else {
-            // No delay (or negative) — show immediately
+            // No delay - show immediately
             setState((s) => ({ ...s, frame, rcMessages }));
           }
           break;

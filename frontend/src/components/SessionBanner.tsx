@@ -500,11 +500,18 @@ export default function SessionBanner({
                   information, race control messages, and weather.
                 </p>
                 <p className="text-sm text-f1-muted leading-relaxed mt-2">
+                  The broadcast delay slider pauses the live data feed until
+                  it aligns with your streaming service or TV broadcast. Set
+                  the delay to match how far behind your broadcast is, and the
+                  leaderboard will update in sync with what you see on screen.
+                  Your delay setting is saved automatically.
+                </p>
+                <p className="text-sm text-f1-muted leading-relaxed mt-2">
                   Driver positions on the track map and telemetry data (speed,
                   throttle, brake, gear) are not available in live mode as
                   track position data requires an authenticated F1 TV
                   subscription. These become available in replay mode once
-                  the session is processed via FastF1, typically 1–2 hours
+                  the session is processed via FastF1, typically 1-2 hours
                   after the chequered flag.
                 </p>
               </div>

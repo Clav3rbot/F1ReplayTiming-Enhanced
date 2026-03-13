@@ -48,16 +48,24 @@ export default function LivePage() {
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
   const [leaderboardScale, setLeaderboardScale] = useState(1);
-  const [delayOffset, setDelayOffset] = useState(0);
+  const [delayOffset, setDelayOffset] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const saved = localStorage.getItem("f1live_delay");
+      return saved ? Number(saved) : 0;
+    } catch { return 0; }
+  });
   const [showDelaySlider, setShowDelaySlider] = useState(false);
-  const [checkingReplay, setCheckingReplay] = useState(false);
-  const [replayCheckResult, setReplayCheckResult] = useState<string | null>(null);
   const [pipActive, setPipActive] = useState(false);
   const [pipTrackOpen, setPipTrackOpen] = useState(true);
   const [pipRcOpen, setPipRcOpen] = useState(true);
   const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
   const [rcPanelOpen, setRcPanelOpen] = useState(false);
   const [rcPanelSize, setRcPanelSize] = useState<"sm" | "md" | "lg">("md");
+
+  useEffect(() => {
+    try { localStorage.setItem("f1live_delay", String(delayOffset)); } catch {}
+  }, [delayOffset]);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -90,8 +98,9 @@ export default function LivePage() {
 
   const live = useLiveSocket(year, round, sessionType, speed, delayOffset);
 
-  const isRace = sessionType === "R" || sessionType === "S";
-  const isQualifying = sessionType === "Q" || sessionType === "SQ";
+  const sessionTypeUpper = sessionType.toUpperCase();
+  const isRace = sessionTypeUpper === "R" || sessionTypeUpper === "S";
+  const isQualifying = sessionTypeUpper === "Q" || sessionTypeUpper === "SQ";
 
   // Show loading only while the WebSocket is connecting
   if (live.loading) {
@@ -119,59 +128,12 @@ export default function LivePage() {
     );
   }
 
-  // Session ended state
-  if (live.sessionEnded) {
-    async function checkReplayAvailable() {
-      setCheckingReplay(true);
-      setReplayCheckResult(null);
-      try {
-        await apiFetch(`/api/sessions/${year}/${round}?type=${sessionType}`);
-        // If the fetch succeeds, replay data is available — navigate
-        window.location.href = `/replay/${year}/${round}?type=${sessionType}`;
-      } catch {
-        setReplayCheckResult("Not available yet — data typically takes 15\u201330 minutes after session end.");
-        setCheckingReplay(false);
-      }
-    }
-
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="inline-block px-3 py-1 bg-f1-card border border-f1-border rounded text-xs font-bold text-f1-muted uppercase mb-4">
-            Session Ended
-          </div>
-          <p className="text-white text-lg font-bold mb-2">
-            {sessionData?.event_name || "Session"} — {sessionType}
-          </p>
-          <p className="text-f1-muted mb-6 text-sm">
-            Full replay with track positions and telemetry will be available shortly.
-          </p>
-          {replayCheckResult && (
-            <p className="text-yellow-400 text-sm mb-4">{replayCheckResult}</p>
-          )}
-          <div className="flex gap-3 justify-center">
-            <a href="/" className="inline-block px-4 py-2 bg-f1-card border border-f1-border text-white font-bold text-sm rounded hover:bg-f1-border transition-colors">
-              Back to sessions
-            </a>
-            <button
-              onClick={checkReplayAvailable}
-              disabled={checkingReplay}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors disabled:opacity-50"
-            >
-              {checkingReplay && (
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-              Check for replay data
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Session ended - no longer block the view; show inline banner instead
 
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
-  const drivers = live.frame?.drivers || [];
+  const driversRaw = live.frame?.drivers || [];
+  const drivers = isQualifying ? driversRaw.filter((d) => !d.retired) : driversRaw;
   const trackStatus = live.frame?.status || "green";
   const weather = live.frame?.weather;
 
@@ -511,7 +473,7 @@ export default function LivePage() {
                 </div>
                 <input
                   type="range"
-                  min={-10}
+                  min={-60}
                   max={10}
                   step={0.5}
                   value={delayOffset}
@@ -519,13 +481,19 @@ export default function LivePage() {
                   className="w-full h-1 bg-f1-border rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
                 <div className="flex justify-between text-[9px] text-f1-muted mt-1">
-                  <span>-10s</span>
+                  <span>-60s</span>
                   <span>0</span>
                   <span>+10s</span>
                 </div>
-                <p className="text-[9px] text-f1-muted mt-2">
-                  Adjust to sync with your broadcast feed
+                <p className="text-[9px] text-f1-muted mt-2 leading-relaxed">
+                  Pauses the live data feed until it aligns with your broadcast. Set this to match the delay of your streaming service so the leaderboard updates at the same time as the TV coverage.
                 </p>
+                <button
+                  onClick={() => setShowDelaySlider(false)}
+                  className="w-full mt-2 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded transition-colors"
+                >
+                  Confirm
+                </button>
               </div>
             )}
           </div>

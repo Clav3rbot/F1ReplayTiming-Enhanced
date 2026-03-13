@@ -37,9 +37,48 @@ Session data is processed once and stored locally (or in R2 for remote access). 
 
 ## Self-Hosting Guide
 
-### Option A: Docker (recommended)
+### Option A: Docker with pre-built images (easiest)
 
 Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/adn8naiagent/f1replaytiming-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - FRONTEND_URL=http://localhost:3000
+      - DATA_DIR=/data
+    volumes:
+      - f1data:/data
+      - f1cache:/data/fastf1-cache
+
+  frontend:
+    image: ghcr.io/adn8naiagent/f1replaytiming-frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  f1data:
+  f1cache:
+```
+
+Then run:
+
+```bash
+docker compose up
+```
+
+Open http://localhost:3000. Select any past session and it will be processed on demand.
+
+### Option B: Docker from source
+
+If you prefer to build the images yourself, or want to make changes to the code:
 
 ```bash
 git clone <repo-url>
@@ -49,9 +88,15 @@ docker compose up
 
 Open http://localhost:3000. Select any past session and it will be processed on demand.
 
+### Docker configuration
+
 To enable optional features, edit the environment variables in `docker-compose.yml`:
-- `OPENROUTER_API_KEY` — enables the photo sync feature ([get a key](https://openrouter.ai/))
-- `AUTH_ENABLED` / `AUTH_PASSPHRASE` — restricts access with a passphrase
+- `OPENROUTER_API_KEY` - enables the photo sync feature ([get a key](https://openrouter.ai/))
+- `AUTH_ENABLED` / `AUTH_PASSPHRASE` - restricts access with a passphrase
+
+If you change ports, make sure to update:
+- `FRONTEND_URL` on the backend to match the URL you access the frontend on (used for CORS)
+- `NEXT_PUBLIC_API_URL` on the frontend to match the backend URL (this is baked in at build time, so rebuild with `docker compose up --build` after changing it)
 
 Session data is persisted in a Docker volume, so it survives restarts.
 
@@ -71,13 +116,13 @@ docker compose exec backend python precompute.py 2025 --skip-existing
 docker compose exec backend python precompute.py 2024 2025 --skip-existing
 ```
 
-### Option B: Manual setup
+### Option C: Manual setup
 
 #### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
-- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync — manual entry sync works without this)
+- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync - manual entry sync works without this)
 
 #### 1. Clone the repository
 

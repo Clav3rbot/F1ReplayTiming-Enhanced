@@ -5,18 +5,19 @@ All notable changes to F1 Timing Replay will be documented in this file.
 ## 1.2.0 - 2026-03-14
 
 ### New Features
-- **Live Timing** — real-time timing data via F1 SignalR stream, with broadcast delay slider, post-session replay check, and PiP window support
-- **Race Control Messages** — live feed of steward decisions, investigations, penalties, track limits, and flag changes accessible via the RC button on the track map (available in both live and replay modes)
-- **Driver Indicators** — investigation (warning triangle) and penalty (circled exclamation) icons on the leaderboard, with automatic clearing when stewards resolve incidents
+- **Live Timing** - real-time timing data via F1 SignalR stream, with broadcast delay slider, post-session replay check, and PiP window support
+- **Race Control Messages** - live feed of steward decisions, investigations, penalties, track limits, and flag changes accessible via the RC button on the track map (available in both live and replay modes)
+- **Driver Indicators** - investigation (warning triangle) and penalty (circled exclamation) icons on the leaderboard, with automatic clearing when stewards resolve incidents
 
 ### Improvements
-- **Docker images published to GHCR** — pre-built images are now automatically published to GitHub Container Registry on each release, so users can deploy with just a `docker-compose.yml` without cloning the repo
+- **Broadcast delay slider now persists** - your delay setting is saved and restored across page loads, so you only need to set it once to match your streaming service or broadcast feed
+- **Docker images published to GHCR** - pre-built images are now automatically published to GitHub Container Registry on each release, so users can deploy with just a `docker-compose.yml` without cloning the repo
 - PiP window track map and driver positions now continue updating when switching windows (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 - Session picker shows session start times in the user's local timezone (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 - Improved Docker Compose configuration with clearer comments on port and URL customisation
 
 ### Known Limitations
-- **Live timing: no track positions or telemetry** — Driver positions on the track map and telemetry data are not available during live sessions. Position data requires an authenticated F1 TV subscription. Full track positions and telemetry become available in replay mode once session data is processed (typically 1–2 hours after the session).
+- **Live timing: no track positions or telemetry** - Driver positions on the track map and telemetry data are not available during live sessions. Position data requires an authenticated F1 TV subscription. Full track positions and telemetry become available in replay mode once session data is processed (typically 1–2 hours after the session).
 
 ### Note
 - Race control messages in replay mode require a re-run of precompute for each session to take effect.
@@ -25,9 +26,9 @@ All notable changes to F1 Timing Replay will be documented in this file.
 ## 1.1.0 - 2026-03-10
 
 ### New Features
-- Docker Compose support for self-hosting — run the full app with `docker compose up`
+- Docker Compose support for self-hosting - run the full app with `docker compose up`
 - Picture-in-Picture popup window with collapsible track map, telemetry, and leaderboard sections (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
-- Clipboard paste support for leaderboard sync — users can now paste a screenshot of the F1 TV broadcast leaderboard directly from clipboard (Ctrl+V) instead of uploading a file, with a visual Ctrl+V hint in the UI (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
+- Clipboard paste support for leaderboard sync - users can now paste a screenshot of the F1 TV broadcast leaderboard directly from clipboard (Ctrl+V) instead of uploading a file, with a visual Ctrl+V hint in the UI (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 
 ### Improvements
 - Season schedule data is now fetched on demand from FastF1 when not already in storage, removing the need to run precompute before using the app

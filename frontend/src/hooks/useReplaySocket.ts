@@ -70,6 +70,7 @@ export interface ReplayFrame {
   weather?: WeatherData;
   quali_phase?: QualiPhase;
   rc_messages?: RCMessage[];
+  red_flag_end?: number;
 }
 
 export interface QualiPhaseInfo {

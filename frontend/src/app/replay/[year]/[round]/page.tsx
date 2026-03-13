@@ -134,6 +134,10 @@ export default function ReplayPage() {
   const rotation = trackData?.rotation || 0;
   const drivers = replay.frame?.drivers || [];
   const trackStatus = replay.frame?.status || "green";
+  const redFlagEnd = replay.frame?.red_flag_end ?? null;
+  const redFlagCountdown = redFlagEnd !== null && replay.frame
+    ? Math.max(0, redFlagEnd - replay.frame.timestamp)
+    : null;
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
@@ -226,9 +230,24 @@ export default function ReplayPage() {
                         : "bg-yellow-400 text-black"
                     }`}
                   >
-                    {trackStatus === "red"
-                      ? "Red Flag"
-                      : trackStatus === "sc"
+                    {trackStatus === "red" ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span>Red Flag</span>
+                        {redFlagCountdown !== null && redFlagCountdown > 0 && (
+                          <>
+                            <span className="text-[10px] font-bold opacity-80 tabular-nums normal-case">
+                              Resumes in {Math.floor(redFlagCountdown / 60)}:{String(Math.floor(redFlagCountdown % 60)).padStart(2, "0")}
+                            </span>
+                            <button
+                              onClick={() => { if (redFlagEnd !== null) replay.seek(redFlagEnd); }}
+                              className="px-2 py-0.5 text-[10px] font-bold bg-white/20 hover:bg-white/30 rounded transition-colors normal-case"
+                            >
+                              Skip to restart
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : trackStatus === "sc"
                       ? "Safety Car"
                       : trackStatus === "vsc"
                       ? "Virtual Safety Car"
