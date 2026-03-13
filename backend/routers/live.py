@@ -31,8 +31,16 @@ class LiveSession:
         self._task: asyncio.Task | None = None
         self._started = False
         self._mode = "none"  # "replayer" or "signalr"
+        self._msg_logged = False
 
-    async def start(self, data_dir: str | None = None, speed: float = 10.0, use_signalr: bool = False):
+    async def start(
+        self,
+        year: int = 0,
+        round_num: int = 0,
+        data_dir: str | None = None,
+        speed: float = 10.0,
+        use_signalr: bool = False,
+    ):
         """Start the live session.
 
         If data_dir is provided, uses the test replayer.
@@ -58,11 +66,25 @@ class LiveSession:
                 pit_loss_sc = ga.get("sc", 10.0)
                 pit_loss_vsc = ga.get("vsc", 14.5)
 
+        # Load track normalization params and outline for position mapping
+        track_norm = None
+        track_points = None
+        if year and round_num:
+            track_data = _find_track_data(year, round_num, self.session_type)
+            if track_data:
+                track_norm = track_data.get("norm")
+                track_points = track_data.get("track_points")
+                if track_norm and track_points:
+                    logger.info(f"Loaded track data for live session {year}/{round_num}/{self.session_type}: "
+                                f"{len(track_points)} points, norm={track_norm}")
+
         self._state_manager = LiveStateManager(
             session_type=self.session_type,
             pit_loss_green=pit_loss_green,
             pit_loss_sc=pit_loss_sc,
             pit_loss_vsc=pit_loss_vsc,
+            track_norm=track_norm,
+            track_points=track_points,
         )
 
         if data_dir:
@@ -100,6 +122,9 @@ class LiveSession:
 
     async def _on_message(self, topic: str, data: dict, timestamp: float):
         """Handle a message from the replayer or SignalR client."""
+        if not self._msg_logged:
+            logger.info(f"First SignalR message received: topic={topic}")
+            self._msg_logged = True
         self._state_manager.process_message(topic, data, timestamp)
 
     def get_frame(self) -> dict | None:
@@ -150,6 +175,41 @@ class LiveSession:
         logger.info(f"Live session stopped: {self.key}")
 
 
+def _find_track_data(year: int, round_num: int, session_type: str) -> dict | None:
+    """Find track data for a session, with fallback to other sessions/years.
+
+    Tries in order:
+    1. Exact match: this year/round/session
+    2. Other session types at this year/round (R, Q, S, FP1, etc.)
+    3. Same round in previous years (circuits sometimes keep same round number)
+    """
+    from services.storage import get_json
+
+    # 1. Exact match
+    data = get_json(f"sessions/{year}/{round_num}/{session_type}/track.json")
+    if data:
+        return data
+
+    # 2. Other session types at the same year/round
+    for alt_type in ("R", "Q", "S", "SQ", "FP1", "FP2", "FP3"):
+        if alt_type == session_type:
+            continue
+        data = get_json(f"sessions/{year}/{round_num}/{alt_type}/track.json")
+        if data:
+            logger.info(f"Track data fallback: using {year}/{round_num}/{alt_type} for {session_type}")
+            return data
+
+    # 3. Previous years, same round number (track outlines rarely change)
+    for prev_year in range(year - 1, year - 4, -1):
+        for alt_type in ("R", "Q"):
+            data = get_json(f"sessions/{prev_year}/{round_num}/{alt_type}/track.json")
+            if data:
+                logger.info(f"Track data fallback: using {prev_year}/{round_num}/{alt_type} for {year}/{round_num}/{session_type}")
+                return data
+
+    return None
+
+
 def _get_test_data_dir(year: int, round_num: int, session_type: str) -> str | None:
     """Find test data directory for a given session."""
     base = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "live_test")
@@ -175,22 +235,22 @@ async def _get_or_create_session(
             # Force real SignalR connection
             session = LiveSession(key, session_type)
             _live_sessions[key] = session
-            await session.start(use_signalr=True)
+            await session.start(year=year, round_num=round_num, use_signalr=True)
         elif source == "test" and data_dir:
             # Force test replayer
             session = LiveSession(key, session_type)
             _live_sessions[key] = session
-            await session.start(data_dir=data_dir, speed=speed)
+            await session.start(year=year, round_num=round_num, data_dir=data_dir, speed=speed)
         elif source == "auto":
             # Auto: use test data if available, otherwise try SignalR
             if data_dir:
                 session = LiveSession(key, session_type)
                 _live_sessions[key] = session
-                await session.start(data_dir=data_dir, speed=speed)
+                await session.start(year=year, round_num=round_num, data_dir=data_dir, speed=speed)
             else:
                 session = LiveSession(key, session_type)
                 _live_sessions[key] = session
-                await session.start(use_signalr=True)
+                await session.start(year=year, round_num=round_num, use_signalr=True)
         else:
             return None
 

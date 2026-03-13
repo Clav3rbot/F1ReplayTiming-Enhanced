@@ -18,6 +18,7 @@ export interface ReplayDriver {
   tyre_history: string[];
   gap: string | null;
   interval: string | null;
+  best_lap_time: string | null;
   has_fastest_lap: boolean;
   flag: "investigation" | "penalty" | null;
   retired: boolean;

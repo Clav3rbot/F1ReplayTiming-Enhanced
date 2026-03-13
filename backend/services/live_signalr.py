@@ -13,12 +13,14 @@ disconnects and responds to server pings to keep the connection alive.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import ssl
 import time
 import urllib.request
 import urllib.error
+import zlib
 from http.cookiejar import CookieJar
 from typing import Any, Awaitable, Callable
 
@@ -50,6 +52,7 @@ _TOPICS = [
     "SessionInfo",
     "SessionStatus",
     "SessionData",
+    "Position.z",
 ]
 
 # Reconnect parameters
@@ -379,6 +382,18 @@ class LiveSignalRClient:
             # Arguments is typically a list with a single dict element.
             data: dict[str, Any] = arguments[0] if arguments else {}
 
+            # Decompress .z topics (base64 + zlib deflate)
+            if target.endswith(".z") and isinstance(data, str):
+                try:
+                    raw_bytes = base64.b64decode(data)
+                    decompressed = zlib.decompress(raw_bytes, -zlib.MAX_WBITS)
+                    data = json.loads(decompressed)
+                    # Strip .z suffix for downstream handlers
+                    target = target[:-2]
+                except Exception:
+                    logger.warning("Failed to decompress %s payload", target)
+                    return
+
             try:
                 await callback(target, data, recv_ts)
             except Exception:
@@ -387,7 +402,30 @@ class LiveSignalRClient:
                 )
             return
 
-        # Completion / stream messages etc. — log and ignore.
+        # Completion message (type 3) — contains initial state from Subscribe
+        if msg_type == 3:
+            result = msg.get("result")
+            if result and isinstance(result, dict):
+                logger.info("Received Subscribe completion with %d topics", len(result))
+                for topic_name, topic_data in result.items():
+                    effective_name = topic_name
+                    # Decompress .z topics (base64 + zlib) before type check
+                    if topic_name.endswith(".z") and isinstance(topic_data, str):
+                        try:
+                            raw_bytes = base64.b64decode(topic_data)
+                            topic_data = json.loads(zlib.decompress(raw_bytes, -zlib.MAX_WBITS))
+                            effective_name = topic_name[:-2]
+                        except Exception:
+                            continue
+                    if not isinstance(topic_data, dict):
+                        continue
+                    try:
+                        await callback(effective_name, topic_data, recv_ts)
+                    except Exception:
+                        logger.exception("Error in callback for initial %s", effective_name)
+            return
+
+        # Other message types — log and ignore.
         if msg_type is not None:
             logger.debug("Ignoring SignalR message type %s", msg_type)
 

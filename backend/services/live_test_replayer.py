@@ -14,10 +14,12 @@ Expected directory layout:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
 import re
+import zlib
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -72,32 +74,129 @@ class LiveTestReplayer:
     # Loading
     # ------------------------------------------------------------------
 
+    # Topics whose .json initial state is safe to load (time-invariant metadata).
+    # Everything else (TimingData, LapCount, TimingStats, Position.z,
+    # ExtrapolatedClock) contains end-of-session state that would corrupt the
+    # replay if loaded at the start.
+    _SAFE_INIT_TOPICS: set[str] = {
+        "DriverList",       # names, teams, colours — static throughout session
+        "TimingAppData",    # grid positions + starting compound (filtered below)
+        "WeatherData",      # starting weather
+        "TrackStatus",      # starting track status
+        "SessionInfo",      # session metadata — static
+    }
+
     def load(self) -> None:
-        """Parse all .jsonStream files and merge into a single sorted timeline."""
+        """Parse initial state (.json) and stream (.jsonStream) files into a
+        sorted timeline.
+
+        The .json files from the F1 static API contain the accumulated
+        END-OF-SESSION state (final positions, all laps completed, etc.).
+        We selectively load only topics whose initial state is safe/useful
+        (driver metadata, starting compound) and skip topics whose end-of-
+        session values would corrupt the replay (positions, gaps, lap counts).
+        """
         self._messages.clear()
 
         if not self._data_dir.is_dir():
             raise FileNotFoundError(f"Data directory not found: {self._data_dir}")
 
+        # ------------------------------------------------------------------
+        # 1. Load safe initial state files at t = -1
+        # ------------------------------------------------------------------
+        init_count = 0
+        for filepath in sorted(self._data_dir.glob("*.json")):
+            if filepath.name.endswith(".jsonStream"):
+                continue
+            topic = filepath.stem  # e.g. TimingAppData.json -> TimingAppData
+            is_compressed = topic.endswith(".z")
+            effective_topic = topic[:-2] if is_compressed else topic
+
+            if effective_topic not in self._SAFE_INIT_TOPICS:
+                continue
+
+            try:
+                with open(filepath, "r", encoding="utf-8-sig") as f:
+                    data = json.loads(f.read())
+                if is_compressed and isinstance(data, str):
+                    raw_bytes = base64.b64decode(data)
+                    data = json.loads(zlib.decompress(raw_bytes, -zlib.MAX_WBITS))
+
+                # Filter TimingAppData to only keep starting compound
+                if effective_topic == "TimingAppData":
+                    data = self._filter_timing_app_init(data)
+
+                self._messages.append(_Message(-1.0, effective_topic, data))
+                init_count += 1
+                logger.debug("Loaded initial state for %s", effective_topic)
+            except Exception as exc:
+                logger.warning("Failed to load initial state %s: %s", filepath.name, exc)
+
+        if init_count:
+            logger.info("Loaded %d initial state files", init_count)
+
+        # ------------------------------------------------------------------
+        # 2. Load incremental stream files (.jsonStream)
+        # ------------------------------------------------------------------
         stream_files = sorted(self._data_dir.glob("*.jsonStream"))
-        if not stream_files:
-            logger.warning("No .jsonStream files found in %s", self._data_dir)
+        if not stream_files and not init_count:
+            logger.warning("No data files found in %s", self._data_dir)
             return
 
         for filepath in stream_files:
-            topic = filepath.stem  # e.g. TimingData.jsonStream -> TimingData
+            topic = filepath.stem
             self._parse_file(filepath, topic)
 
         self._messages.sort()
         logger.info(
-            "Loaded %d messages from %d files in %s",
+            "Loaded %d messages (%d initial + %d stream) from %s",
             len(self._messages),
-            len(stream_files),
+            init_count,
+            len(self._messages) - init_count,
             self._data_dir,
         )
 
+    @staticmethod
+    def _filter_timing_app_init(data: dict) -> dict:
+        """Strip end-of-race stint data from TimingAppData initial state.
+
+        Keep only GridPos and the first stint (index 0) with reset lap counts,
+        so we get the correct starting compound without end-of-race pollution.
+        """
+        lines = data.get("Lines")
+        if not lines or not isinstance(lines, dict):
+            return data
+        filtered_lines = {}
+        for number, driver_data in lines.items():
+            if not isinstance(driver_data, dict):
+                filtered_lines[number] = driver_data
+                continue
+            filtered = {}
+            # Keep grid position
+            if "GridPos" in driver_data:
+                filtered["GridPos"] = driver_data["GridPos"]
+            if "RacingNumber" in driver_data:
+                filtered["RacingNumber"] = driver_data["RacingNumber"]
+            # Keep only first stint with reset counters
+            stints = driver_data.get("Stints")
+            if stints and isinstance(stints, list) and len(stints) > 0:
+                s0 = dict(stints[0])
+                s0["TotalLaps"] = 0
+                s0["LapNumber"] = 0
+                s0["StartLaps"] = 0
+                s0.pop("LapTime", None)
+                s0.pop("LapFlags", None)
+                filtered["Stints"] = [s0]
+            filtered_lines[number] = filtered
+        return {"Lines": filtered_lines}
+
     def _parse_file(self, filepath: Path, topic: str) -> None:
         """Parse a single .jsonStream file, appending messages to the timeline."""
+        # Detect .z compressed topics (e.g. Position.z.jsonStream)
+        is_compressed = topic.endswith(".z")
+        # Strip .z suffix for the message topic name
+        effective_topic = topic[:-2] if is_compressed else topic
+
         count = 0
         # Read with utf-8-sig to automatically strip BOM if present
         with open(filepath, "r", encoding="utf-8-sig") as f:
@@ -139,7 +238,21 @@ class LiveTestReplayer:
                     )
                     continue
 
-                self._messages.append(_Message(timestamp, topic, data))
+                # Decompress .z topic payloads (base64 + zlib)
+                if is_compressed and isinstance(data, str):
+                    try:
+                        raw_bytes = base64.b64decode(data)
+                        decompressed = zlib.decompress(raw_bytes, -zlib.MAX_WBITS)
+                        data = json.loads(decompressed)
+                    except Exception:
+                        logger.warning(
+                            "Failed to decompress line %d in %s",
+                            line_num,
+                            filepath.name,
+                        )
+                        continue
+
+                self._messages.append(_Message(timestamp, effective_topic, data))
                 count += 1
 
         logger.debug("Parsed %d messages from %s", count, filepath.name)

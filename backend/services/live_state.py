@@ -13,6 +13,8 @@ import re
 import time
 from typing import Any
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 # Track status code → normalised status string
@@ -91,7 +93,12 @@ class _DriverState:
         "pit_prediction",
         "pit_prediction_margin",
         "pit_prediction_free_air",
+        "best_lap_time",
         "pit_start",
+        "x",
+        "y",
+        "relative_distance",
+        "on_track",
         "_sector_best_personal",
         "_sector_best_overall",
         "_stint_count",
@@ -119,10 +126,15 @@ class _DriverState:
         self.pit_prediction: int | None = None
         self.pit_prediction_margin: float | None = None
         self.pit_prediction_free_air: float | None = None
+        self.best_lap_time: str | None = None
         self.pit_start: bool = False
+        self.x: float = 0.0
+        self.y: float = 0.0
+        self.relative_distance: float = 0.0
+        self.on_track: bool = False
         # Internal tracking for sector colours
-        self._sector_best_personal: dict[int, float] = {}  # sector_num → best time
-        self._sector_best_overall: dict[int, bool] = {}  # sector_num → ever overall fastest
+        self._sector_best_personal: dict[int, float] = {}  # sector_num -> best time
+        self._sector_best_overall: dict[int, bool] = {}  # sector_num -> ever overall fastest
         self._stint_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -144,14 +156,14 @@ class _DriverState:
             "no_timing": self.no_timing,
             "grid_position": self.grid_position,
             "sectors": self.sectors,
+            "best_lap_time": self.best_lap_time,
             "pit_prediction": self.pit_prediction,
             "pit_prediction_margin": self.pit_prediction_margin,
             "pit_prediction_free_air": self.pit_prediction_free_air,
             "pit_start": self.pit_start,
-            # No position data without auth
-            "x": 0,
-            "y": 0,
-            "relative_distance": 0,
+            "x": self.x,
+            "y": self.y,
+            "relative_distance": self.relative_distance,
             # No telemetry data in live
             "speed": None,
             "throttle": None,
@@ -184,11 +196,24 @@ class LiveStateManager:
         pit_loss_green: float = 0.0,
         pit_loss_sc: float = 0.0,
         pit_loss_vsc: float = 0.0,
+        track_norm: dict[str, float] | None = None,
+        track_points: list[dict[str, float]] | None = None,
     ) -> None:
         self._session_type: str = session_type
         self._pit_loss_green: float = pit_loss_green
         self._pit_loss_sc: float = pit_loss_sc
         self._pit_loss_vsc: float = pit_loss_vsc
+
+        # Track normalization: raw F1 coords -> 0-1 normalized
+        # norm = {"x_min": float, "y_min": float, "scale": float}
+        self._track_norm: dict[str, float] | None = track_norm
+
+        # Track outline as numpy arrays for nearest-point lookup
+        self._track_xy: np.ndarray | None = None  # shape (N, 2)
+        if track_points:
+            self._track_xy = np.array(
+                [[p["x"], p["y"]] for p in track_points], dtype=np.float64
+            )
 
         # Per-driver state keyed by racing number string
         self._drivers: dict[str, _DriverState] = {}
@@ -209,7 +234,7 @@ class LiveStateManager:
         # Race control messages (most recent first, capped at 50)
         self._rc_messages: list[dict[str, Any]] = []
 
-        # Overall sector bests (sector index 0-2 → best time)
+        # Overall sector bests (sector index 0-2 -> best time)
         self._overall_sector_bests: dict[int, float] = {}
 
     # ------------------------------------------------------------------
@@ -306,6 +331,16 @@ class LiveStateManager:
                     ival = ival.get("Value", "")
                 drv.interval = ival if ival else drv.interval
 
+            # BestLapTime — store as best_lap_time for practice/qualifying
+            if "BestLapTime" in updates:
+                blt = updates["BestLapTime"]
+                if isinstance(blt, dict):
+                    blt_val = blt.get("Value", "")
+                else:
+                    blt_val = str(blt) if blt else ""
+                if blt_val:
+                    drv.best_lap_time = blt_val
+
             if "InPit" in updates:
                 drv.in_pit = bool(updates["InPit"])
 
@@ -379,6 +414,87 @@ class LiveStateManager:
 
         if sector_list:
             drv.sectors = sector_list
+
+    # --- Position -----------------------------------------------------
+
+    def _handle_position(self, data: dict, _ts: float) -> None:
+        """Handle Position data (decoded from Position.z).
+
+        Expected structure:
+        {
+            "Position": [
+                {
+                    "Timestamp": "...",
+                    "Entries": {
+                        "1": {"X": int, "Y": int, "Z": int, "Status": "OnTrack"},
+                        ...
+                    }
+                }
+            ]
+        }
+        """
+        position_list = data.get("Position")
+        if not position_list or not isinstance(position_list, list):
+            return
+
+        norm = self._track_norm
+        if not norm:
+            return  # No track data loaded, can't normalize
+
+        x_min = norm["x_min"]
+        y_min = norm["y_min"]
+        scale = norm["scale"]
+
+        for sample in position_list:
+            entries = sample.get("Entries")
+            if not entries or not isinstance(entries, dict):
+                continue
+            for number, pos_data in entries.items():
+                if not isinstance(pos_data, dict):
+                    continue
+                raw_x = pos_data.get("X")
+                raw_y = pos_data.get("Y")
+                if raw_x is None or raw_y is None:
+                    continue
+
+                drv = self._get_driver(str(number))
+                drv.on_track = pos_data.get("Status", "") == "OnTrack"
+
+                # Normalize raw Position.z coordinates
+                norm_x = (float(raw_x) - x_min) / scale
+                norm_y = (float(raw_y) - y_min) / scale
+
+                # Snap to nearest track outline point so cars render ON the
+                # track.  Position.z coordinates don't perfectly align with
+                # the FastF1-derived track outline, so using raw normalized
+                # values puts cars visibly off-track.
+                if self._track_xy is not None:
+                    rel_dist, snap_x, snap_y = self._snap_to_track(norm_x, norm_y)
+                    drv.x = snap_x
+                    drv.y = snap_y
+                    drv.relative_distance = rel_dist
+                else:
+                    drv.x = norm_x
+                    drv.y = norm_y
+
+    def _snap_to_track(self, x: float, y: float) -> tuple[float, float, float]:
+        """Snap a position to the nearest point on the track outline.
+
+        Returns (relative_distance, track_x, track_y) where the x,y are the
+        coordinates of the nearest track outline point.
+        """
+        track = self._track_xy
+        if track is None or len(track) == 0:
+            return 0.0, x, y
+        dx = track[:, 0] - x
+        dy = track[:, 1] - y
+        dist_sq = dx * dx + dy * dy
+        nearest_idx = int(np.argmin(dist_sq))
+        return (
+            nearest_idx / len(track),
+            float(track[nearest_idx, 0]),
+            float(track[nearest_idx, 1]),
+        )
 
     # --- TimingAppData ------------------------------------------------
 
@@ -623,6 +739,7 @@ class LiveStateManager:
         "ExtrapolatedClock": _handle_extrapolated_clock,
         "SessionStatus": _handle_session_status,
         "SessionData": _handle_session_data,
+        "Position": _handle_position,
     }
 
     # ------------------------------------------------------------------
@@ -636,6 +753,10 @@ class LiveStateManager:
         """
         drivers_list: list[dict[str, Any]] = []
         for drv in self._drivers.values():
+            # Skip phantom drivers with no identity (created by Position.z
+            # before DriverList arrives)
+            if not drv.abbr:
+                continue
             d = drv.to_dict()
             # Sanitize all values
             for key in list(d.keys()):
@@ -651,6 +772,10 @@ class LiveStateManager:
                 if d["position"] == 1:
                     d["gap"] = f"LAP {self._current_lap}" if self._current_lap > 0 else d["gap"]
                     break
+
+        # For non-race sessions: compute gap from best_lap_time values
+        if not self._is_race and drivers_list:
+            self._compute_practice_gaps(drivers_list)
 
         # Build quali_phase
         quali_phase: dict[str, Any] | None = None
@@ -687,6 +812,58 @@ class LiveStateManager:
             frame[key] = _sanitize_value(frame[key])
 
         return frame
+
+    # ------------------------------------------------------------------
+    # Practice / qualifying gap computation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_best_lap_seconds(time_str: str | None) -> float | None:
+        """Parse a best lap time like '1:23.456' or '83.456' into seconds."""
+        if not time_str:
+            return None
+        try:
+            if ":" in time_str:
+                parts = time_str.split(":")
+                return int(parts[0]) * 60 + float(parts[1])
+            return float(time_str)
+        except (ValueError, IndexError):
+            return None
+
+    @staticmethod
+    def _format_lap_time(seconds: float) -> str:
+        """Format seconds as M:SS.sss lap time string."""
+        mins = int(seconds // 60)
+        secs = seconds - mins * 60
+        return f"{mins}:{secs:06.3f}"
+
+    def _compute_practice_gaps(self, drivers_list: list[dict[str, Any]]) -> None:
+        """Compute best_lap_time display and gap-to-leader for non-race sessions."""
+        # Parse all best lap times
+        timed: list[tuple[int, float]] = []  # (index, seconds)
+        for i, d in enumerate(drivers_list):
+            secs = self._parse_best_lap_seconds(d.get("best_lap_time"))
+            if secs is not None:
+                timed.append((i, secs))
+
+        if not timed:
+            return
+
+        # Sort by time to find leader
+        timed.sort(key=lambda x: x[1])
+        leader_time = timed[0][1]
+
+        # Re-sort drivers by best lap time (position), assign gap
+        for rank, (idx, secs) in enumerate(timed):
+            d = drivers_list[idx]
+            d["position"] = rank + 1
+            if rank == 0:
+                d["gap"] = self._format_lap_time(secs)
+            else:
+                d["gap"] = f"+{secs - leader_time:.3f}"
+
+        # Re-sort the list by position
+        drivers_list.sort(key=lambda d: d["position"] if d["position"] is not None else 9999)
 
     # ------------------------------------------------------------------
     # Pit prediction (mirrors replay.py logic)

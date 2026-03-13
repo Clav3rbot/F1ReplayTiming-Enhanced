@@ -165,6 +165,7 @@ export default function ReplayPage() {
     if (settings.showTeamAbbr) w += 28;
     if (!isRace) w += 18; // pit indicator (P box + margin)
     if (isRace && settings.showGridChange) w += 24;
+    if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
     if (settings.showGapToLeader) w += 56;
     if (isQualifying && settings.showSectors) w += 36; // sector indicators (28 + 8 margin)
     if (isRace && settings.showPitStops) w += 24;

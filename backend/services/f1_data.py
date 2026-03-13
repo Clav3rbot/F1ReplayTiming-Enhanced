@@ -1135,6 +1135,7 @@ def _get_driver_positions_by_time_sync(
                 "flag": _get_driver_flag(drv, t_sec),
                 "gap": gap,
                 "interval": interval,
+                "best_lap_time": None,
                 "no_timing": gap is None,
                 "retired": False,
                 "relative_distance": rel_dist,
@@ -1284,6 +1285,7 @@ def _get_driver_positions_by_time_sync(
                 d["position"] = pos
                 best = driver_best_times.get(d["abbr"])
                 if best is not None:
+                    d["best_lap_time"] = _format_lap_time(best)
                     if fastest_time is None:
                         fastest_time = best
                         d["gap"] = _format_lap_time(best)
@@ -1291,6 +1293,7 @@ def _get_driver_positions_by_time_sync(
                         d["gap"] = f"+{best - fastest_time:.3f}"
                     d["no_timing"] = False
                 else:
+                    d["best_lap_time"] = None
                     d["gap"] = "No time"
                     d["no_timing"] = False
 

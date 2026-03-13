@@ -112,7 +112,30 @@ async def get_session(
     if data is not None:
         return data
 
-    # On-demand: try to process the session
+    # Fast fallback: build minimal session info from schedule data.
+    # This avoids triggering slow FastF1 processing for live sessions
+    # that haven't been precomputed yet.
+    schedule = get_json(f"seasons/{year}/schedule.json")
+    if schedule:
+        events = schedule.get("events", [])
+        if 0 < round_num <= len(events):
+            evt = events[round_num - 1]
+            session_type_labels = {
+                "R": "Race", "Q": "Qualifying", "S": "Sprint",
+                "SQ": "Sprint Qualifying", "FP1": "Practice 1",
+                "FP2": "Practice 2", "FP3": "Practice 3",
+            }
+            return {
+                "year": year,
+                "round_number": round_num,
+                "event_name": evt.get("event_name", f"Round {round_num}"),
+                "circuit": evt.get("location", ""),
+                "country": evt.get("country", ""),
+                "session_type": session_type_labels.get(type, type),
+                "drivers": [],
+            }
+
+    # On-demand: try to process the session via FastF1 (for replays)
     available = await ensure_session_data(year, round_num, type)
     if available:
         data = get_json(f"sessions/{year}/{round_num}/{type}/info.json")

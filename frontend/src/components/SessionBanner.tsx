@@ -26,9 +26,10 @@ const SESSION_LABELS: Record<string, string> = {
   FP3: "Practice 3",
 };
 
-const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; qualiOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
+const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; nonRaceOnly?: boolean; qualiOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
   { key: "showTeamAbbr", label: "Team" },
   { key: "showGridChange", label: "Grid position change", raceOnly: true },
+  { key: "showBestLapTime", label: "Best time", nonRaceOnly: true },
   { key: "showGapToLeader", label: "Gap" },
   { key: "showPitStops", label: "Pit stops", raceOnly: true },
   { key: "showTyreType", label: "Tyre type" },
@@ -220,7 +221,7 @@ export default function SessionBanner({
                     />
                   </div>
                 </button>
-                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
+                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.nonRaceOnly || !isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
                   const parentOff = parent ? !settings[parent] : false;
                   const disabled = !settings.showLeaderboard || parentOff;
                   return (

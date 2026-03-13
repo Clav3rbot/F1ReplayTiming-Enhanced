@@ -90,14 +90,11 @@ export default function LivePage() {
 
   const live = useLiveSocket(year, round, sessionType, speed, delayOffset);
 
-  const isLoading = sessionLoading || trackLoading;
-  const dataError = sessionError || trackError;
-
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
 
-  // Show loading until live socket is ready
-  if (isLoading || (!dataError && live.loading)) {
+  // Show loading only while the WebSocket is connecting
+  if (live.loading) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
         <div className="text-center">
@@ -114,20 +111,6 @@ export default function LivePage() {
         <div className="text-center max-w-md">
           <p className="text-red-400 text-lg font-bold mb-2">Live Timing Unavailable</p>
           <p className="text-f1-muted mb-6 text-sm">{live.error}</p>
-          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
-            Back to session picker
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataError) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
-          <p className="text-f1-muted mb-6">Data for this session is not available.</p>
           <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
             Back to session picker
           </a>
@@ -195,12 +178,16 @@ export default function LivePage() {
   // Check if we have any position data for the track map
   const hasPositionData = drivers.some((d) => d.x !== 0 || d.y !== 0);
 
+  // Session hasn't started yet (connected but no driver data)
+  const waitingForSession = live.ready && drivers.length === 0;
+
   // Calculate leaderboard width
   const leaderboardWidth = (() => {
     let w = 106;
     if (settings.showTeamAbbr) w += 28;
     if (!isRace) w += 18;
     if (isRace && settings.showGridChange) w += 24;
+    if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
     if (settings.showGapToLeader) w += 56;
     if (isQualifying && settings.showSectors) w += 36;
     if (isRace && settings.showPitStops) w += 24;
@@ -255,6 +242,22 @@ export default function LivePage() {
 
           {(!isMobile || mobileTrackOpen) && (
             <div className="h-[42vh] sm:h-full relative">
+              {/* Waiting for session overlay */}
+              {waitingForSession && (
+                <div className="absolute inset-0 z-30 flex items-center justify-center">
+                  <div className="bg-f1-card/95 border border-f1-border rounded-lg px-8 py-6 backdrop-blur-sm text-center">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-sm font-bold text-red-400 uppercase">Live</span>
+                    </div>
+                    <p className="text-white text-lg font-bold mb-2">Waiting for session to start</p>
+                    <p className="text-f1-muted text-sm">
+                      Live timing data will appear automatically when the session begins.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Flag badge */}
               {trackStatus !== "green" && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">

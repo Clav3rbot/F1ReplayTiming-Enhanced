@@ -193,7 +193,7 @@ export default function SessionPicker() {
             {evt.sessions.map((session) => {
               const code = SESSION_LABELS[session.name];
               if (!code) return null;
-              const isLive = liveSession?.round_number === evt.round_number && liveSession?.session_type === code;
+              const isLive = liveSession?.year === year && liveSession?.round_number === evt.round_number && liveSession?.session_type === code;
               if (isLive) {
                 return (
                   <a
@@ -330,8 +330,8 @@ export default function SessionPicker() {
           </div>
         ) : (
           <>
-            {/* Live session banner */}
-            {liveSession && (
+            {/* Live session banner — only show on the year that has the live session */}
+            {liveSession && liveSession.year === year && (
               <div className="mb-8">
                 <a
                   href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
