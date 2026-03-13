@@ -60,6 +60,8 @@ services:
     image: ghcr.io/adn8naiagent/f1replaytiming-frontend:latest
     ports:
       - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000  # Change to your backend URL if not using localhost
     depends_on:
       - backend
 
@@ -90,13 +92,47 @@ Open http://localhost:3000. Select any past session and it will be processed on 
 
 ### Docker configuration
 
-To enable optional features, edit the environment variables in `docker-compose.yml`:
+#### Network & URL configuration
+
+Two environment variables control how the frontend and backend find each other:
+
+| Variable | Set on | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | frontend | The URL your **browser** uses to reach the backend |
+| `FRONTEND_URL` | backend | The URL your browser uses to reach the frontend (needed for CORS) |
+
+The defaults (`http://localhost:8000` and `http://localhost:3000`) work when accessing the app on the same machine running Docker. If you access from another device, use a reverse proxy, or change ports, update both variables to match.
+
+**Example — accessing from other devices on your network:**
+```yaml
+backend:
+  environment:
+    - FRONTEND_URL=http://192.168.1.50:3000
+
+frontend:
+  environment:
+    - NEXT_PUBLIC_API_URL=http://192.168.1.50:8000
+```
+
+**Example — behind a reverse proxy (e.g. Cloudflare Tunnel, nginx):**
+```yaml
+backend:
+  environment:
+    - FRONTEND_URL=https://f1.example.com
+
+frontend:
+  environment:
+    - NEXT_PUBLIC_API_URL=https://api.f1.example.com
+```
+
+In this setup your reverse proxy routes `f1.example.com` to the frontend container (port 3000) and `api.f1.example.com` to the backend container (port 8000).
+
+#### Optional features
+
 - `OPENROUTER_API_KEY` - enables the photo sync feature ([get a key](https://openrouter.ai/))
 - `AUTH_ENABLED` / `AUTH_PASSPHRASE` - restricts access with a passphrase
 
-If you change ports, make sure to update:
-- `FRONTEND_URL` on the backend to match the URL you access the frontend on (used for CORS)
-- `NEXT_PUBLIC_API_URL` on the frontend to match the backend URL (this is baked in at build time, so rebuild with `docker compose up --build` after changing it)
+#### Data
 
 Session data is persisted in a Docker volume, so it survives restarts.
 
