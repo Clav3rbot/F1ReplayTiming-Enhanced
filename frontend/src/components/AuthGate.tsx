@@ -1,50 +1,74 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import { apiUrl } from "@/lib/api";
-import { getToken, setToken } from "@/lib/auth";
+import { useState, useEffect, useCallback, FormEvent } from "react";
+import { apiUrl, API_URL } from "@/lib/api";
+import { getToken, setToken, clearToken } from "@/lib/auth";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch(apiUrl("/api/auth/status"))
-      .then((res) => res.json())
+  const checkAuth = useCallback(() => {
+    setChecking(true);
+    setConnectionError(false);
+
+    const url = apiUrl("/api/auth/status");
+    console.log(`[AuthGate] Checking auth status at ${url}`);
+
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) {
+          console.error(`[AuthGate] Auth status returned ${res.status}`);
+          throw new Error(`Backend returned ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
+        console.log(`[AuthGate] Auth enabled: ${data.auth_enabled}`);
         if (!data.auth_enabled) {
           setAuthenticated(true);
+          setChecking(false);
         } else {
           setAuthRequired(true);
           // Check if we have a cached token that still works
           const token = getToken();
           if (token) {
-            fetch(apiUrl("/api/health"), {
+            fetch(apiUrl("/api/auth/verify"), {
               headers: { Authorization: `Bearer ${token}` },
             }).then((res) => {
               if (res.ok) {
+                console.log("[AuthGate] Cached token is valid");
                 setAuthenticated(true);
+              } else {
+                console.log("[AuthGate] Cached token is invalid, clearing");
+                clearToken();
               }
               setChecking(false);
-            }).catch(() => setChecking(false));
+            }).catch(() => {
+              console.error("[AuthGate] Failed to validate cached token");
+              setChecking(false);
+            });
           } else {
             setChecking(false);
           }
         }
       })
-      .catch(() => {
-        // Can't reach backend — assume auth is required so we don't bypass it
-        setAuthRequired(true);
-      })
-      .finally(() => {
-        if (!authRequired) setChecking(false);
+      .catch((err) => {
+        console.error(`[AuthGate] Cannot connect to backend at ${API_URL}:`, err.message);
+        setConnectionError(true);
+        setChecking(false);
       });
   }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,6 +103,50 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-f1-red border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (connectionError) {
+    return (
+      <div className="min-h-screen bg-f1-dark flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <img src="/logo.png" alt="F1 Replay" className="w-16 h-16 rounded-lg mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-white">F1 Replay Timing</h1>
+          </div>
+
+          <div className="bg-f1-card border border-f1-border rounded-xl p-6">
+            <h2 className="text-sm font-bold text-red-400 mb-3">Cannot connect to backend</h2>
+            <p className="text-sm text-f1-muted mb-3">
+              The frontend failed to reach the API server at:
+            </p>
+            <code className="block text-xs text-white bg-f1-dark border border-f1-border rounded px-3 py-2 mb-4 break-all">
+              {API_URL}
+            </code>
+            <div className="text-xs text-f1-muted space-y-2">
+              <p>Common causes:</p>
+              <ul className="list-disc list-inside space-y-1 ml-1">
+                <li>The backend container is still starting up</li>
+                <li>
+                  <code className="text-white">NEXT_PUBLIC_API_URL</code> in your
+                  docker-compose.yml is set to a URL that isn&apos;t reachable from
+                  your browser
+                </li>
+                <li>
+                  If behind a reverse proxy, this URL must be the address your browser
+                  uses to reach the backend, not an internal Docker address
+                </li>
+              </ul>
+            </div>
+            <button
+              onClick={checkAuth}
+              className="w-full mt-5 px-4 py-2 bg-f1-red text-white text-sm font-bold rounded hover:bg-red-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
