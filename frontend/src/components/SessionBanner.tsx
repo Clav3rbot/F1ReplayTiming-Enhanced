@@ -13,6 +13,7 @@ interface Props {
   settings?: ReplaySettings;
   onSettingChange?: (key: keyof ReplaySettings, value: boolean) => void;
   weather?: WeatherData;
+  extraActions?: React.ReactNode;
 }
 
 const SESSION_LABELS: Record<string, string> = {
@@ -25,9 +26,10 @@ const SESSION_LABELS: Record<string, string> = {
   FP3: "Practice 3",
 };
 
-const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; qualiOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
+const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly?: boolean; nonRaceOnly?: boolean; qualiOnly?: boolean; badge?: string; parent?: keyof ReplaySettings }[] = [
   { key: "showTeamAbbr", label: "Team" },
   { key: "showGridChange", label: "Grid position change", raceOnly: true },
+  { key: "showBestLapTime", label: "Best time", nonRaceOnly: true },
   { key: "showGapToLeader", label: "Gap" },
   { key: "showPitStops", label: "Pit stops", raceOnly: true },
   { key: "showTyreType", label: "Tyre type" },
@@ -61,6 +63,7 @@ export default function SessionBanner({
   settings: settingsProp,
   onSettingChange,
   weather,
+  extraActions,
 }: Props) {
   const settings = settingsProp || DEFAULT_SETTINGS;
   const isRace = sessionType === "R" || sessionType === "S";
@@ -159,6 +162,7 @@ export default function SessionBanner({
         )}
 
         <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+          {extraActions}
           <div className="bg-f1-red px-2 sm:px-4 py-1 rounded text-white font-extrabold text-[10px] sm:text-xs uppercase">
             {SESSION_LABELS[sessionType] || sessionType}
           </div>
@@ -217,7 +221,7 @@ export default function SessionBanner({
                     />
                   </div>
                 </button>
-                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
+                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.nonRaceOnly || !isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
                   const parentOff = parent ? !settings[parent] : false;
                   const disabled = !settings.showLeaderboard || parentOff;
                   return (
@@ -367,10 +371,11 @@ export default function SessionBanner({
                   Driver positions &amp; timing
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
-                  Driver positions and gap times are sourced directly from the official
-                  F1 live timing feed — the same data used by the broadcast. Positions
-                  are determined by sorting drivers on their gap to the leader, which
-                  updates multiple times per lap at sector and mini-sector boundaries.
+                  In replay mode, driver positions and gap times are processed from
+                  FastF1 data. In live mode, they are streamed directly from the F1
+                  SignalR feed. Positions are determined by sorting drivers on their
+                  gap to the leader, which updates multiple times per lap at sector
+                  and mini-sector boundaries.
                 </p>
               </div>
 
@@ -411,9 +416,11 @@ export default function SessionBanner({
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
                   Car positions on the track are derived from GPS telemetry data
-                  and update every 0.5 seconds. Movement is smoothed for a cleaner
-                  visual. The track orientation matches the conventional broadcast
-                  view for each circuit.
+                  processed via FastF1 and update every 0.5 seconds. Movement is
+                  smoothed for a cleaner visual. The track orientation matches the
+                  conventional broadcast view for each circuit. Track positions
+                  are available in replay mode only — live sessions do not include
+                  track positions as this data requires an F1 TV subscription.
                 </p>
               </div>
 
@@ -437,7 +444,7 @@ export default function SessionBanner({
                 <p className="text-sm text-f1-muted leading-relaxed">
                   Shows the predicted position a driver would return to if they pitted
                   now, using precomputed pit loss times for each circuit. Predictions
-                  appear from lap 15 onwards and adjust for Safety Car and Virtual
+                  appear from lap 5 onwards and adjust for Safety Car and Virtual
                   Safety Car conditions.
                 </p>
                 <p className="text-sm text-f1-muted leading-relaxed mt-2">
@@ -448,6 +455,25 @@ export default function SessionBanner({
                   and <span className="text-red-400 font-bold">red</span> means less than 1s (very tight).
                   The pit gaps show the predicted gap to the car ahead (↑) and the
                   car behind (↓) after pitting.
+                </p>
+              </div>
+
+              {/* Race Control Messages */}
+              <div>
+                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+                  Race control messages
+                </h3>
+                <p className="text-sm text-f1-muted leading-relaxed">
+                  Click the RC button on the track map to open a feed of all official
+                  race control messages — investigations, penalties, track limits,
+                  DRS activations, and flag changes.
+                </p>
+                <p className="text-sm text-f1-muted leading-relaxed mt-2">
+                  Drivers under investigation show a{" "}
+                  <svg className="w-3.5 h-3.5 text-orange-400 inline -mt-0.5" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 6v7m0 2v2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
+                  {" "}warning icon on the leaderboard. Drivers with a penalty show a{" "}
+                  <svg className="w-3.5 h-3.5 text-red-500 inline -mt-0.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" /><path d="M12 8v5m0 3v.01" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
+                  {" "}penalty icon. These clear when the stewards resolve the incident.
                 </p>
               </div>
 
@@ -463,15 +489,37 @@ export default function SessionBanner({
                 </p>
               </div>
 
+              {/* Live timing */}
+              <div>
+                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+                  Live timing
+                </h3>
+                <p className="text-sm text-f1-muted leading-relaxed">
+                  During active sessions, live timing connects directly to the
+                  F1 SignalR stream to provide real-time leaderboard data, tyre
+                  information, race control messages, and weather.
+                </p>
+                <p className="text-sm text-f1-muted leading-relaxed mt-2">
+                  Driver positions on the track map and telemetry data (speed,
+                  throttle, brake, gear) are not available in live mode as
+                  track position data requires an authenticated F1 TV
+                  subscription. These become available in replay mode once
+                  the session is processed via FastF1, typically 1–2 hours
+                  after the chequered flag.
+                </p>
+              </div>
+
               {/* Data source */}
               <div>
                 <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
                   Data source
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
-                  All data is sourced from the official F1 timing feed via
-                  the FastF1 library. Session data typically becomes available
-                  1–2 hours after the chequered flag.
+                  Replay data — including track positions, telemetry, and
+                  timing — is sourced from the FastF1 library. Session data
+                  typically becomes available 1–2 hours after the chequered
+                  flag. Live timing data is sourced directly from the F1
+                  SignalR stream.
                 </p>
               </div>
             </div>
