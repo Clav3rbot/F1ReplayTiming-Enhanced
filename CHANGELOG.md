@@ -10,8 +10,10 @@ All notable changes to F1 Timing Replay will be documented in this file.
 - **Driver Indicators** — investigation (warning triangle) and penalty (circled exclamation) icons on the leaderboard, with automatic clearing when stewards resolve incidents
 
 ### Improvements
+- **Docker images published to GHCR** — pre-built images are now automatically published to GitHub Container Registry on each release, so users can deploy with just a `docker-compose.yml` without cloning the repo
 - PiP window track map and driver positions now continue updating when switching windows (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
 - Session picker shows session start times in the user's local timezone (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
+- Improved Docker Compose configuration with clearer comments on port and URL customisation
 
 ### Known Limitations
 - **Live timing: no track positions or telemetry** — Driver positions on the track map and telemetry data are not available during live sessions. Position data requires an authenticated F1 TV subscription. Full track positions and telemetry become available in replay mode once session data is processed (typically 1–2 hours after the session).
