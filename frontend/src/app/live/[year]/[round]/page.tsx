@@ -364,6 +364,16 @@ export default function LivePage() {
                 </div>
               )}
 
+              {/* Live positions unavailable overlay */}
+              <div className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-4">
+                <div className="bg-f1-card/90 border border-f1-border rounded-lg px-4 py-2.5 backdrop-blur-sm text-center max-w-sm">
+                  <p className="text-f1-muted text-xs leading-relaxed">
+                    Driver track positions and telemetry are not available during live sessions.
+                    These will be available in replay once the session is processed.
+                  </p>
+                </div>
+              </div>
+
               {trackPoints.length > 0 ? (
                 <TrackCanvas
                   trackPoints={trackPoints}

@@ -47,8 +47,8 @@ docker compose up
 Open http://localhost:3000. Select any past session and it will be processed on demand.
 
 To enable optional features, edit the environment variables in `docker-compose.yml`:
-- `OPENROUTER_API_KEY` - enables the photo sync feature ([get a key](https://openrouter.ai/))
-- `AUTH_ENABLED` / `AUTH_PASSPHRASE` - restricts access with a passphrase
+- `OPENROUTER_API_KEY` — enables the photo sync feature ([get a key](https://openrouter.ai/))
+- `AUTH_ENABLED` / `AUTH_PASSPHRASE` — restricts access with a passphrase
 
 Session data is persisted in a Docker volume, so it survives restarts.
 
@@ -74,7 +74,7 @@ docker compose exec backend python precompute.py 2024 2025 --skip-existing
 
 - Python 3.10+
 - Node.js 18+
-- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync - manual entry sync works without this)
+- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync — manual entry sync works without this)
 
 #### 1. Clone the repository
 
