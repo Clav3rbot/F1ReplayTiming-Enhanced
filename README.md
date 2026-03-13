@@ -1,7 +1,10 @@
 <h1><img src="https://github.com/user-attachments/assets/158de3d0-8bd5-41a5-a34d-a3a92471cf96" width="50" align="absmiddle" /> F1 Replay Timing</h1>
 
 
-https://github.com/user-attachments/assets/618597ae-d6e6-4793-bc4d-3f72dd410973
+
+
+https://github.com/user-attachments/assets/952b8634-2470-46d9-96e2-67a820459a49
+
 
 
 > **Disclaimer:** This project is intended for **personal, non-commercial use only**. This website is unofficial and is not associated in any way with the Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks are trade marks of Formula One Licensing B.V.
