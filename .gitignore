@@ -20,3 +20,6 @@ backend/data/sessions/
 
 # OS
 .DS_Store
+
+# Planning & internal docs
+/docs/

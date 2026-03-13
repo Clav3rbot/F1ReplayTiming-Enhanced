@@ -19,9 +19,10 @@ export default function FeaturesPage() {
           <h2 className="text-lg font-bold text-white mb-1">Track Map</h2>
           <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
           <p className="text-f1-text leading-relaxed">
-            A live track map shows car positions derived from GPS telemetry, updating every 0.5 seconds
-            with smooth interpolation. Click any driver on the leaderboard or map to highlight them.
-            The track orientation matches the conventional broadcast view for each circuit.
+            A track map shows car positions derived from GPS telemetry data processed via FastF1,
+            updating every 0.5 seconds with smooth interpolation. Click any driver on the leaderboard
+            or map to highlight them. The track orientation matches the conventional broadcast view
+            for each circuit. Available in replay mode only.
           </p>
         </section>
 
@@ -169,7 +170,7 @@ export default function FeaturesPage() {
           <p className="text-f1-text leading-relaxed mb-3">
             Under Safety Car or Virtual Safety Car conditions, reduced pit loss values are used
             (approximately 45% and 65% of the green flag loss respectively), reflecting the lower time
-            cost of pitting under caution. Predictions appear from lap 15 onwards.
+            cost of pitting under caution. Predictions appear from lap 5 onwards.
           </p>
           <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
             Confidence indicator
@@ -192,6 +193,37 @@ export default function FeaturesPage() {
             gap to the car ahead (top) and the gap to the car behind (bottom) after the pit stop.
             This helps assess whether the driver would rejoin in clean air or in traffic, and how
             secure their predicted position would be.
+          </p>
+        </section>
+
+        {/* Race Control Messages */}
+        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
+          <h2 className="text-lg font-bold text-white mb-1">Race Control Messages</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            A live feed of all race control messages is accessible via the RC button on the track map.
+            Messages include steward investigations, penalties, track limit deletions, DRS activations,
+            safety car deployments, and other official communications.
+          </p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            Each message is colour-coded for quick scanning:
+          </p>
+          <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
+            <li><span className="text-orange-400 font-bold">Orange</span> — incident noted or under investigation</li>
+            <li><span className="text-red-400 font-bold">Red</span> — penalty issued</li>
+            <li><span className="text-green-400 font-bold">Green</span> — cleared / no further action</li>
+            <li><span className="text-f1-muted font-bold">Grey</span> — other messages (DRS, flags, etc.)</li>
+          </ul>
+          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+            Driver indicators
+          </h3>
+          <p className="text-f1-text leading-relaxed">
+            When a driver is under investigation or has received a penalty, an indicator appears next to
+            their name on the leaderboard: a warning triangle
+            (<svg className="w-3.5 h-3.5 text-orange-400 inline -mt-0.5" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 6v7m0 2v2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>)
+            for investigations and a circled exclamation
+            (<svg className="w-3.5 h-3.5 text-red-500 inline -mt-0.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" /><path d="M12 8v5m0 3v.01" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>)
+            for penalties. These clear automatically when the stewards issue a decision.
           </p>
         </section>
 
@@ -272,6 +304,22 @@ export default function FeaturesPage() {
             The current track status is shown as a flag indicator: green flag, yellow flag, Safety Car,
             Virtual Safety Car, or red flag. The track map border colour also changes to reflect the
             current status.
+          </p>
+        </section>
+
+        {/* Live Timing */}
+        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
+          <h2 className="text-lg font-bold text-white mb-1">Live Timing</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            During active F1 sessions, live timing connects directly to the F1 SignalR stream to
+            provide real-time leaderboard data, tyre information, race control messages, and weather.
+          </p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            Driver positions on the track map and telemetry data (speed, throttle, brake, gear) are
+            not available in live mode, as track position data requires an authenticated F1 TV
+            subscription. These become available in replay mode once the session is processed via
+            FastF1, typically 1&ndash;2 hours after the chequered flag.
           </p>
         </section>
 
