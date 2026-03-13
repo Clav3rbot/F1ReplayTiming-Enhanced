@@ -2,6 +2,16 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
+## 1.2.1 - 2026-03-14
+
+### New Features
+- **Red flag countdown and skip** - during red flag periods in replay mode, a countdown timer shows how long until the session resumes, with a button to skip ahead to the restart
+
+### Improvements
+- Deployment configuration improvements (coming soon)
+
+---
+
 ## 1.2.0 - 2026-03-14
 
 ### New Features
