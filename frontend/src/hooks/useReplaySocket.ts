@@ -151,6 +151,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
               weather: msg.weather,
               quali_phase: msg.quali_phase,
               rc_messages: msg.rc_messages,
+              red_flag_end: msg.red_flag_end,
             },
           }));
           break;
