@@ -210,7 +210,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               )}
 
               {/* Flags - 16px */}
-              <span className="w-4 flex-shrink-0 flex items-center justify-center">
+              <span className={`w-4 flex-shrink-0 flex items-center justify-center ${!isRace ? "ml-1.5" : ""}`}>
                 {isRace && drv.has_fastest_lap && (
                   <svg className="w-3.5 h-3.5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
                     <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" />
