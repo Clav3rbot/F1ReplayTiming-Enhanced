@@ -175,9 +175,6 @@ export default function LivePage() {
   const trackStatus = live.frame?.status || "green";
   const weather = live.frame?.weather;
 
-  // Check if we have any position data for the track map
-  const hasPositionData = drivers.some((d) => d.x !== 0 || d.y !== 0);
-
   // Session hasn't started yet (connected but no driver data)
   const waitingForSession = live.ready && drivers.length === 0;
 
@@ -367,7 +364,7 @@ export default function LivePage() {
                 </div>
               )}
 
-              {hasPositionData ? (
+              {trackPoints.length > 0 ? (
                 <TrackCanvas
                   trackPoints={trackPoints}
                   rotation={rotation}
@@ -385,28 +382,7 @@ export default function LivePage() {
                 />
               ) : (
                 <div className="h-full flex items-center justify-center">
-                  {trackPoints.length > 0 ? (
-                    <div className="relative w-full h-full">
-                      <TrackCanvas
-                        trackPoints={trackPoints}
-                        rotation={rotation}
-                        trackStatus={trackStatus}
-                        drivers={[]}
-                        highlightedDrivers={[]}
-                        playbackSpeed={1}
-                        showDriverNames={false}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-f1-card/90 border border-f1-border rounded-lg px-6 py-3 backdrop-blur-sm">
-                          <p className="text-f1-muted text-sm text-center">
-                            Track positions available in replay after session
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-f1-muted text-sm">Track data not available</p>
-                  )}
+                  <p className="text-f1-muted text-sm">Track data not available</p>
                 </div>
               )}
             </div>

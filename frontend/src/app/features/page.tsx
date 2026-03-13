@@ -19,9 +19,10 @@ export default function FeaturesPage() {
           <h2 className="text-lg font-bold text-white mb-1">Track Map</h2>
           <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
           <p className="text-f1-text leading-relaxed">
-            A live track map shows car positions derived from GPS telemetry, updating every 0.5 seconds
-            with smooth interpolation. Click any driver on the leaderboard or map to highlight them.
-            The track orientation matches the conventional broadcast view for each circuit.
+            A track map shows car positions derived from GPS telemetry data processed via FastF1,
+            updating every 0.5 seconds with smooth interpolation. Click any driver on the leaderboard
+            or map to highlight them. The track orientation matches the conventional broadcast view
+            for each circuit. Available in replay mode only.
           </p>
         </section>
 
@@ -303,6 +304,22 @@ export default function FeaturesPage() {
             The current track status is shown as a flag indicator: green flag, yellow flag, Safety Car,
             Virtual Safety Car, or red flag. The track map border colour also changes to reflect the
             current status.
+          </p>
+        </section>
+
+        {/* Live Timing */}
+        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
+          <h2 className="text-lg font-bold text-white mb-1">Live Timing</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            During active F1 sessions, live timing connects directly to the F1 SignalR stream to
+            provide real-time leaderboard data, tyre information, race control messages, and weather.
+          </p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            Driver positions on the track map and telemetry data (speed, throttle, brake, gear) are
+            not available in live mode, as track position data requires an authenticated F1 TV
+            subscription. These become available in replay mode once the session is processed via
+            FastF1, typically 1&ndash;2 hours after the chequered flag.
           </p>
         </section>
 

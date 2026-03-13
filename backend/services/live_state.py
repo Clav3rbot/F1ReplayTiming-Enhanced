@@ -215,6 +215,13 @@ class LiveStateManager:
                 [[p["x"], p["y"]] for p in track_points], dtype=np.float64
             )
 
+        # Auto-normalization from raw position data (fallback when no track_norm)
+        self._raw_x_min: float = float("inf")
+        self._raw_x_max: float = float("-inf")
+        self._raw_y_min: float = float("inf")
+        self._raw_y_max: float = float("-inf")
+        self._position_samples: int = 0
+
         # Per-driver state keyed by racing number string
         self._drivers: dict[str, _DriverState] = {}
 
@@ -224,12 +231,14 @@ class LiveStateManager:
         self._current_lap: int = 0
         self._total_laps: int = 0
         self._session_status: str = "Inactive"  # Inactive, Started, Finished, Finalised, Ends
+        self._session_was_started: bool = False
         self._quali_phase: int = 0  # 0 = unknown, 1/2/3
         self._clock_remaining: float = 0.0
         self._clock_extrapolating: bool = False
         self._clock_utc: str = ""
         self._clock_update_time: float = 0.0  # monotonic time when clock was last set
         self._last_timestamp: float = 0.0
+        self._seen_topics: set[str] = set()
 
         # Race control messages (most recent first, capped at 50)
         self._rc_messages: list[dict[str, Any]] = []
@@ -277,6 +286,10 @@ class LiveStateManager:
             Unix epoch timestamp of when the message was received.
         """
         self._last_timestamp = timestamp
+
+        if topic not in self._seen_topics:
+            self._seen_topics.add(topic)
+            logger.info("First message for topic: %s", topic)
 
         handler = self._HANDLERS.get(topic)
         if handler is not None:
@@ -437,14 +450,8 @@ class LiveStateManager:
         if not position_list or not isinstance(position_list, list):
             return
 
-        norm = self._track_norm
-        if not norm:
-            return  # No track data loaded, can't normalize
-
-        x_min = norm["x_min"]
-        y_min = norm["y_min"]
-        scale = norm["scale"]
-
+        # Collect all raw coordinates from this batch
+        raw_positions: list[tuple[str, float, float, str]] = []
         for sample in position_list:
             entries = sample.get("Entries")
             if not entries or not isinstance(entries, dict):
@@ -456,26 +463,59 @@ class LiveStateManager:
                 raw_y = pos_data.get("Y")
                 if raw_x is None or raw_y is None:
                     continue
+                status = pos_data.get("Status", "")
+                raw_positions.append((str(number), float(raw_x), float(raw_y), status))
 
-                drv = self._get_driver(str(number))
-                drv.on_track = pos_data.get("Status", "") == "OnTrack"
+        if not raw_positions:
+            return
 
-                # Normalize raw Position.z coordinates
-                norm_x = (float(raw_x) - x_min) / scale
-                norm_y = (float(raw_y) - y_min) / scale
+        # If no precomputed track_norm, auto-compute from position data
+        if self._track_norm is None:
+            for _, rx, ry, _ in raw_positions:
+                self._raw_x_min = min(self._raw_x_min, rx)
+                self._raw_x_max = max(self._raw_x_max, rx)
+                self._raw_y_min = min(self._raw_y_min, ry)
+                self._raw_y_max = max(self._raw_y_max, ry)
+                self._position_samples += 1
 
-                # Snap to nearest track outline point so cars render ON the
-                # track.  Position.z coordinates don't perfectly align with
-                # the FastF1-derived track outline, so using raw normalized
-                # values puts cars visibly off-track.
-                if self._track_xy is not None:
-                    rel_dist, snap_x, snap_y = self._snap_to_track(norm_x, norm_y)
-                    drv.x = snap_x
-                    drv.y = snap_y
-                    drv.relative_distance = rel_dist
-                else:
-                    drv.x = norm_x
-                    drv.y = norm_y
+            x_range = self._raw_x_max - self._raw_x_min
+            y_range = self._raw_y_max - self._raw_y_min
+            scale = max(x_range, y_range)
+
+            if scale < 1.0 or self._position_samples < 5:
+                # Not enough data yet to normalize — store raw and wait
+                return
+
+            # Add 5% padding so cars aren't at the very edge
+            padding = scale * 0.05
+            x_min = self._raw_x_min - padding
+            y_min = self._raw_y_min - padding
+            scale = scale + 2 * padding
+        else:
+            x_min = self._track_norm["x_min"]
+            y_min = self._track_norm["y_min"]
+            scale = self._track_norm["scale"]
+
+        for number, raw_x, raw_y, status in raw_positions:
+            drv = self._get_driver(number)
+            drv.on_track = status == "OnTrack"
+
+            # Normalize raw Position.z coordinates
+            norm_x = (raw_x - x_min) / scale
+            norm_y = (raw_y - y_min) / scale
+
+            # Snap to nearest track outline point so cars render ON the
+            # track.  Position.z coordinates don't perfectly align with
+            # the FastF1-derived track outline, so using raw normalized
+            # values puts cars visibly off-track.
+            if self._track_xy is not None:
+                rel_dist, snap_x, snap_y = self._snap_to_track(norm_x, norm_y)
+                drv.x = snap_x
+                drv.y = snap_y
+                drv.relative_distance = rel_dist
+            else:
+                drv.x = norm_x
+                drv.y = norm_y
 
     def _snap_to_track(self, x: float, y: float) -> tuple[float, float, float]:
         """Snap a position to the nearest point on the track outline.
@@ -696,7 +736,13 @@ class LiveStateManager:
 
     def _handle_session_status(self, data: dict, _ts: float) -> None:
         if "Status" in data:
-            self._session_status = data["Status"]
+            new_status = data["Status"]
+            # Track whether the session has ever been active — initial state
+            # from Subscribe completion may carry "Finalised" from a prior
+            # session, which we must not treat as "session ended".
+            if new_status == "Started":
+                self._session_was_started = True
+            self._session_status = new_status
 
     # --- SessionData --------------------------------------------------
 

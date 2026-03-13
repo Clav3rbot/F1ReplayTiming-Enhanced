@@ -328,8 +328,10 @@ async def live_websocket(
                 if frame:
                     await websocket.send_json({"type": "frame", **frame})
 
-                    # Check if session has finished
-                    if session._state_manager and session._state_manager.session_status in ("Finalised", "Finished"):
+                    # Check if session has finished (only after it was actually started)
+                    if (session._state_manager
+                        and session._state_manager._session_was_started
+                        and session._state_manager.session_status in ("Finalised", "Finished")):
                         await websocket.send_json({
                             "type": "finished",
                             "message": "Session ended. Full replay with track positions and telemetry will be available shortly.",

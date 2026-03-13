@@ -94,6 +94,7 @@ class LiveSignalRClient:
         self._connected = False
         self._stop_event: asyncio.Event = asyncio.Event()
         self._ping_task: asyncio.Task[None] | None = None
+        self._seen_targets: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -352,6 +353,8 @@ class LiveSignalRClient:
     # Message handling
     # ------------------------------------------------------------------
 
+    _raw_msg_count = 0
+
     async def _handle_message(
         self,
         ws: Any,
@@ -361,6 +364,14 @@ class LiveSignalRClient:
     ) -> None:
         """Dispatch a single parsed SignalR message."""
         msg_type = msg.get("type")
+
+        # Log first 50 raw messages to understand full message flow
+        self._raw_msg_count += 1
+        if self._raw_msg_count <= 50:
+            logger.info("RAW MSG #%d: type=%s keys=%s preview=%r",
+                        self._raw_msg_count, msg_type,
+                        list(msg.keys()),
+                        str(msg)[:300])
 
         if msg_type == _MSG_PING:
             # Respond to server pings immediately.
@@ -376,6 +387,9 @@ class LiveSignalRClient:
         if msg_type == _MSG_INVOCATION:
             target = msg.get("target", "")
             arguments = msg.get("arguments", [])
+            if target not in self._seen_targets:
+                self._seen_targets.add(target)
+                logger.info("New invocation target: %s", target)
             if not target:
                 return
 
@@ -393,6 +407,74 @@ class LiveSignalRClient:
                 except Exception:
                     logger.warning("Failed to decompress %s payload", target)
                     return
+
+            # "feed" is a multiplexed payload containing updates for
+            # multiple topics in a single message.
+            if target == "feed":
+                # Only log non-TimingData feed topics in detail to reduce noise
+                topic_preview = str(arguments[0])[:80] if arguments else "EMPTY"
+                if topic_preview != "TimingData":
+                    logger.info(
+                        "Feed msg: %d args, types=%s, topics=%r",
+                        len(arguments),
+                        [type(a).__name__ for a in arguments[:4]],
+                        topic_preview,
+                    )
+                    if len(arguments) >= 3:
+                        logger.info("Feed arg2: type=%s, preview=%r",
+                                    type(arguments[2]).__name__,
+                                    str(arguments[2])[:200])
+
+                # Format A: arguments = [topic_name, data]
+                if len(arguments) >= 2 and isinstance(arguments[0], str):
+                    feed_topic = arguments[0]
+                    feed_data = arguments[1]
+
+                    # Decompress .z topics
+                    if feed_topic.endswith(".z") and isinstance(feed_data, str):
+                        try:
+                            raw_bytes = base64.b64decode(feed_data)
+                            feed_data = json.loads(
+                                zlib.decompress(raw_bytes, -zlib.MAX_WBITS)
+                            )
+                            feed_topic = feed_topic[:-2]
+                        except Exception:
+                            logger.warning("Failed to decompress feed %s", feed_topic)
+                            return
+
+                    if isinstance(feed_data, dict):
+                        try:
+                            await callback(feed_topic, feed_data, recv_ts)
+                        except Exception:
+                            logger.exception(
+                                "Error in callback for feed topic %s", feed_topic
+                            )
+                    return
+
+                # Format B: arguments = [dict_with_topic_keys]
+                if len(arguments) >= 1 and isinstance(arguments[0], dict):
+                    for feed_topic, feed_data in arguments[0].items():
+                        if isinstance(feed_topic, str) and feed_topic.endswith(".z") and isinstance(feed_data, str):
+                            try:
+                                raw_bytes = base64.b64decode(feed_data)
+                                feed_data = json.loads(
+                                    zlib.decompress(raw_bytes, -zlib.MAX_WBITS)
+                                )
+                                feed_topic = feed_topic[:-2]
+                            except Exception:
+                                continue
+                        if isinstance(feed_data, dict):
+                            try:
+                                await callback(feed_topic, feed_data, recv_ts)
+                            except Exception:
+                                logger.exception(
+                                    "Error in callback for feed topic %s", feed_topic
+                                )
+                    return
+
+                # Unknown format — log and skip
+                logger.warning("Unrecognized feed format: %d args", len(arguments))
+                return
 
             try:
                 await callback(target, data, recv_ts)
@@ -425,9 +507,37 @@ class LiveSignalRClient:
                         logger.exception("Error in callback for initial %s", effective_name)
             return
 
+        # Stream item (type 2) — may contain Position.z data
+        if msg_type == 2:
+            item = msg.get("item")
+            invocation_id = msg.get("invocationId", "")
+            logger.info(
+                "StreamItem: invocationId=%s, item type=%s, preview=%r",
+                invocation_id,
+                type(item).__name__ if item is not None else "None",
+                str(item)[:200] if item else "EMPTY",
+            )
+            if isinstance(item, dict):
+                try:
+                    await callback("Position", item, recv_ts)
+                except Exception:
+                    logger.exception("Error in callback for StreamItem")
+            elif isinstance(item, str):
+                # Might be compressed
+                try:
+                    raw_bytes = base64.b64decode(item)
+                    decompressed = json.loads(
+                        zlib.decompress(raw_bytes, -zlib.MAX_WBITS)
+                    )
+                    if isinstance(decompressed, dict):
+                        await callback("Position", decompressed, recv_ts)
+                except Exception:
+                    pass
+            return
+
         # Other message types — log and ignore.
         if msg_type is not None:
-            logger.debug("Ignoring SignalR message type %s", msg_type)
+            logger.info("Unknown SignalR message type %s: %r", msg_type, str(msg)[:300])
 
     # ------------------------------------------------------------------
     # Send helper

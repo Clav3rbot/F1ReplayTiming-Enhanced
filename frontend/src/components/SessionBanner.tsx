@@ -371,10 +371,11 @@ export default function SessionBanner({
                   Driver positions &amp; timing
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
-                  Driver positions and gap times are sourced directly from the official
-                  F1 live timing feed — the same data used by the broadcast. Positions
-                  are determined by sorting drivers on their gap to the leader, which
-                  updates multiple times per lap at sector and mini-sector boundaries.
+                  In replay mode, driver positions and gap times are processed from
+                  FastF1 data. In live mode, they are streamed directly from the F1
+                  SignalR feed. Positions are determined by sorting drivers on their
+                  gap to the leader, which updates multiple times per lap at sector
+                  and mini-sector boundaries.
                 </p>
               </div>
 
@@ -415,9 +416,11 @@ export default function SessionBanner({
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
                   Car positions on the track are derived from GPS telemetry data
-                  and update every 0.5 seconds. Movement is smoothed for a cleaner
-                  visual. The track orientation matches the conventional broadcast
-                  view for each circuit.
+                  processed via FastF1 and update every 0.5 seconds. Movement is
+                  smoothed for a cleaner visual. The track orientation matches the
+                  conventional broadcast view for each circuit. Track positions
+                  are available in replay mode only — live sessions do not include
+                  track positions as this data requires an F1 TV subscription.
                 </p>
               </div>
 
@@ -486,15 +489,37 @@ export default function SessionBanner({
                 </p>
               </div>
 
+              {/* Live timing */}
+              <div>
+                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+                  Live timing
+                </h3>
+                <p className="text-sm text-f1-muted leading-relaxed">
+                  During active sessions, live timing connects directly to the
+                  F1 SignalR stream to provide real-time leaderboard data, tyre
+                  information, race control messages, and weather.
+                </p>
+                <p className="text-sm text-f1-muted leading-relaxed mt-2">
+                  Driver positions on the track map and telemetry data (speed,
+                  throttle, brake, gear) are not available in live mode as
+                  track position data requires an authenticated F1 TV
+                  subscription. These become available in replay mode once
+                  the session is processed via FastF1, typically 1–2 hours
+                  after the chequered flag.
+                </p>
+              </div>
+
               {/* Data source */}
               <div>
                 <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
                   Data source
                 </h3>
                 <p className="text-sm text-f1-muted leading-relaxed">
-                  All data is sourced from the official F1 timing feed via
-                  the FastF1 library. Session data typically becomes available
-                  1–2 hours after the chequered flag.
+                  Replay data — including track positions, telemetry, and
+                  timing — is sourced from the FastF1 library. Session data
+                  typically becomes available 1–2 hours after the chequered
+                  flag. Live timing data is sourced directly from the F1
+                  SignalR stream.
                 </p>
               </div>
             </div>
