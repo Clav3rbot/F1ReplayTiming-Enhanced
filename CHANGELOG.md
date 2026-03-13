@@ -2,18 +2,6 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
-## 1.2.1 - 2026-03-14
-
-### Fixes
-- **Connection error screen** - when the frontend cannot reach the backend, a clear error message is now shown instead of the passphrase screen, with the attempted URL and troubleshooting tips
-- **Runtime API URL for Docker** - `NEXT_PUBLIC_API_URL` can now be set as a runtime environment variable on the frontend container, so pre-built Docker images work with any backend URL without rebuilding. See the README for details
-- Fixed loading overlay staying visible when navigating back to the session picker
-
-### New Features
-- **Red flag countdown and skip** - during red flag periods in replay mode, a countdown timer shows how long until the session resumes, with a button to skip ahead to the restart
-
----
-
 ## 1.2.0 - 2026-03-14
 
 ### New Features

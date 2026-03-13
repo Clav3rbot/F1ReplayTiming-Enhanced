@@ -122,7 +122,6 @@ export default function SessionPicker() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
-  useEffect(() => setNavigating(false), []);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 

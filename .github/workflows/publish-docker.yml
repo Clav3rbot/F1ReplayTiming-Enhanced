@@ -24,6 +24,8 @@ jobs:
             context: ./backend
           - image: f1replaytiming-frontend
             context: ./frontend
+            build-args: |
+              NEXT_PUBLIC_API_URL=http://localhost:8000
 
     steps:
       - name: Checkout

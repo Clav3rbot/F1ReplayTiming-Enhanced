@@ -23,10 +23,3 @@ async def auth_login(body: LoginRequest):
     if token is None:
         raise HTTPException(status_code=401, detail="Invalid passphrase")
     return {"token": token}
-
-
-@router.get("/verify")
-async def auth_verify():
-    """Validate a cached token. Not in AUTH_SKIP_PATHS, so the auth middleware
-    will reject invalid tokens with 401 before this handler runs."""
-    return {"valid": True}
