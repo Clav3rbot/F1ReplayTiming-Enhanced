@@ -2,6 +2,24 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
+## 1.2.2
+
+### Improvements
+- **Mobile race control** added collapsible race control messages section to mobile view for both live and replay
+- **<1sec interval highlight** intervals under 1 second are highlighted in green during race sessions (toggleable in settings)
+- **Live session styling** improved pulse animation on live indicators and cleaner live session button layout (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
+- **Minor UI/UX improvements** main page layout changed to expandable list, fixed minor UI bugs on navigation
+
+
+### Fixes
+- **Memory management** replay session data is now evicted from memory 5 minutes after the last client disconnects
+- **Live race control messages** fixed race control messages not updating during live sessions when broadcast delay is set
+- **Phantom tyre compounds** fixed incorrect tyre history in live sessions caused by interim/placeholder compound updates from the F1 feed
+- **Live qualifying sectors** fixed sector indicators not clearing after lap completion (now clears after 5 seconds) and fixed multiple drivers showing purple in the same sector by computing colours from actual times
+- **Session times** corrected session times to display local date with time
+
+---
+
 ## 1.2.1 - 2026-03-14
 
 ### Fixes

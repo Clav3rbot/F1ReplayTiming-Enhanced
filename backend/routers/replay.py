@@ -1,17 +1,40 @@
 import asyncio
 import logging
 import math
+import os
 import re
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from services.storage import get_json
 from services.process import ensure_session_data_ws
 
+def _log_memory():
+    """Log current process memory usage."""
+    try:
+        # Works on Linux (Docker) — reads from /proc
+        with open(f"/proc/{os.getpid()}/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    mem_mb = int(line.split()[1]) / 1024
+                    break
+            else:
+                mem_mb = 0
+    except FileNotFoundError:
+        # macOS fallback
+        import resource
+        mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024)
+    cache_sessions = len(_replay_cache)
+    return f"process: {mem_mb:.0f}MB, cached sessions: {cache_sessions}"
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["replay"])
 
 # In-memory cache for replay frames loaded from R2
 _replay_cache: dict[str, list[dict]] = {}
+_replay_clients: dict[str, int] = {}  # key -> active WebSocket count
+_eviction_tasks: dict[str, asyncio.Task] = {}  # key -> pending eviction task
+
+CACHE_EVICTION_SECONDS = 300  # 5 minutes after last client disconnects
 
 # In-memory cache for pit loss data
 _pit_loss_cache: dict | None = None
@@ -153,11 +176,45 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
         for f in frames:
             _sanitize_frame(f)
         _replay_cache[key] = frames
+        logger.info(f"[memory] Cached {key} ({len(frames)} frames) — {_log_memory()}")
     return _replay_cache[key]
 
 
 async def _get_frames(year: int, round_num: int, session_type: str) -> list[dict]:
     return await asyncio.to_thread(_get_frames_sync, year, round_num, session_type)
+
+
+def _client_connect(key: str):
+    """Register a WebSocket client for a cached session."""
+    _replay_clients[key] = _replay_clients.get(key, 0) + 1
+    # Cancel any pending eviction since a client is now connected
+    task = _eviction_tasks.pop(key, None)
+    if task:
+        task.cancel()
+        logger.info(f"[memory] Cancelled eviction for {key} — new client connected")
+
+
+async def _client_disconnect(key: str):
+    """Unregister a WebSocket client. Schedule eviction if no clients remain."""
+    _replay_clients[key] = max(0, _replay_clients.get(key, 0) - 1)
+    if _replay_clients[key] == 0:
+        _replay_clients.pop(key, None)
+        if key in _replay_cache:
+            logger.info(f"[memory] No clients for {key}, scheduling eviction in {CACHE_EVICTION_SECONDS}s — {_log_memory()}")
+            task = asyncio.create_task(_evict_after_delay(key))
+            _eviction_tasks[key] = task
+
+
+async def _evict_after_delay(key: str):
+    """Wait, then evict a cached session if no new clients have connected."""
+    try:
+        await asyncio.sleep(CACHE_EVICTION_SECONDS)
+        if _replay_clients.get(key, 0) == 0 and key in _replay_cache:
+            del _replay_cache[key]
+            _eviction_tasks.pop(key, None)
+            logger.info(f"[memory] Evicted {key} — {_log_memory()}")
+    except asyncio.CancelledError:
+        pass
 
 
 @router.websocket("/ws/replay/{year}/{round_num}")
@@ -192,12 +249,14 @@ async def replay_websocket(
             return
 
         # Clear cache entry in case we just processed new data
-        cache_key = f"{year}_{round_num}_{type}"
-        _replay_cache.pop(cache_key, None)
+        _replay_cache.pop(f"{year}_{round_num}_{type}", None)
 
         frames = await _get_frames(year, round_num, type)
+        cache_key = f"{year}_{round_num}_{type}"
+        _client_connect(cache_key)
 
         if not frames:
+            await _client_disconnect(cache_key)
             await websocket.send_json({"type": "error", "message": "No position data available"})
             await websocket.close()
             return
@@ -330,8 +389,12 @@ async def replay_websocket(
                 await check_command(1.0)
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected: {year}/{round_num}")
+        cache_key = f"{year}_{round_num}_{type}"
+        await _client_disconnect(cache_key)
+        logger.info(f"[memory] WebSocket disconnected: {year}/{round_num}/{type} — {_log_memory()}")
     except Exception as e:
+        cache_key = f"{year}_{round_num}_{type}"
+        await _client_disconnect(cache_key)
         logger.error(f"WebSocket error: {e}")
         try:
             await websocket.close()

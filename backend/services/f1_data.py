@@ -109,7 +109,7 @@ def _fetch_schedule_sync(year: int) -> list[dict]:
                 date_utc = row.get(f"Session{i}DateUtc")
                 sessions_raw.append({
                     "name": name,
-                    "date_utc": str(date_utc) if pd.notna(date_utc) else None,
+                    "date_utc": date_utc.isoformat() + "Z" if pd.notna(date_utc) else None,
                     "_ts": date_utc.to_pydatetime().replace(tzinfo=timezone.utc) if pd.notna(date_utc) else None,
                 })
 

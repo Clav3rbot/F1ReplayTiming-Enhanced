@@ -47,6 +47,7 @@ export default function LivePage() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
+  const [mobileRcOpen, setMobileRcOpen] = useState(true);
   const [leaderboardScale, setLeaderboardScale] = useState(1);
   const [delayOffset, setDelayOffset] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -246,7 +247,7 @@ export default function LivePage() {
               <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
                 <button
                   onClick={() => setRcPanelOpen(!rcPanelOpen)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
+                  className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
                     rcPanelOpen
                       ? "bg-orange-500 text-white"
                       : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
@@ -359,6 +360,40 @@ export default function LivePage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Race Control section - mobile only */}
+        <div className="sm:hidden">
+          <button
+            onClick={() => setMobileRcOpen(!mobileRcOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+          >
+            <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
+            <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {mobileRcOpen && (() => {
+            const latest = (live.rcMessages || [])[0];
+            if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
+            const upper = latest.message.toUpperCase();
+            const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
+            const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
+            const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+            return (
+              <div className="px-3 py-2 bg-f1-card border-b border-f1-border">
+                <div className="flex items-start gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                    isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
+                  }`} />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                    {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Leaderboard section */}
@@ -482,8 +517,23 @@ export default function LivePage() {
                 />
                 <div className="flex justify-between text-[9px] text-f1-muted mt-1">
                   <span>-60s</span>
-                  <span>0</span>
                   <span>+10s</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <label className="text-[9px] text-f1-muted flex-shrink-0">Exact delay:</label>
+                  <input
+                    type="number"
+                    min={-60}
+                    max={10}
+                    step={0.5}
+                    value={delayOffset}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v)) setDelayOffset(Math.max(-60, Math.min(10, v)));
+                    }}
+                    className="w-16 px-1.5 py-0.5 bg-f1-dark border border-f1-border rounded text-[10px] text-white text-center focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-[9px] text-f1-muted">seconds</span>
                 </div>
                 <p className="text-[9px] text-f1-muted mt-2 leading-relaxed">
                   Pauses the live data feed until it aligns with your broadcast. Set this to match the delay of your streaming service so the leaderboard updates at the same time as the TV coverage.
