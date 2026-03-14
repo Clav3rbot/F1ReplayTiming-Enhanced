@@ -102,6 +102,9 @@ class _DriverState:
         "_sector_best_personal",
         "_sector_best_overall",
         "_stint_count",
+        "_last_stint_idx",
+        "_s3_complete_time",
+        "_sector_times",
     )
 
     def __init__(self, racing_number: str) -> None:
@@ -115,6 +118,7 @@ class _DriverState:
         self.compound: str | None = None
         self.tyre_life: int | None = None
         self.tyre_history: list[str] = []
+        self._last_stint_idx: int = -1
         self.pit_stops: int = 0
         self.in_pit: bool = False
         self.has_fastest_lap: bool = False
@@ -135,6 +139,8 @@ class _DriverState:
         # Internal tracking for sector colours
         self._sector_best_personal: dict[int, float] = {}  # sector_num -> best time
         self._sector_best_overall: dict[int, bool] = {}  # sector_num -> ever overall fastest
+        self._s3_complete_time: float | None = None  # timestamp when S3 completed (for 5s linger)
+        self._sector_times: dict[int, float] = {}  # sector_num -> time in seconds (for colour recomputation)
         self._stint_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -389,8 +395,8 @@ class LiveStateManager:
 
         Only updates when a sector has an actual Value (completed time).
         When sector N completes, clears all sectors after N (new flying
-        lap progress). Ignores updates that only carry Segments
-        (mini-sector progress) without a finished sector time.
+        lap progress). Computes colours from actual times rather than
+        trusting API flags, ensuring only one driver can be purple per sector.
         """
         # Build lookup of existing sectors
         existing: dict[int, dict[str, Any]] = {}
@@ -413,47 +419,77 @@ class LiveStateManager:
             if not val_str:
                 continue
 
-            # Only update colour when the API explicitly includes the
-            # fastest flags.  Re-sends of the same Value without flags
-            # should not reset the colour to yellow.
-            has_flags = "OverallFastest" in sector_data or "PersonalFastest" in sector_data
-            overall_fastest = bool(sector_data.get("OverallFastest", False))
-            personal_fastest = bool(sector_data.get("PersonalFastest", False))
-
-            # Track personal/overall bests
+            # Parse sector time
             try:
                 sec_time = float(val_str)
-                current_pb = drv._sector_best_personal.get(sector_idx)
-                if current_pb is None or sec_time < current_pb:
-                    drv._sector_best_personal[sector_idx] = sec_time
-                current_ob = self._overall_sector_bests.get(sector_idx)
-                if current_ob is None or sec_time < current_ob:
-                    self._overall_sector_bests[sector_idx] = sec_time
             except ValueError:
-                pass
+                continue
 
-            # Determine colour
-            if overall_fastest:
+            # Store the sector time for later recomputation
+            drv._sector_times[sector_idx] = sec_time
+
+            # Track personal bests
+            current_pb = drv._sector_best_personal.get(sector_idx)
+            is_personal_best = current_pb is None or sec_time <= current_pb + 0.0005
+            if current_pb is None or sec_time < current_pb:
+                drv._sector_best_personal[sector_idx] = sec_time
+
+            # Track overall bests — if this is a new overall best, update
+            # all other drivers' sectors to remove stale purples
+            current_ob = self._overall_sector_bests.get(sector_idx)
+            is_overall_best = current_ob is None or sec_time <= current_ob + 0.0005
+            if current_ob is None or sec_time < current_ob:
+                self._overall_sector_bests[sector_idx] = sec_time
+                # Downgrade other drivers' purple in this sector
+                self._recompute_sector_colours(sector_idx, drv.racing_number)
+
+            # Determine colour from actual times
+            if is_overall_best:
                 color = "purple"
-            elif personal_fastest:
+            elif is_personal_best:
                 color = "green"
             else:
                 color = "yellow"
 
-            # Only update the colour if the API sent explicit fastest flags.
-            # If no flags were present, keep the existing colour (if any).
-            if has_flags or sector_num not in existing:
-                existing[sector_num] = {"num": sector_num, "color": color}
-            else:
-                # Value present but no flags - keep existing entry as-is
-                pass
+            existing[sector_num] = {"num": sector_num, "color": color}
 
             # Clear any sectors after this one (new lap progress)
             for later in list(existing):
                 if later > sector_num:
                     del existing[later]
+                    drv._sector_times.pop(later - 1, None)
+
+            # Track S3 completion for 5-second linger
+            if sector_num == 3:
+                drv._s3_complete_time = time.monotonic()
+            elif sector_num == 1:
+                # Starting new lap — reset S3 timer
+                drv._s3_complete_time = None
 
         drv.sectors = [existing[k] for k in sorted(existing)] if existing else None
+
+    def _recompute_sector_colours(self, sector_idx: int, exclude_rn: str) -> None:
+        """When a new overall best is set in a sector, downgrade other drivers'
+        purple indicators for that sector to green or yellow."""
+        sector_num = sector_idx + 1
+        new_best = self._overall_sector_bests.get(sector_idx)
+        if new_best is None:
+            return
+
+        for drv in self._drivers.values():
+            if drv.racing_number == exclude_rn:
+                continue
+            if not drv.sectors:
+                continue
+            for s in drv.sectors:
+                if s["num"] == sector_num and s["color"] == "purple":
+                    # Check if this driver's time is still a personal best
+                    drv_time = drv._sector_times.get(sector_idx)
+                    drv_pb = drv._sector_best_personal.get(sector_idx)
+                    if drv_time is not None and drv_pb is not None and drv_time <= drv_pb + 0.0005:
+                        s["color"] = "green"
+                    else:
+                        s["color"] = "yellow"
 
     # --- Position -----------------------------------------------------
 
@@ -610,12 +646,16 @@ class LiveStateManager:
         # Update compound
         if "Compound" in latest_stint:
             new_compound = latest_stint["Compound"].upper()
-            old_compound = drv.compound
-            drv.compound = new_compound
-            # Track stint changes for tyre_history
-            if old_compound and new_compound != old_compound:
-                if not drv.tyre_history or drv.tyre_history[-1] != old_compound:
-                    drv.tyre_history.append(old_compound)
+            # Ignore interim/placeholder compounds
+            if new_compound == "UNKNOWN":
+                pass
+            else:
+                # Only add to tyre history when the stint index increases (actual pit stop)
+                if max_idx > drv._last_stint_idx and drv._last_stint_idx >= 0 and drv.compound:
+                    if not drv.tyre_history or drv.tyre_history[-1] != drv.compound:
+                        drv.tyre_history.append(drv.compound)
+                drv.compound = new_compound
+                drv._last_stint_idx = max_idx
 
         # Update tyre life
         if "TotalLaps" in latest_stint:
@@ -821,12 +861,20 @@ class LiveStateManager:
 
         This is intended to be called at ~2 Hz by the broadcaster.
         """
+        SECTOR_LINGER = 5.0
+        now = time.monotonic()
+
         drivers_list: list[dict[str, Any]] = []
         for drv in self._drivers.values():
             # Skip phantom drivers with no identity (created by Position.z
             # before DriverList arrives)
             if not drv.abbr:
                 continue
+            # Clear sectors 5 seconds after S3 completes
+            if drv._s3_complete_time and (now - drv._s3_complete_time) > SECTOR_LINGER:
+                drv.sectors = None
+                drv._s3_complete_time = None
+                drv._sector_times.clear()
             d = drv.to_dict()
             # Sanitize all values
             for key in list(d.keys()):

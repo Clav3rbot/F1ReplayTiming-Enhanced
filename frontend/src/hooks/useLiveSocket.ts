@@ -19,6 +19,7 @@ interface LiveState {
 
 interface BufferedFrame {
   frame: ReplayFrame;
+  rcMessages: RCMessage[];
   receivedAt: number; // Date.now() when received
 }
 
@@ -72,10 +73,10 @@ export function useLiveSocket(
         }
       }
       if (releaseIdx >= 0) {
-        const frame = buffer[releaseIdx].frame;
+        const { frame, rcMessages } = buffer[releaseIdx];
         // Remove released and older frames
         bufferRef.current = buffer.slice(releaseIdx + 1);
-        setState((s) => ({ ...s, frame }));
+        setState((s) => ({ ...s, frame, rcMessages }));
       }
     }, 200);
 
@@ -132,7 +133,7 @@ export function useLiveSocket(
               hasShownFirstFrame.current = true;
               setState((s) => ({ ...s, frame, rcMessages }));
             }
-            bufferRef.current.push({ frame, receivedAt: Date.now() });
+            bufferRef.current.push({ frame, rcMessages, receivedAt: Date.now() });
           } else {
             // No delay - show immediately
             setState((s) => ({ ...s, frame, rcMessages }));

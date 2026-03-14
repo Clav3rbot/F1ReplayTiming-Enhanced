@@ -52,6 +52,7 @@ export default function ReplayPage() {
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
   const [mobileTelemetryOpen, setMobileTelemetryOpen] = useState(false);
+  const [mobileRcOpen, setMobileRcOpen] = useState(true);
   const [leaderboardScale, setLeaderboardScale] = useState(1);
   const [pipTrackOpen, setPipTrackOpen] = useState(true);
   const [pipTelemetryOpen, setPipTelemetryOpen] = useState(false);
@@ -256,8 +257,8 @@ export default function ReplayPage() {
                 </div>
               )}
 
-              {/* Race Control toggle */}
-              <div className="absolute top-3 right-3 z-10">
+              {/* Race Control toggle - desktop only, mobile has its own section */}
+              <div className="absolute top-3 right-3 z-10 hidden sm:block">
                 <button
                   onClick={() => setRcPanelOpen(!rcPanelOpen)}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
@@ -424,6 +425,40 @@ export default function ReplayPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Race Control section - mobile only */}
+        <div className="sm:hidden">
+          <button
+            onClick={() => setMobileRcOpen(!mobileRcOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+          >
+            <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
+            <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {mobileRcOpen && (() => {
+            const latest = (replay.frame?.rc_messages || [])[0];
+            if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
+            const upper = latest.message.toUpperCase();
+            const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
+            const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
+            const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+            return (
+              <div className="px-3 py-2 bg-f1-card border-b border-f1-border">
+                <div className="flex items-start gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                    isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
+                  }`} />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                    {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Telemetry section - mobile only, collapsible like leaderboard */}

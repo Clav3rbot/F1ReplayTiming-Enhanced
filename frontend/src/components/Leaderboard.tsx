@@ -249,7 +249,16 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     </span>
                   </span>
                 ) : isRace ? (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${drv.in_pit && !drv.retired ? "text-yellow-400" : "text-f1-muted"}`}>
+                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${
+                    drv.in_pit && !drv.retired
+                      ? "text-yellow-400"
+                      : showInterval && settings.highlightClose && displayGap && (() => {
+                          const val = parseFloat(displayGap.replace("+", ""));
+                          return !isNaN(val) && val > 0 && val < 1;
+                        })()
+                        ? "text-green-400"
+                        : "text-f1-muted"
+                  }`}>
                     {displayGap}
                   </span>
                 ) : (

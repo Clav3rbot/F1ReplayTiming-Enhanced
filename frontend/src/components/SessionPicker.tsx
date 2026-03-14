@@ -82,12 +82,16 @@ const SESSION_LABELS: Record<string, string> = {
   "Practice 3": "FP3",
 };
 
-function formatLocalTime(dateUtc: string | null): string | null {
+function formatLocalTime(dateUtc: string | null): { dayDate: string; time: string } | null {
   if (!dateUtc) return null;
   try {
     const date = new Date(dateUtc);
     if (isNaN(date.getTime())) return null;
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const weekday = date.toLocaleString([], { weekday: "short" });
+    const day = date.getDate();
+    const month = date.toLocaleString([], { month: "short" });
+    const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+    return { dayDate: `${weekday} ${day} ${month}`, time };
   } catch {
     return null;
   }
@@ -120,9 +124,19 @@ export default function SessionPicker() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
-  useEffect(() => setNavigating(false), []);
+  useEffect(() => {
+    setNavigating(false);
+    const handlePageShow = () => setNavigating(false);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("popstate", handlePageShow);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("popstate", handlePageShow);
+    };
+  }, []);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -155,53 +169,57 @@ export default function SessionPicker() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
 
-  // Scroll to latest card when events load
-  useEffect(() => {
-    if (latestEvent && latestRef.current) {
-      latestRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [latestEvent]);
+  // No auto-scroll — let the page load at the top
 
-  function EventCard({ evt, isLatestFeature }: { evt: Event; isLatestFeature?: boolean }) {
+  function EventRow({ evt, id }: { evt: Event; id?: string }) {
     const displayEvt = displayEvents.find((e) => e.round_number === evt.round_number) || evt;
     const isLatest = displayEvt.status === "latest" && year === currentYear;
     const isFuture = displayEvt.status === "future";
-    const isSelected = selectedEvent?.round_number === evt.round_number;
+    const selectionKey = id || String(evt.round_number);
+    const isSelected = selectedKey === selectionKey;
 
     return (
       <div
-        ref={isLatest && !isLatestFeature ? latestRef : undefined}
-        onClick={() => { if (!isSelected) setSelectedEvent(evt); }}
-        className={`bg-f1-card border rounded-xl overflow-hidden transition-all cursor-pointer ${
-          isSelected
-            ? "border-white/60 ring-1 ring-white/20"
-            : isLatest
-              ? "border-f1-red ring-1 ring-f1-red/30"
+        className={`bg-f1-card border rounded-lg overflow-hidden transition-all cursor-pointer ${
+          isSelected && isLatest
+            ? "border-f1-red ring-1 ring-f1-red/30"
+            : isSelected
+              ? "border-white/60 ring-1 ring-white/20"
+              : isLatest
+                ? "border-f1-red ring-1 ring-f1-red/30"
               : isFuture
                 ? "border-f1-border opacity-50 hover:opacity-70"
                 : "border-f1-border hover:border-f1-red/50"
         }`}
       >
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-f1-muted">
-              ROUND {evt.round_number}
-            </span>
-            <StatusPill status={isLatest ? "latest" : displayEvt.status === "latest" ? "available" : displayEvt.status} />
-          </div>
-          <h3 className="text-white font-bold mb-1">
+        {/* Compact header row */}
+        <div
+          className="px-4 py-3 flex items-center gap-4"
+          onClick={() => { if (isSelected) { setSelectedKey(null); } else { setSelectedKey(selectionKey); setSelectedEvent(evt); } }}
+        >
+          <span className="text-xs font-bold text-f1-muted w-8 flex-shrink-0">R{evt.round_number}</span>
+          <span className="text-white font-bold flex-1 min-w-0 truncate">
             {COUNTRY_FLAGS[evt.country] && <span className="mr-1.5">{COUNTRY_FLAGS[evt.country]}</span>}
             {evt.event_name}
-          </h3>
-          <p className="text-sm text-f1-muted">
+          </span>
+          <span className="text-xs text-f1-muted hidden sm:block flex-shrink-0 w-44 text-right truncate">
             {evt.location}, {evt.country}
-          </p>
-          <p className="text-xs text-f1-muted mt-1">{evt.event_date}</p>
+          </span>
+          <span className="text-xs text-f1-muted flex-shrink-0 w-20 text-right">{evt.event_date}</span>
+          <span className="flex-shrink-0 w-20 flex justify-end">
+            <StatusPill status={isLatest ? "latest" : displayEvt.status === "latest" ? "available" : displayEvt.status} />
+          </span>
+          <svg
+            className={`w-4 h-4 text-f1-muted transition-transform flex-shrink-0 ${isSelected ? "rotate-180" : ""}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
 
-        {/* Session buttons (shown when selected) */}
+        {/* Expanded session drawer */}
         {isSelected && (
-          <div className="px-4 pb-4 flex flex-wrap gap-2 border-t border-f1-border pt-3" onClick={(e) => e.stopPropagation()}>
+          <div className="px-4 pb-3 flex flex-wrap gap-3 border-t border-f1-border pt-3" onClick={(e) => e.stopPropagation()}>
             {evt.sessions.map((session) => {
               const code = SESSION_LABELS[session.name];
               if (!code) return null;
@@ -209,25 +227,36 @@ export default function SessionPicker() {
               const isLive = liveSession?.year === year && liveSession?.round_number === evt.round_number && liveSession?.session_type === code;
               if (isLive) {
                 return (
-                  <a
-                    key={session.name}
-                    href={`/live/${year}/${evt.round_number}?type=${code}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNavigating(true);
-                    }}
-                    className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors flex items-center gap-1.5"
-                  >
-                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                    {session.name} — LIVE
-                  </a>
+                  <div key={session.name} className="flex flex-col items-center">
+                    {localTime && (
+                      <span className="text-[10px] text-red-400 mb-1 text-center leading-tight">
+                        {localTime.dayDate}<br />{localTime.time}
+                      </span>
+                    )}
+                    <a
+                      href={`/live/${year}/${evt.round_number}?type=${code}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNavigating(true);
+                      }}
+                      className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-500 transition-colors flex items-center gap-1.5"
+                    >
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                      </span>
+                      {session.name}
+                    </a>
+                  </div>
                 );
               }
               if (session.available) {
                 return (
                   <div key={session.name} className="flex flex-col items-center">
                     {localTime && (
-                      <span className="text-[10px] text-f1-muted mb-1">{localTime}</span>
+                      <span className="text-[10px] text-f1-muted mb-1 text-center leading-tight">
+                        {localTime.dayDate}<br />{localTime.time}
+                      </span>
                     )}
                     <a
                       href={`/replay/${year}/${evt.round_number}?type=${code}`}
@@ -245,7 +274,9 @@ export default function SessionPicker() {
               return (
                 <div key={session.name} className="flex flex-col items-center">
                   {localTime && (
-                    <span className="text-[10px] text-f1-muted/50 mb-1">{localTime}</span>
+                    <span className="text-[10px] text-f1-muted/50 mb-1 text-center leading-tight">
+                      {localTime.dayDate}<br />{localTime.time}
+                    </span>
                   )}
                   <span
                     className="px-3 py-1.5 bg-f1-border/40 text-f1-muted/50 text-xs font-bold rounded cursor-not-allowed"
@@ -357,11 +388,14 @@ export default function SessionPicker() {
                 <a
                   href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
                   onClick={() => setNavigating(true)}
-                  className="block bg-f1-card border border-red-500/50 rounded-xl overflow-hidden hover:border-red-500 transition-all group"
+                  className="block bg-f1-card border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red transition-all group"
                 >
                   <div className="px-4 py-4 flex items-center gap-4">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 rounded text-sm font-extrabold text-white uppercase flex-shrink-0">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                      </span>
                       LIVE
                     </div>
                     <div className="flex-1 min-w-0">
@@ -381,25 +415,23 @@ export default function SessionPicker() {
               </div>
             )}
 
-            {/* Latest event featured section */}
+            {/* Latest round at top */}
             {latestEvent && (
-              <div className="mb-8">
-                <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-4">
+              <div className="mb-6">
+                <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-3">
                   Most Recent Round
                 </h2>
-                <div className="max-w-md">
-                  <EventCard evt={latestEvent} isLatestFeature />
-                </div>
+                <EventRow evt={latestEvent} id="featured" />
               </div>
             )}
 
-            {/* All events grid */}
+            {/* Season list */}
             <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-4">
               {year} Season
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="flex flex-col gap-2">
               {displayEvents.map((evt) => (
-                <EventCard key={evt.round_number} evt={evt} />
+                <EventRow key={evt.round_number} evt={evt} />
               ))}
             </div>
           </>

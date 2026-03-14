@@ -31,6 +31,7 @@ const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly
   { key: "showGridChange", label: "Grid position change", raceOnly: true },
   { key: "showBestLapTime", label: "Best time", nonRaceOnly: true },
   { key: "showGapToLeader", label: "Gap" },
+  { key: "highlightClose", label: "Highlight under 1s", raceOnly: true },
   { key: "showPitStops", label: "Pit stops", raceOnly: true },
   { key: "showTyreType", label: "Tyre type" },
   { key: "showTyreAge", label: "Tyre age" },
@@ -229,7 +230,7 @@ export default function SessionBanner({
                       key={key}
                       onClick={() => onSettingChange?.(key, !settings[key])}
                       disabled={disabled}
-                      className={`w-full flex items-center justify-between ${parent ? "pl-14" : "pl-8"} pr-4 ${parent ? "py-1" : "py-1.5"} hover:bg-white/5 transition-colors ${
+                      className={`w-full flex items-center justify-between ${parent ? "pl-14" : "pl-8"} pr-4 ${parent ? "py-0.5" : "py-1"} hover:bg-white/5 transition-colors ${
                         disabled ? "opacity-40 pointer-events-none" : ""
                       }`}
                     >
@@ -257,12 +258,12 @@ export default function SessionBanner({
                 })}
 
                 {/* Divider */}
-                <div className="border-t border-f1-border my-2" />
+                <div className="border-t border-f1-border my-1" />
 
                 {/* Weather section */}
                 <button
                   onClick={() => onSettingChange?.("showWeather", !settings.showWeather)}
-                  className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/5 transition-colors"
                 >
                   <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Weather</span>
                   <div
@@ -282,7 +283,7 @@ export default function SessionBanner({
                     key={key}
                     onClick={() => onSettingChange?.(key, !settings[key])}
                     disabled={!settings.showWeather}
-                    className={`w-full flex items-center justify-between pl-8 pr-4 py-1.5 hover:bg-white/5 transition-colors ${
+                    className={`w-full flex items-center justify-between pl-8 pr-4 py-1 hover:bg-white/5 transition-colors ${
                       !settings.showWeather ? "opacity-40 pointer-events-none" : ""
                     }`}
                   >
@@ -302,17 +303,17 @@ export default function SessionBanner({
                 ))}
 
                 {/* Divider */}
-                <div className="border-t border-f1-border my-2" />
+                <div className="border-t border-f1-border my-1" />
 
                 {/* Other settings */}
-                <div className="px-4 py-2">
+                <div className="px-4 py-1.5">
                   <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Other</span>
                 </div>
                 {OTHER_SETTINGS.map(({ key, label }) => (
                   <button
                     key={key}
                     onClick={() => onSettingChange?.(key, !settings[key])}
-                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/5 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-1 hover:bg-white/5 transition-colors"
                   >
                     <span className="text-sm text-white">{label}</span>
                     <div
