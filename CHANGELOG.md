@@ -8,6 +8,7 @@ All notable changes to F1 Timing Replay will be documented in this file.
 - **Mobile race control** added collapsible race control messages section to mobile view for both live and replay
 - **<1sec interval highlight** intervals under 1 second are highlighted in green during race sessions (toggleable in settings)
 - **Live session styling** improved pulse animation on live indicators and cleaner live session button layout (contributed by [@Clav3rbot](https://github.com/Clav3rbot))
+- **Broadcast delay** added manual input field for exact delay value
 - **Minor UI/UX improvements** main page layout changed to expandable list, fixed minor UI bugs on navigation
 
 
