@@ -377,7 +377,7 @@ export default function ReplayPage() {
             )}
 
             {/* Playback Controls */}
-            <div className="bg-f1-dark sticky bottom-0 z-30 sm:relative sm:z-10">
+            <div className="bg-f1-dark sticky bottom-0 z-50 sm:relative sm:z-10">
               <PlaybackControls
                 playing={replay.playing}
                 speed={replay.speed}
