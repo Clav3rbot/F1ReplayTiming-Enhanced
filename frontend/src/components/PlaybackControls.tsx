@@ -150,7 +150,7 @@ export default function PlaybackControls({
     <div className="relative" ref={speedMenuRef}>
       <button
         onClick={() => setSpeedMenuOpen(!speedMenuOpen)}
-        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/20 transition-colors text-sm font-bold text-white border border-white/5 touch-action-manipulation"
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/20 transition-colors text-sm font-bold text-white border border-white/5 touch-manipulation select-none"
       >
         <svg className="w-3.5 h-3.5 text-f1-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
