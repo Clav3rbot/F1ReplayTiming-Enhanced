@@ -195,24 +195,23 @@ export default function SessionPicker() {
               )}
               {evt.event_name}
             </span>
-            <div className="sm:hidden flex items-center justify-between mt-0.5">
-              <span className="text-xs text-f1-muted">{evt.event_date}</span>
-              <StatusPill status={isLatest ? "latest" : displayEvt.status === "latest" ? "available" : displayEvt.status} />
+            <div className="sm:hidden mt-0.5">
+              <span className="text-[10px] text-f1-muted font-medium">{evt.event_date}</span>
             </div>
           </div>
           <span className="text-xs text-f1-muted hidden sm:block flex-shrink-0 w-44 text-right truncate">
             {evt.location}, {evt.country}
           </span>
           <span className="text-xs text-f1-muted hidden sm:block flex-shrink-0 w-20 text-right">{evt.event_date}</span>
-          <span className="hidden sm:flex flex-shrink-0 w-20 justify-end">
+          <div className="flex items-center gap-3 ml-auto">
             <StatusPill status={isLatest ? "latest" : displayEvt.status === "latest" ? "available" : displayEvt.status} />
-          </span>
-          <svg
-            className={`w-4 h-4 text-f1-muted transition-transform flex-shrink-0 ${isSelected ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+            <svg
+              className={`w-4 h-4 text-f1-muted transition-transform flex-shrink-0 ${isSelected ? "rotate-180" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
 
         {/* Expanded session drawer */}
@@ -413,15 +412,7 @@ export default function SessionPicker() {
               </div>
             )}
 
-            {/* Latest round at top */}
-            {latestEvent && (
-              <div className="mb-6 max-w-3xl mx-auto">
-                <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-3">
-                  Most Recent Round
-                </h2>
-                <EventRow evt={latestEvent} id="featured" />
-              </div>
-            )}
+
 
             {/* Season list */}
             <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-4 max-w-3xl mx-auto">

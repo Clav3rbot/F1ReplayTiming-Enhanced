@@ -197,14 +197,11 @@ export default function ReplayPage() {
           weather={weather}
         />
       )}
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden pb-20 sm:pb-0">
-        {/* Left Column */}
-        <div className="sm:flex-1 flex flex-col min-h-0 relative overflow-hidden">
-          <div className="flex-1 relative min-h-[300px] flex flex-col">
-            {/* Mobile section header */}
-            {isMobile && (
+      {/* Main content grid */}
+      <div className={`flex-1 flex min-h-0 ${isMobile ? "flex-col overflow-hidden" : "overflow-hidden"}`}>
+        {/* Mobile: Map is fixed height at top, rest scrolls */}
+        {isMobile && (
+          <div className="flex-shrink-0 z-40 bg-f1-bg border-b border-f1-border flex flex-col" style={{ height: '40vh' }}>
             <button
               onClick={() => setMobileTrackOpen(!mobileTrackOpen)}
               className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
@@ -214,130 +211,7 @@ export default function ReplayPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-          )}
-
-          {(!isMobile || mobileTrackOpen) && (
-            <div className="h-[42vh] sm:h-full sm:min-h-[280px] relative">
-              {/* Flag badge */}
-              {trackStatus !== "green" && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-                  <div
-                    className={`px-3 py-1 rounded text-xs font-extrabold uppercase ${
-                      trackStatus === "red"
-                        ? "bg-red-600 text-white"
-                        : trackStatus === "sc"
-                        ? "bg-yellow-500 text-black"
-                        : trackStatus === "vsc"
-                        ? "bg-yellow-500/80 text-black"
-                        : "bg-yellow-400 text-black"
-                    }`}
-                  >
-                    {trackStatus === "red" ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <span>Red Flag</span>
-                        {redFlagCountdown !== null && redFlagCountdown > 0 && (
-                          <>
-                            <span className="text-[10px] font-bold opacity-80 tabular-nums normal-case">
-                              Resumes in {Math.floor(redFlagCountdown / 60)}:{String(Math.floor(redFlagCountdown % 60)).padStart(2, "0")}
-                            </span>
-                            <button
-                              onClick={() => { if (redFlagEnd !== null) replay.seek(redFlagEnd); }}
-                              className="px-2 py-0.5 text-[10px] font-bold bg-white/20 hover:bg-white/30 rounded transition-colors normal-case"
-                            >
-                              Skip to restart
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    ) : trackStatus === "sc"
-                      ? "Safety Car"
-                      : trackStatus === "vsc"
-                      ? "Virtual Safety Car"
-                      : "Yellow Flag"}
-                  </div>
-                </div>
-              )}
-
-              {/* Race Control toggle - desktop only, mobile has its own section */}
-              <div className="absolute top-3 right-3 z-10 hidden sm:block">
-                <button
-                  onClick={() => setRcPanelOpen(!rcPanelOpen)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
-                    rcPanelOpen
-                      ? "bg-orange-500 text-white"
-                      : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
-                  }`}
-                  title="Race Control Messages"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
-                  </svg>
-                  RC
-                </button>
-              </div>
-
-              {/* Race Control Messages panel */}
-              {rcPanelOpen && (
-                <div className={`absolute top-12 right-3 z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
-                  rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
-                }`}>
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0">
-                    <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
-                    <div className="flex items-center gap-1">
-                      {(["sm", "md", "lg"] as const).map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => setRcPanelSize(size)}
-                          className={`w-5 h-4 flex items-center justify-center rounded text-[8px] font-bold transition-colors ${
-                            rcPanelSize === size ? "bg-f1-muted/30 text-white" : "text-f1-muted hover:text-white"
-                          }`}
-                          title={size === "sm" ? "Compact" : size === "md" ? "Medium" : "Expanded"}
-                        >
-                          {size === "sm" ? (
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="1" y="6" width="10" height="5" rx="1" /></svg>
-                          ) : size === "md" ? (
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="1" y="3" width="10" height="8" rx="1" /></svg>
-                          ) : (
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="1" y="1" width="10" height="10" rx="1" /></svg>
-                          )}
-                        </button>
-                      ))}
-                      <button onClick={() => setRcPanelOpen(false)} className="text-f1-muted hover:text-white ml-1">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto divide-y divide-f1-border/50">
-                    {(() => {
-                      const allMsgs = replay.frame?.rc_messages || [];
-                      const msgs = rcPanelSize === "sm" ? allMsgs.slice(0, 1) : allMsgs;
-                      if (allMsgs.length === 0) return <p className="text-f1-muted text-xs p-3 text-center">No race control messages yet</p>;
-                      return msgs.map((rc, i) => {
-                        const upper = rc.message.toUpperCase();
-                        const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-                        const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-                        const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
-                        return (
-                          <div key={i} className="px-3 py-2">
-                            <div className="flex items-start gap-2">
-                              <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
-                                isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
-                              }`} />
-                              <div className="min-w-0">
-                                <p className="text-[11px] text-white leading-tight">{rc.message}</p>
-                                {rc.lap && <span className="text-[9px] text-f1-muted">Lap {rc.lap}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-
+            <div className={`flex-1 relative bg-black/40 overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
               <TrackCanvas
                 trackPoints={trackPoints}
                 rotation={rotation}
@@ -354,200 +228,224 @@ export default function ReplayPage() {
                 showDriverNames={settings.showDriverNames}
                 sectorOverlay={sectorOverlay}
               />
+            </div>
+          </div>
+        )}
 
-              {/* Telemetry overlay - desktop only */}
-              {!isMobile && showTelemetry && (
-                <div className="absolute bottom-2 left-8 z-10">
-                  {selectedDrivers.map((abbr) => {
-                    const drv = drivers.find((d) => d.abbr === abbr) || null;
-                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
-                  })}
-                  {selectedDrivers.length === 0 && (
-                    <TelemetryChart visible driver={null} year={year} />
-                  )}
-                </div>
-              )}
-
-              {/* Sector overlay info panel - desktop qualifying only */}
-              {!isMobile && isQualifying && showSectorOverlay && selectedDrivers.length === 0 && (
-                <div className="absolute bottom-2 left-8 z-10">
-                  <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
-                    <p className="text-[10px] text-f1-muted">
-                      Select a driver to view sectors
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Sector overlay toggle - desktop qualifying only */}
-              {!isMobile && isQualifying && trackData?.sector_boundaries && (
-                <div className="absolute bottom-2 right-36 z-20 flex items-center gap-1">
-                  {showSectorOverlay && selectedDrivers.length === 2 && (
-                    selectedDrivers.map((abbr) => {
-                      const drv = drivers.find((d) => d.abbr === abbr);
-                      const isActive = sectorFocusDriver === abbr || (!sectorFocusDriver && abbr === selectedDrivers[0]);
-                      return (
-                        <button
-                          key={abbr}
-                          onClick={() => setSectorFocusDriver(abbr)}
-                          className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
-                            isActive
-                              ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
-                              : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
-                          }`}
-                        >
-                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: drv?.color }} />
-                          {abbr}
-                        </button>
-                      );
-                    })
-                  )}
+        {/* Scrollable container for widgets on mobile, normal grid on desktop */}
+        <div className={`flex flex-col min-w-0 ${isMobile ? "flex-1 overflow-y-auto" : "flex-1 overflow-hidden"}`}>
+          {/* Desktop Left Column */}
+          {!isMobile && (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+              <div className="flex-1 min-h-0 relative bg-black/40 overflow-hidden">
+                {/* Track Map with absolute desktop controls */}
+                <div className="absolute top-3 right-3 z-10">
                   <button
-                    onClick={() => setShowSectorOverlay(!showSectorOverlay)}
-                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
-                      showSectorOverlay
-                        ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
-                        : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                    onClick={() => setRcPanelOpen(!rcPanelOpen)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
+                      rcPanelOpen ? "bg-orange-500 text-white" : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
                     }`}
                   >
-                    {showSectorOverlay ? "Hide" : "Show"} Sectors
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
+                    </svg>
+                    RC
                   </button>
                 </div>
-              )}
 
-              {/* Telemetry toggle - desktop only */}
-              {!isMobile && (
-                <div className="absolute bottom-2 right-2 z-20 flex items-center gap-1">
+                <TrackCanvas
+                  trackPoints={trackPoints}
+                  rotation={rotation}
+                  trackStatus={trackStatus}
+                  drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                    abbr: d.abbr,
+                    x: d.x,
+                    y: d.y,
+                    color: d.color,
+                    position: d.position,
+                  }))}
+                  highlightedDrivers={selectedDrivers}
+                  playbackSpeed={replay.speed}
+                  showDriverNames={settings.showDriverNames}
+                  sectorOverlay={sectorOverlay}
+                />
+                
+                {showTelemetry && (
+                  <div className="absolute bottom-2 left-8 z-10">
+                    {selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr) || null;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                    })}
+                    {selectedDrivers.length === 0 && <TelemetryChart visible driver={null} year={year} />}
+                  </div>
+                )}
+
+                {/* Additional Desktop Controls */}
+                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
+                  {isQualifying && trackData?.sector_boundaries && (
+                    <button
+                      onClick={() => setShowSectorOverlay(!showSectorOverlay)}
+                      className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                        showSectorOverlay ? "bg-purple-500/20 border-purple-500/50 text-purple-300" : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                      }`}
+                    >
+                      {showSectorOverlay ? "Hide" : "Show"} Sectors
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowTelemetry(!showTelemetry)}
                     className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
-                      showTelemetry
-                        ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-white"
-                        : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                      showTelemetry ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-white" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
                     }`}
                   >
                     {showTelemetry ? "Hide" : "Show"} Telemetry
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           )}
-          </div>
 
-        {/* Race Control section - mobile only */}
-        <div className="sm:hidden">
-          <button
-            onClick={() => setMobileRcOpen(!mobileRcOpen)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
-          >
-            <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
-            <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {mobileRcOpen && (() => {
-            const latest = (replay.frame?.rc_messages || [])[0];
-            if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
-            const upper = latest.message.toUpperCase();
-            const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-            const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-            const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
-            return (
-              <div className="px-3 py-2 bg-f1-card border-b border-f1-border">
-                <div className="flex items-start gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
-                    isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
-                  }`} />
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-white leading-tight">{latest.message}</p>
-                    {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
+          {/* Widgets that scroll below map on mobile */}
+          <div className={`${isMobile ? "pb-24" : "flex flex-col"}`}>
+            {/* RC Messages panel on Desktop */}
+            {!isMobile && rcPanelOpen && (
+              <div className={`absolute top-24 right-3 z-50 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
+                rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
+              }`}>
+                <div className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0">
+                  <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setRcPanelOpen(false)} className="text-f1-muted hover:text-white ml-1">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
+                <div className="flex-1 overflow-y-auto divide-y divide-f1-border/50">
+                  {replay.frame?.rc_messages?.map((rc, i) => (
+                    <div key={i} className="px-3 py-2">
+                      <p className="text-[11px] text-white leading-tight">{rc.message}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            );
-          })()}
-        </div>
+            )}
 
-        {/* Telemetry section - mobile only, collapsible like leaderboard */}
-        <div className="sm:hidden">
-          <button
-            onClick={() => setMobileTelemetryOpen(!mobileTelemetryOpen)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
-          >
-            <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
-            <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {mobileTelemetryOpen && (
-            <div className="bg-f1-card px-3 py-2 space-y-1">
-              {selectedDrivers.length > 0 ? (
-                selectedDrivers.map((abbr) => {
-                  const drv = drivers.find((d) => d.abbr === abbr) || null;
-                  return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
-                })
-              ) : (
-                <TelemetryChart visible driver={null} year={year} />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Playback controls */}
-        <div className="bg-f1-dark pt-0">
-          <PlaybackControls
-            playing={replay.playing}
-            speed={replay.speed}
-            currentTime={replay.frame?.timestamp || 0}
-            totalTime={replay.totalTime}
-            currentLap={replay.frame?.lap || 0}
-            totalLaps={replay.totalLaps}
-            finished={replay.finished}
-            showSessionTime={settings.showSessionTime}
-            onPlay={replay.play}
-            onPause={replay.pause}
-            onSpeedChange={replay.setSpeed}
-            onSeek={replay.seek}
-            onSeekToLap={replay.seekToLap}
-            onReset={replay.reset}
-            isRace={isRace}
-            onSyncPhoto={() => setShowSyncPhoto(true)}
-            onPiP={!isMobile ? () => setPipActive(true) : undefined}
-            pipActive={pipActive}
-            qualiPhase={replay.frame?.quali_phase}
-            qualiPhases={replay.qualiPhases}
-          />
-        </div>
-        </div>
-
-        {/* Leaderboard section */}
-        {settings.showLeaderboard && (
-          <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : Math.ceil(leaderboardWidth * leaderboardScale) }}>
-            {/* Mobile section header */}
+            {/* Race Control - Mobile */}
             {isMobile && (
-              <button
-                onClick={() => setMobileLeaderboardOpen(!mobileLeaderboardOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
-              >
-                <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
-                <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+              <div className="border-b border-f1-border">
+                <button
+                  onClick={() => setMobileRcOpen(!mobileRcOpen)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+                >
+                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
+                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {mobileRcOpen && (() => {
+                  const latest = (replay.frame?.rc_messages || [])[0];
+                  if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
+                  return (
+                    <div className="px-3 py-2 bg-f1-card/50">
+                      <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                    </div>
+                  );
+                })()}
+              </div>
             )}
 
-            {(!isMobile || mobileLeaderboardOpen) && (
-              <Leaderboard
-                drivers={drivers}
-                highlightedDrivers={selectedDrivers}
-                onDriverClick={handleDriverClick}
-                settings={settings}
-                currentTime={replay.frame?.timestamp || 0}
-                isRace={isRace}
-                isQualifying={isQualifying}
-                onScaleChange={setLeaderboardScale}
-              />
+            {/* Telemetry - Mobile */}
+            {isMobile && (
+              <div className="border-b border-f1-border">
+                <button
+                  onClick={() => setMobileTelemetryOpen(!mobileTelemetryOpen)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+                >
+                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
+                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {mobileTelemetryOpen && (
+                  <div className="bg-f1-card px-3 py-2">
+                    <TelemetryChart visible driver={null} year={year} />
+                  </div>
+                )}
+              </div>
             )}
+
+            {/* Playback Controls */}
+            <div className="bg-f1-dark sticky bottom-0 z-30 sm:relative sm:z-10">
+              <PlaybackControls
+                playing={replay.playing}
+                speed={replay.speed}
+                currentTime={replay.frame?.timestamp || 0}
+                totalTime={replay.totalTime}
+                currentLap={replay.frame?.lap || 0}
+                totalLaps={replay.totalLaps}
+                finished={replay.finished}
+                showSessionTime={settings.showSessionTime}
+                onPlay={replay.play}
+                onPause={replay.pause}
+                onSpeedChange={replay.setSpeed}
+                onSeek={replay.seek}
+                onSeekToLap={replay.seekToLap}
+                onReset={replay.reset}
+                isRace={isRace}
+                onSyncPhoto={() => setShowSyncPhoto(true)}
+                onPiP={!isMobile ? () => setPipActive(true) : undefined}
+                pipActive={pipActive}
+                qualiPhase={replay.frame?.quali_phase}
+                qualiPhases={replay.qualiPhases}
+              />
+            </div>
+
+            {/* Leaderboard - Mobile Inline version */}
+            {isMobile && settings.showLeaderboard && (
+              <div className="border-t border-f1-border pb-10">
+                <button
+                  onClick={() => setMobileLeaderboardOpen(!mobileLeaderboardOpen)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+                >
+                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
+                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {mobileLeaderboardOpen && (
+                  <div className="bg-f1-bg">
+                    <Leaderboard
+                      drivers={drivers}
+                      highlightedDrivers={selectedDrivers}
+                      onDriverClick={handleDriverClick}
+                      settings={settings}
+                      currentTime={replay.frame?.timestamp || 0}
+                      isRace={isRace}
+                      isQualifying={isQualifying}
+                      onScaleChange={setLeaderboardScale}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop Leaderboard Column */}
+        {!isMobile && settings.showLeaderboard && (
+          <div className="border-l border-f1-border flex-shrink-0" style={{ width: Math.ceil(leaderboardWidth * leaderboardScale) }}>
+            <Leaderboard
+              drivers={drivers}
+              highlightedDrivers={selectedDrivers}
+              onDriverClick={handleDriverClick}
+              settings={settings}
+              currentTime={replay.frame?.timestamp || 0}
+              isRace={isRace}
+              isQualifying={isQualifying}
+              onScaleChange={setLeaderboardScale}
+            />
           </div>
         )}
       </div>

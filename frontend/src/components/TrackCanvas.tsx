@@ -12,7 +12,6 @@ interface Props {
   playbackSpeed?: number;
   showDriverNames?: boolean;
   sectorOverlay?: SectorOverlay | null;
-  compact?: boolean;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -33,7 +32,7 @@ function getCanvasWindow(canvas: HTMLCanvasElement | null): Window {
 }
 
 
-export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null, compact = false }: Props) {
+export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -116,7 +115,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, compact);
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current);
 
       const now = performance.now();
       const curr = driversRef.current;
@@ -132,7 +131,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
         return { ...drv, x, y };
       });
 
-      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current, compact);
+      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current);
 
       hostWindow.requestAnimationFrame(animate);
     }
@@ -163,8 +162,8 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-f1-dark bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1a1a2e] via-[#0b0b11] to-[#050508]">
-      <canvas ref={canvasRef} className="w-full h-full relative z-10" />
+    <div ref={containerRef} className="w-full h-full bg-f1-dark">
+      <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
 }
