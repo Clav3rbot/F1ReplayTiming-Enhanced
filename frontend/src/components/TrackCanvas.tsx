@@ -12,6 +12,7 @@ interface Props {
   playbackSpeed?: number;
   showDriverNames?: boolean;
   sectorOverlay?: SectorOverlay | null;
+  compact?: boolean;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -32,7 +33,17 @@ function getCanvasWindow(canvas: HTMLCanvasElement | null): Window {
 }
 
 
-export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null }: Props) {
+export default function TrackCanvas({
+  trackPoints,
+  rotation,
+  trackStatus = "green",
+  drivers,
+  highlightedDrivers,
+  playbackSpeed = 1,
+  showDriverNames = true,
+  sectorOverlay = null,
+  compact = false,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -47,6 +58,8 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
   showNamesRef.current = showDriverNames;
   const sectorOverlayRef = useRef(sectorOverlay);
   sectorOverlayRef.current = sectorOverlay;
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
 
   // Update targets when drivers prop changes
   useEffect(() => {
@@ -115,7 +128,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current);
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, compactRef.current);
 
       const now = performance.now();
       const curr = driversRef.current;
@@ -131,7 +144,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
         return { ...drv, x, y };
       });
 
-      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current);
+      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current, compactRef.current);
 
       hostWindow.requestAnimationFrame(animate);
     }
