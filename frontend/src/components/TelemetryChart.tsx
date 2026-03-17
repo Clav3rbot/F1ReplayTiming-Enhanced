@@ -53,8 +53,8 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
 
   if (!driver) {
     return (
-      <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
-        <p className="text-[10px] text-f1-muted">
+      <div className="glass-panel border-white/5 rounded-xl px-4 py-2 shadow-glass backdrop-blur-md">
+        <p className="text-[10px] text-f1-muted/70 font-bold uppercase tracking-wider">
           Select 1–2 drivers to view telemetry
         </p>
       </div>
@@ -69,8 +69,8 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
   const drs = driver.drs ?? 0;
 
   return (
-    <div className="bg-f1-card/90 border border-f1-border rounded px-3 sm:px-4 py-1.5 backdrop-blur-sm">
-      <div className="flex items-center gap-2 sm:gap-4">
+    <div className="glass-panel border-white/10 rounded-xl px-3 sm:px-4 py-2 shadow-glass backdrop-blur-md overflow-hidden relative">
+      <div className="flex items-center gap-2 sm:gap-4 relative z-10">
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
           <span
@@ -100,11 +100,11 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
 
         {/* Speed */}
         <div className="w-[50px] sm:w-[85px] flex items-center shrink-0">
-          <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto">Spd</span>
-          <span className="text-[11px] sm:text-xs font-extrabold text-white tabular-nums text-right w-[26px] sm:w-[26px]">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto tracking-wider">Spd</span>
+          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {speed}
           </span>
-          <span className="text-[8px] text-f1-muted hidden sm:inline ml-1">km/h</span>
+          <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">km/h</span>
         </div>
 
         {/* Throttle */}
@@ -120,18 +120,18 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
         </div>
 
         {/* Gear */}
-        <div className="w-[26px] sm:w-[38px] flex items-center gap-[2px] shrink-0">
-          <span className="text-[9px] font-bold text-f1-muted uppercase w-[10px] sm:hidden">G</span>
-          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline">Gear</span>
-          <span className="text-[11px] sm:text-xs font-extrabold text-white tabular-nums w-[10px] sm:w-[10px] text-center">
+        <div className="w-[26px] sm:w-[42px] flex items-center gap-[3px] shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[10px] sm:hidden tracking-wider">G</span>
+          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">Gear</span>
+          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed w-[12px] text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {gear === 0 ? "N" : gear}
           </span>
         </div>
 
         {/* RPM */}
-        <div className="w-[62px] sm:w-[90px] flex items-center gap-[5px] shrink-0">
-          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline">RPM</span>
-          <span className="text-[10px] font-extrabold text-white tabular-nums text-right w-[28px] sm:w-[32px]">
+        <div className="w-[62px] sm:w-[94px] flex items-center gap-[5px] shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
+          <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[28px] sm:w-[32px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {Math.round(rpm / 100) / 10}k
           </span>
           <BarPips value={rpm} max={15000} color="#F59E0B" />
@@ -140,10 +140,10 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
         {/* DRS (not available from 2026) */}
         {hasDrs && (
           <span
-            className={`w-[28px] sm:w-[32px] text-center text-[9px] font-extrabold py-0.5 rounded shrink-0 ${
+            className={`w-[28px] sm:w-[32px] text-center text-[9px] font-extrabold py-0.5 rounded shrink-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-colors ${
               drs >= 10
-                ? "text-green-400 bg-green-400/10 border border-green-400/30"
-                : "text-f1-muted/40 border border-f1-border"
+                ? "text-f1-green bg-f1-green/20 border border-f1-green/40 shadow-[0_0_10px_rgba(0,255,65,0.3)]"
+                : "text-f1-muted/30 border border-white/5"
             }`}
           >
             DRS

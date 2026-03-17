@@ -140,7 +140,7 @@ export default function SessionBanner({
 
   return (
     <>
-      <div className="bg-f1-card border-b border-f1-border px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
+      <div className="glass-panel-heavy border-b border-white/5 shadow-glass backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <a href="/" className="flex-shrink-0">
             <img src="/logo.png" alt="Home" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg hover:opacity-80 transition-opacity" />
@@ -164,14 +164,14 @@ export default function SessionBanner({
 
         <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
           {extraActions}
-          <div className="bg-f1-red px-2 sm:px-4 py-1 rounded text-white font-extrabold text-[10px] sm:text-xs uppercase">
+          <div className="bg-f1-red px-2 sm:px-4 py-1 rounded text-white font-extrabold text-[10px] sm:text-xs uppercase shadow-[0_0_10px_rgba(225,6,0,0.5)]">
             {SESSION_LABELS[sessionType] || sessionType}
           </div>
 
           {/* Features link - hidden on mobile */}
           <a
             href="/features"
-            className="hidden sm:flex w-9 h-9 items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg border border-transparent hover:border-white/10 hover:bg-white/5 transition-all text-f1-muted hover:text-white"
             title="Features"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -182,7 +182,7 @@ export default function SessionBanner({
           {/* Info button - hidden on mobile */}
           <button
             onClick={() => setInfoOpen(true)}
-            className="hidden sm:flex w-9 h-9 items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg border border-transparent hover:border-white/10 hover:bg-white/5 transition-all text-f1-muted hover:text-white"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
@@ -350,7 +350,7 @@ export default function SessionBanner({
             if (e.target === e.currentTarget) setInfoOpen(false);
           }}
         >
-          <div className="bg-f1-card border border-f1-border rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+          <div className="glass-panel-heavy border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-lg w-full max-h-[80vh] overflow-y-auto backdrop-blur-3xl">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-f1-border">
               <h2 className="text-lg font-bold text-white">How it works</h2>

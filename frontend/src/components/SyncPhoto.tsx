@@ -219,9 +219,9 @@ export default function SyncPhoto({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-f1-card border border-f1-border rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-panel border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-md w-full backdrop-blur-3xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-f1-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <h2 className="text-lg font-bold text-white">Sync with TV Replay</h2>
           <button
             onClick={onClose}

@@ -32,12 +32,13 @@ export function drawTrack(
   rotation: number,
   trackStatus: string = "green",
   sectorOverlay?: SectorOverlay | null,
+  compact: boolean = false,
 ) {
   if (points.length === 0) return;
 
-  const padX = 40;
-  const padTop = 60;
-  const padBottom = 90;
+  const padX = compact ? 10 : 40;
+  const padTop = compact ? 10 : 60;
+  const padBottom = compact ? 10 : 90;
   const w = width - padX * 2;
   const h = height - padTop - padBottom;
 
@@ -174,12 +175,13 @@ export function drawDrivers(
   rotation: number,
   highlightedDrivers: string[],
   showNames: boolean = true,
+  compact: boolean = false,
 ) {
   if (trackPoints.length === 0) return;
 
-  const padX = 40;
-  const padTop = 60;
-  const padBottom = 90;
+  const padX = compact ? 10 : 40;
+  const padTop = compact ? 10 : 60;
+  const padBottom = compact ? 10 : 90;
   const w = width - padX * 2;
   const h = height - padTop - padBottom;
 

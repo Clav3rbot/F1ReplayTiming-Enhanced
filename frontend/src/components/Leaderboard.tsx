@@ -114,7 +114,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
   const intervals = isRace && showInterval ? computeIntervals(sorted) : null;
 
   return (
-    <div ref={containerRef} className={`bg-f1-card border-f1-border h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
+    <div ref={containerRef} className={`glass-panel-heavy h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
       <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%` }}>
 
       <div className="divide-y divide-f1-border/50">
@@ -145,17 +145,18 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
             <button
               key={drv.abbr}
               onClick={() => onDriverClick(drv.abbr)}
-              className={`w-full flex items-center px-2 py-1 hover:bg-white/5 transition-colors text-left ${
-                isHighlighted ? "bg-white/10" : ""
+              className={`w-full flex items-center px-2 py-1 hover:bg-white/10 transition-all duration-200 text-left relative ${
+                isHighlighted ? "bg-white/10 shadow-[inset_3px_0_0_rgba(255,255,255,0.8)]" : "border-l-[3px] border-transparent"
               } ${drv.no_timing ? "opacity-40" : ""}`}
             >
+              {isHighlighted && <div className="absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent pointer-events-none" />}
               {/* Position - 24px */}
               {isLeader ? (
-                <span className="w-6 h-6 flex items-center justify-center rounded bg-f1-red text-white text-sm font-extrabold flex-shrink-0">
+                <span className="w-6 h-6 flex items-center justify-center rounded bg-f1-red text-white text-sm font-extrabold flex-shrink-0 font-mono tabular-nums-fixed shadow-glow shadow-f1-red/30 relative z-10">
                   {drv.position}
                 </span>
               ) : (
-                <span className="w-6 text-sm font-extrabold text-white text-right flex-shrink-0">
+                <span className="w-6 text-[13px] font-extrabold pb-0.5 text-white text-right flex-shrink-0 font-mono tabular-nums-fixed relative z-10">
                   {drv.position ?? "-"}
                 </span>
               )}
@@ -168,13 +169,13 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Team abbreviation - 28px */}
               {settings.showTeamAbbr && (
-                <span className="w-7 text-[10px] font-bold text-f1-muted flex-shrink-0">
+                <span className="w-7 text-[10px] font-bold text-f1-muted flex-shrink-0 relative z-10">
                   {TEAM_ABBR[drv.team] || drv.team?.slice(0, 3).toUpperCase()}
                 </span>
               )}
 
               {/* Driver abbreviation - 30px */}
-              <span className="w-[30px] text-sm font-extrabold text-white flex-shrink-0">
+              <span className="w-[30px] text-sm font-extrabold text-white flex-shrink-0 relative z-10 tracking-wide">
                 {drv.abbr}
               </span>
 
@@ -232,7 +233,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Best lap time (practice/qualifying only) */}
               {!isRace && settings.showBestLapTime && (
-                <span className={`w-[60px] flex-shrink-0 text-xs font-bold text-right ${drv.position === 1 ? "text-purple-400" : "text-white"}`}>
+                <span className={`w-[60px] flex-shrink-0 text-[11px] font-bold text-right font-mono tabular-nums-fixed relative z-10 ${drv.position === 1 ? "text-f1-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.6)]" : "text-white"}`}>
                   {drv.retired ? "Out" : (drv.best_lap_time || (drv.position === 1 ? formatGap(drv.gap) : null) || "")}
                 </span>
               )}
@@ -249,20 +250,20 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     </span>
                   </span>
                 ) : isRace ? (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${
+                  <span className={`w-14 flex-shrink-0 text-[11px] font-bold text-right font-mono tabular-nums-fixed relative z-10 ${
                     drv.in_pit && !drv.retired
                       ? "text-yellow-400"
                       : showInterval && settings.highlightClose && displayGap && (() => {
                           const val = parseFloat(displayGap.replace("+", ""));
                           return !isNaN(val) && val > 0 && val < 1;
                         })()
-                        ? "text-green-400"
+                        ? "text-f1-green drop-shadow-[0_0_6px_rgba(0,255,65,0.4)]"
                         : "text-f1-muted"
                   }`}>
                     {displayGap}
                   </span>
                 ) : (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right text-f1-muted`}>
+                  <span className={`w-14 flex-shrink-0 text-[11px] font-bold text-right text-f1-muted font-mono tabular-nums-fixed relative z-10`}>
                     {displayGap}
                   </span>
                 )
@@ -270,14 +271,14 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Live sector indicators - fixed width (qualifying only) */}
               {isQualifying && settings.showSectors && (
-                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1">
+                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1 relative z-10">
                   {[1, 2, 3].map((sn) => {
                     const sec = drv.sectors?.find((s) => s.num === sn);
                     const bg = sec
-                      ? sec.color === "purple" ? "bg-purple-500"
-                      : sec.color === "green" ? "bg-green-500"
-                      : "bg-yellow-500"
-                      : "bg-white/15";
+                      ? sec.color === "purple" ? "bg-f1-magenta shadow-[0_0_8px_rgba(255,0,255,0.6)]"
+                      : sec.color === "green" ? "bg-f1-green shadow-[0_0_8px_rgba(0,255,65,0.6)]"
+                      : "bg-yellow-400"
+                      : "bg-white/10";
                     return (
                       <span
                         key={sn}

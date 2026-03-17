@@ -200,10 +200,11 @@ export default function ReplayPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden pb-20 sm:pb-0">
-        {/* Track section */}
-        <div className="sm:flex-1 relative">
-          {/* Mobile section header */}
-          {isMobile && (
+        {/* Left Column */}
+        <div className="sm:flex-1 flex flex-col min-h-0 relative overflow-hidden">
+          <div className="flex-1 relative min-h-[300px] flex flex-col">
+            {/* Mobile section header */}
+            {isMobile && (
             <button
               onClick={() => setMobileTrackOpen(!mobileTrackOpen)}
               className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
@@ -216,7 +217,7 @@ export default function ReplayPage() {
           )}
 
           {(!isMobile || mobileTrackOpen) && (
-            <div className="h-[42vh] sm:h-full relative">
+            <div className="h-[42vh] sm:h-full sm:min-h-[280px] relative">
               {/* Flag badge */}
               {trackStatus !== "green" && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
@@ -416,16 +417,22 @@ export default function ReplayPage() {
 
               {/* Telemetry toggle - desktop only */}
               {!isMobile && (
-                <button
-                  onClick={() => setShowTelemetry(!showTelemetry)}
-                  className="absolute bottom-2 right-2 z-20 px-2 py-1 bg-f1-card border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white transition-colors"
-                >
-                  {showTelemetry ? "Hide" : "Show"} Telemetry
-                </button>
+                <div className="absolute bottom-2 right-2 z-20 flex items-center gap-1">
+                  <button
+                    onClick={() => setShowTelemetry(!showTelemetry)}
+                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                      showTelemetry
+                        ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-white"
+                        : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                    }`}
+                  >
+                    {showTelemetry ? "Hide" : "Show"} Telemetry
+                  </button>
+                </div>
               )}
             </div>
           )}
-        </div>
+          </div>
 
         {/* Race Control section - mobile only */}
         <div className="sm:hidden">
@@ -486,6 +493,33 @@ export default function ReplayPage() {
           )}
         </div>
 
+        {/* Playback controls */}
+        <div className="bg-f1-dark pt-0">
+          <PlaybackControls
+            playing={replay.playing}
+            speed={replay.speed}
+            currentTime={replay.frame?.timestamp || 0}
+            totalTime={replay.totalTime}
+            currentLap={replay.frame?.lap || 0}
+            totalLaps={replay.totalLaps}
+            finished={replay.finished}
+            showSessionTime={settings.showSessionTime}
+            onPlay={replay.play}
+            onPause={replay.pause}
+            onSpeedChange={replay.setSpeed}
+            onSeek={replay.seek}
+            onSeekToLap={replay.seekToLap}
+            onReset={replay.reset}
+            isRace={isRace}
+            onSyncPhoto={() => setShowSyncPhoto(true)}
+            onPiP={!isMobile ? () => setPipActive(true) : undefined}
+            pipActive={pipActive}
+            qualiPhase={replay.frame?.quali_phase}
+            qualiPhases={replay.qualiPhases}
+          />
+        </div>
+        </div>
+
         {/* Leaderboard section */}
         {settings.showLeaderboard && (
           <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : Math.ceil(leaderboardWidth * leaderboardScale) }}>
@@ -517,30 +551,6 @@ export default function ReplayPage() {
           </div>
         )}
       </div>
-
-      {/* Playback controls */}
-      <PlaybackControls
-        playing={replay.playing}
-        speed={replay.speed}
-        currentTime={replay.frame?.timestamp || 0}
-        totalTime={replay.totalTime}
-        currentLap={replay.frame?.lap || 0}
-        totalLaps={replay.totalLaps}
-        finished={replay.finished}
-        showSessionTime={settings.showSessionTime}
-        onPlay={replay.play}
-        onPause={replay.pause}
-        onSpeedChange={replay.setSpeed}
-        onSeek={replay.seek}
-        onSeekToLap={replay.seekToLap}
-        onReset={replay.reset}
-        isRace={isRace}
-        onSyncPhoto={() => setShowSyncPhoto(true)}
-        onPiP={!isMobile ? () => setPipActive(true) : undefined}
-        pipActive={pipActive}
-        qualiPhase={replay.frame?.quali_phase}
-        qualiPhases={replay.qualiPhases}
-      />
 
       {/* Document PiP window — visible across tabs */}
       {pipActive && !isMobile && (
@@ -597,6 +607,7 @@ export default function ReplayPage() {
                     playbackSpeed={replay.speed}
                     showDriverNames={settings.showDriverNames}
                     sectorOverlay={sectorOverlay}
+                    compact={true}
                   />
                 </div>
               )}
@@ -627,7 +638,7 @@ export default function ReplayPage() {
                         isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                       }`} />
                       <div className="min-w-0">
-                        <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                        <p className="text-xs font-mono tracking-tight text-white leading-tight">{latest.message}</p>
                         {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
                       </div>
                     </div>

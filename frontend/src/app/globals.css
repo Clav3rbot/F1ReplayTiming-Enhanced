@@ -2,32 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: #0B0B11;
+  --foreground: #F1F5F9;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: #15151e;
-  color: #e5e7eb;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Glass panel utility */
+.glass-panel {
+  background: rgba(26, 26, 36, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-panel-heavy {
+  background: rgba(19, 19, 28, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e1e2e;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a3a4a;
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a5a;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Typography styles to apply perfectly fixed tabular numbers in monospaced areas */
+.tabular-nums-fixed {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Copy protection — disable selection and dragging site-wide */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img, canvas, video {
+  -webkit-user-drag: none;
+  pointer-events: auto;
+}
+
+/* Allow selection inside <select> and <input> elements */
+input, textarea, select {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
 }

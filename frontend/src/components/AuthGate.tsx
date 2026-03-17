@@ -163,8 +163,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <h1 className="text-xl font-bold text-white">F1 Replay Timing</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <label htmlFor="passphrase" className="block text-sm font-bold text-f1-muted mb-2">
+        <form onSubmit={handleSubmit} className="glass-panel-heavy border border-white/10 rounded-2xl p-6 shadow-glass backdrop-blur-md">
+          <label htmlFor="passphrase" className="block text-sm font-bold text-f1-muted mb-2 tracking-wider">
             Enter passphrase to continue
           </label>
           <div className="relative">

@@ -33,29 +33,23 @@ export default function PiPWindow({
     pipWin.document.title = "F1 Replay — PiP";
     pipWin.document.body.style.margin = "0";
     pipWin.document.body.style.padding = "0";
-    pipWin.document.body.style.backgroundColor = "#15151e";
+    pipWin.document.body.style.backgroundColor = "#0B0B11";
     pipWin.document.body.style.color = "#e5e7eb";
     pipWin.document.body.style.overflow = "hidden";
 
-    // Copy stylesheets
-    for (const sheet of document.styleSheets) {
-      try {
-        if (sheet.href) {
-          const link = pipWin.document.createElement("link");
-          link.rel = "stylesheet";
-          link.href = sheet.href;
-          pipWin.document.head.appendChild(link);
-        } else if (sheet.cssRules) {
-          const style = pipWin.document.createElement("style");
-          for (const rule of sheet.cssRules) {
-            style.textContent += rule.cssText + "\n";
-          }
-          pipWin.document.head.appendChild(style);
-        }
-      } catch {
-        // Cross-origin stylesheet, skip
-      }
-    }
+    // Add base tag so relative URLs (fonts, images) resolve correctly
+    const base = pipWin.document.createElement('base');
+    base.href = window.location.origin;
+    pipWin.document.head.appendChild(base);
+
+    // Apply main window's classes to PiP window so fonts and theme variables work
+    pipWin.document.documentElement.className = document.documentElement.className;
+    pipWin.document.body.className = document.body.className;
+
+    // Copy stylesheets and fonts from the main document head
+    Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]')).forEach(node => {
+      pipWin!.document.head.appendChild(node.cloneNode(true));
+    });
 
     const mount = pipWin.document.createElement("div");
     mount.id = "pip-root";
@@ -73,10 +67,21 @@ export default function PiPWindow({
       }
     });
 
+    // Close PiP when main window unloads/navigates
+    const handleMainUnload = () => {
+      if (pipWin && !pipWin.closed) {
+        pipWin.close();
+      }
+    };
+    window.addEventListener("beforeunload", handleMainUnload);
+    window.addEventListener("pagehide", handleMainUnload);
+
     setPipWindow(pipWin);
 
     return () => {
       closedRef.current = true;
+      window.removeEventListener("beforeunload", handleMainUnload);
+      window.removeEventListener("pagehide", handleMainUnload);
       if (pipWin && !pipWin.closed) {
         pipWin.close();
       }

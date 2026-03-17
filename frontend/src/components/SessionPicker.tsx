@@ -39,36 +39,36 @@ interface SeasonsResponse {
   seasons: number[];
 }
 
-const COUNTRY_FLAGS: Record<string, string> = {
-  "Australia": "🇦🇺",
-  "Austria": "🇦🇹",
-  "Azerbaijan": "🇦🇿",
-  "Bahrain": "🇧🇭",
-  "Belgium": "🇧🇪",
-  "Brazil": "🇧🇷",
-  "Canada": "🇨🇦",
-  "China": "🇨🇳",
-  "Hungary": "🇭🇺",
-  "Italy": "🇮🇹",
-  "Japan": "🇯🇵",
-  "Mexico": "🇲🇽",
-  "Monaco": "🇲🇨",
-  "Netherlands": "🇳🇱",
-  "Qatar": "🇶🇦",
-  "Saudi Arabia": "🇸🇦",
-  "Singapore": "🇸🇬",
-  "Spain": "🇪🇸",
-  "United Arab Emirates": "🇦🇪",
-  "United Kingdom": "🇬🇧",
-  "United States": "🇺🇸",
-  "Portugal": "🇵🇹",
-  "France": "🇫🇷",
-  "Germany": "🇩🇪",
-  "Russia": "🇷🇺",
-  "Turkey": "🇹🇷",
-  "South Africa": "🇿🇦",
-  "Las Vegas": "🇺🇸",
-  "Miami": "🇺🇸",
+const COUNTRY_CODES: Record<string, string> = {
+  "Australia": "au",
+  "Austria": "at",
+  "Azerbaijan": "az",
+  "Bahrain": "bh",
+  "Belgium": "be",
+  "Brazil": "br",
+  "Canada": "ca",
+  "China": "cn",
+  "Hungary": "hu",
+  "Italy": "it",
+  "Japan": "jp",
+  "Mexico": "mx",
+  "Monaco": "mc",
+  "Netherlands": "nl",
+  "Qatar": "qa",
+  "Saudi Arabia": "sa",
+  "Singapore": "sg",
+  "Spain": "es",
+  "United Arab Emirates": "ae",
+  "United Kingdom": "gb",
+  "United States": "us",
+  "Portugal": "pt",
+  "France": "fr",
+  "Germany": "de",
+  "Russia": "ru",
+  "Turkey": "tr",
+  "South Africa": "za",
+  "Las Vegas": "us",
+  "Miami": "us",
 };
 
 const SESSION_LABELS: Record<string, string> = {
@@ -101,19 +101,19 @@ function StatusPill({ status }: { status: Event["status"] }) {
   switch (status) {
     case "latest":
       return (
-        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-f1-red text-white">
+        <span className="w-20 inline-flex items-center justify-center py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-f1-red text-white shadow-[0_0_10px_rgba(225,6,0,0.5)]">
           Latest
         </span>
       );
     case "available":
       return (
-        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+        <span className="w-20 inline-flex items-center justify-center py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-f1-green/10 text-f1-green border border-f1-green/30 shadow-[0_0_10px_rgba(0,255,65,0.15)]">
           Available
         </span>
       );
     case "future":
       return (
-        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-f1-border text-f1-muted">
+        <span className="w-20 inline-flex items-center justify-center py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-white/5 text-f1-muted border border-white/10">
           Upcoming
         </span>
       );
@@ -180,17 +180,17 @@ export default function SessionPicker() {
 
     return (
       <div
-        className={`bg-f1-card border rounded-lg overflow-hidden transition-all cursor-pointer ${
+        className={`glass-panel overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
           isSelected && isLatest
-            ? "border-f1-red ring-1 ring-f1-red/30"
+            ? "border-f1-red ring-1 ring-f1-red/50 shadow-[0_4px_30px_rgba(225,6,0,0.15)] bg-white/5"
             : isSelected
-              ? "border-white/60 ring-1 ring-white/20"
+              ? "border-white/30 ring-1 ring-white/20 shadow-glass bg-white/5"
               : isLatest
-                ? "border-f1-red ring-1 ring-f1-red/30"
+                ? "border-f1-red/50 hover:border-f1-red hover:shadow-[0_4px_20px_rgba(225,6,0,0.2)]"
               : isFuture
-                ? "border-f1-border opacity-50 hover:opacity-70"
-                : "border-f1-border hover:border-f1-red/50"
-        }`}
+                ? "opacity-50 hover:opacity-70 border-white/5"
+                : "hover:border-white/20 hover:shadow-glass hover:bg-white/[0.02]"
+        } rounded-xl`}
       >
         {/* Compact header row */}
         <div
@@ -200,7 +200,9 @@ export default function SessionPicker() {
           <span className="text-xs font-bold text-f1-muted w-8 flex-shrink-0">R{evt.round_number}</span>
           <div className="flex-1 min-w-0">
             <span className="text-white font-bold text-sm">
-              {COUNTRY_FLAGS[evt.country] && <span className="mr-1.5">{COUNTRY_FLAGS[evt.country]}</span>}
+              {COUNTRY_CODES[evt.country] && (
+                <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[evt.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[evt.country]}.png 2x`} width="16" alt={evt.country} className="mr-1.5 inline-block rounded-sm shadow-sm" />
+              )}
               {evt.event_name}
             </span>
             <div className="sm:hidden flex items-center justify-between mt-0.5">
@@ -224,9 +226,12 @@ export default function SessionPicker() {
         </div>
 
         {/* Expanded session drawer */}
-        {isSelected && (
-          <div className="px-4 pb-3 flex flex-wrap gap-3 border-t border-f1-border pt-3" onClick={(e) => e.stopPropagation()}>
-            {evt.sessions.map((session) => {
+        <div 
+          className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isSelected ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-3 flex flex-wrap gap-3 border-t border-white/10 pt-3" onClick={(e) => e.stopPropagation()}>
+              {evt.sessions.map((session) => {
               const code = SESSION_LABELS[session.name];
               if (!code) return null;
               const localTime = formatLocalTime(session.date_utc);
@@ -245,7 +250,7 @@ export default function SessionPicker() {
                         e.stopPropagation();
                         setNavigating(true);
                       }}
-                      className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-500 transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-red-600/90 text-white text-xs font-bold rounded-md hover:bg-f1-red hover:shadow-[0_0_15px_rgba(225,6,0,0.6)] transition-all duration-300 flex items-center gap-1.5 border border-red-500/50"
                     >
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
@@ -270,7 +275,7 @@ export default function SessionPicker() {
                         e.stopPropagation();
                         setNavigating(true);
                       }}
-                      className="px-3 py-1.5 bg-f1-border text-white text-xs font-bold rounded hover:bg-f1-red transition-colors"
+                      className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300"
                     >
                       {session.name}
                     </a>
@@ -285,7 +290,7 @@ export default function SessionPicker() {
                     </span>
                   )}
                   <span
-                    className="px-3 py-1.5 bg-f1-border/40 text-f1-muted/50 text-xs font-bold rounded cursor-not-allowed"
+                    className="px-3 py-1.5 bg-black/20 text-f1-muted/40 text-xs font-bold rounded-md cursor-not-allowed border border-white/5"
                   >
                     {session.name}
                   </span>
@@ -295,14 +300,15 @@ export default function SessionPicker() {
             {isFuture && (
               <p className="text-xs text-f1-muted w-full">Sessions not yet started</p>
             )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-f1-dark">
+    <div className="min-h-screen bg-f1-dark bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508] text-f1-text">
       {/* Loading overlay */}
       {navigating && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
@@ -313,26 +319,34 @@ export default function SessionPicker() {
         </div>
       )}
       {/* Header */}
-      <div className="bg-f1-card border-b border-f1-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 flex items-center gap-3 sm:gap-4">
-          <img src="/logo.png" alt="F1 Replay" className="w-12 h-12 sm:w-[72px] sm:h-[72px] rounded-lg" />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-3xl font-bold text-white mb-0.5 sm:mb-1">F1 Replay Timing</h1>
-            <p className="text-f1-muted text-xs sm:text-base">Select a session to replay</p>
+      <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-f1-red/50 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <img src="/logo.png" alt="F1 Replay" className="relative w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg shadow-2xl" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70 tracking-tight mb-0.5 sm:mb-1">
+                F1 Replay Timing
+              </h1>
+              <p className="text-f1-muted text-xs sm:text-sm font-medium tracking-wide">Select a session to replay</p>
+            </div>
           </div>
-          {/* Desktop: text buttons */}
-          <a
-            href="/features"
-            className="hidden sm:block px-4 py-2 bg-f1-border text-f1-muted text-sm font-bold rounded hover:text-white transition-colors"
-          >
-            Features
-          </a>
-          <a
-            href="/about"
-            className="hidden sm:block px-4 py-2 bg-f1-border text-f1-muted text-sm font-bold rounded hover:text-white transition-colors"
-          >
-            About
-          </a>
+          <div className="flex items-center gap-2">
+            {/* Desktop: text buttons */}
+            <a
+              href="/features"
+              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+            >
+              Features
+            </a>
+            <a
+              href="/about"
+              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+            >
+              About
+            </a>
           {/* Mobile: hamburger menu */}
           <div className="relative sm:hidden" ref={menuRef}>
             <button
@@ -360,20 +374,21 @@ export default function SessionPicker() {
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Season selector */}
-        <div className="flex gap-2 mb-8 flex-wrap max-w-3xl mx-auto">
+        <div className="flex gap-2 mb-8 flex-wrap max-w-3xl mx-auto justify-center sm:justify-start">
           {seasons.map((s) => (
             <button
               key={s}
               onClick={() => { setYear(s); setSelectedEvent(null); }}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
                 year === s
-                  ? "bg-f1-red text-white"
-                  : "bg-f1-card text-f1-muted hover:text-white border border-f1-border"
+                  ? "bg-f1-red text-white shadow-[0_4px_15px_rgba(225,6,0,0.4)] scale-105"
+                  : "glass-panel text-f1-muted hover:text-white hover:bg-white/10"
               }`}
             >
               {s}
@@ -394,10 +409,10 @@ export default function SessionPicker() {
                 <a
                   href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
                   onClick={() => setNavigating(true)}
-                  className="block bg-f1-card border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red transition-all group"
+                  className="block glass-panel border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red hover:shadow-[0_4px_30px_rgba(225,6,0,0.2)] transition-all duration-300 group hover:-translate-y-1"
                 >
                   <div className="px-4 py-4 flex items-center gap-4">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 rounded text-sm font-extrabold text-white uppercase flex-shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/90 shadow-[0_0_10px_rgba(225,6,0,0.5)] rounded-md text-sm font-extrabold text-white uppercase flex-shrink-0">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
@@ -406,7 +421,9 @@ export default function SessionPicker() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white font-bold group-hover:text-red-400 transition-colors">
-                        {COUNTRY_FLAGS[liveSession.country] && <span className="mr-1.5">{COUNTRY_FLAGS[liveSession.country]}</span>}
+                        {COUNTRY_CODES[liveSession.country] && (
+                          <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[liveSession.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[liveSession.country]}.png 2x`} width="16" alt={liveSession.country} className="mr-1.5 inline-block rounded-sm shadow-sm" />
+                        )}
                         {liveSession.event_name} — {liveSession.session_name}
                       </h3>
                       <p className="text-f1-muted text-sm">

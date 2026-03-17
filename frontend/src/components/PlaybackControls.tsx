@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SPEED_OPTIONS } from "@/lib/constants";
 import { QualiPhase, QualiPhaseInfo } from "@/hooks/useReplaySocket";
 
@@ -57,7 +57,21 @@ export default function PlaybackControls({
   qualiPhases,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement>(null);
   const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
+
+  // Close speed menu on outside click
+  useEffect(() => {
+    if (!speedMenuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (speedMenuRef.current && !speedMenuRef.current.contains(e.target as Node)) {
+        setSpeedMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [speedMenuOpen]);
 
   function formatTime(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -72,11 +86,12 @@ export default function PlaybackControls({
     onSeek(target);
   }
 
-  // Play/pause button (shared between mobile compact and full views)
+  /* ─── Shared sub-components ─── */
+
   const playPauseBtn = (
     <button
       onClick={finished ? onReset : playing ? onPause : onPlay}
-      className="w-10 h-10 flex items-center justify-center bg-f1-red hover:bg-red-700 rounded-full transition-colors text-white flex-shrink-0"
+      className="w-10 h-10 flex items-center justify-center bg-f1-red hover:bg-red-700 rounded-full transition-colors text-white flex-shrink-0 shadow-lg shadow-f1-red/30"
     >
       {finished ? (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -96,7 +111,7 @@ export default function PlaybackControls({
 
   const progressBar = (
     <div
-      className="w-full h-2 bg-f1-border rounded-full cursor-pointer relative group"
+      className="w-full h-1.5 bg-white/10 rounded-full cursor-pointer relative group hover:h-2.5 transition-all"
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = (e.clientX - rect.left) / rect.width;
@@ -107,129 +122,135 @@ export default function PlaybackControls({
         className="h-full bg-f1-red rounded-full transition-all duration-100 relative"
         style={{ width: `${progress}%` }}
       >
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_6px_rgba(255,255,255,0.5)]" />
       </div>
     </div>
   );
 
-  // Mobile compact layout
-  return (
-    <div className="bg-f1-card border-t border-f1-border fixed bottom-0 left-0 right-0 z-40 sm:relative sm:z-auto">
-      {/* Mobile: compact bar always visible */}
-      <div className="sm:hidden px-3 pt-2 pb-4" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
-        <div className="mb-2">{progressBar}</div>
-        <div className="flex items-center gap-2">
-          {playPauseBtn}
-          <span className="text-xs font-extrabold text-white tabular-nums flex-1">
-            {formatTime(currentTime)}
-            {isRace && currentLap > 0 && <span className="text-f1-muted ml-2">L{currentLap}/{totalLaps}</span>}
-            {!isRace && qualiPhase && <span className="text-f1-muted ml-2">{qualiPhase.phase}</span>}
-          </span>
-          <span className="text-[10px] font-bold text-f1-muted">{speed}x</span>
-          {onPiP && (
-            <button
-              onClick={onPiP}
-              className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${pipActive ? "text-f1-red" : "text-f1-muted hover:text-white hover:bg-white/10"}`}
-              title="Picture-in-Picture"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <rect x="12" y="10" width="10" height="10" rx="1" fill="currentColor" opacity="0.3" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted"
-          >
-            <svg className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
+  const pipButton = onPiP && (
+    <button
+      onClick={onPiP}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+        pipActive
+          ? "bg-f1-red text-white"
+          : "text-f1-muted hover:text-white bg-white/5 hover:bg-white/10"
+      }`}
+      title="Picture-in-Picture"
+    >
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
+        <path d="M12 11h6v6h-6z" />
+      </svg>
+      PiP
+    </button>
+  );
 
-      {/* Mobile: expanded controls */}
-      {expanded && (
-        <div className="sm:hidden px-3 space-y-2 border-t border-f1-border/50 pt-2 pb-4" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
-          {/* Skip buttons */}
-          <div className="flex items-center justify-center gap-1">
-            {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (
-              <button
-                key={`back-${label}`}
-                onClick={() => skip(-seconds)}
-                className="px-2 py-1.5 text-[10px] font-bold text-f1-muted hover:text-white rounded bg-f1-border/50 hover:bg-white/10 transition-colors"
-              >
-                -{label}
-              </button>
-            ))}
-            <span className="w-2" />
-            {SKIP_OPTIONS.map(({ label, seconds }) => (
-              <button
-                key={`fwd-${label}`}
-                onClick={() => skip(seconds)}
-                className="px-2 py-1.5 text-[10px] font-bold text-f1-muted hover:text-white rounded bg-f1-border/50 hover:bg-white/10 transition-colors"
-              >
-                +{label}
-              </button>
-            ))}
-          </div>
+  /* ─── Speed selector popup ─── */
+  const speedSelector = (
+    <div className="relative" ref={speedMenuRef}>
+      <button
+        onClick={() => setSpeedMenuOpen(!speedMenuOpen)}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-sm font-bold text-white border border-white/5"
+      >
+        <svg className="w-3.5 h-3.5 text-f1-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        {speed}x
+        <svg className={`w-3 h-3 text-f1-muted transition-transform ${speedMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
-          {/* Speed buttons */}
-          <div className="flex items-center justify-center gap-1">
+      {/* Popup */}
+      {speedMenuOpen && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-f1-card border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl min-w-[120px] z-50">
+          <div className="p-1.5">
             {SPEED_OPTIONS.map((s) => (
               <button
                 key={s}
-                onClick={() => onSpeedChange(s)}
-                className={`px-2.5 py-1.5 text-xs font-bold rounded transition-colors ${
+                onClick={() => { onSpeedChange(s); setSpeedMenuOpen(false); }}
+                className={`w-full px-3 py-2 text-sm font-bold rounded-lg transition-colors text-left ${
                   speed === s
                     ? "bg-f1-red text-white"
-                    : "bg-f1-border text-f1-muted hover:text-white"
+                    : "text-f1-muted hover:text-white hover:bg-white/10"
                 }`}
               >
                 {s}x
               </button>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
 
-          {/* Qualifying phase buttons */}
+  /* ─── Mobile layout ─── */
+  const mobileLayout = (
+    <div className="sm:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
+      <div className="px-3 pt-2 pb-1">
+        {progressBar}
+      </div>
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        {playPauseBtn}
+        <span className="text-sm font-extrabold text-white flex-1 font-mono tabular-nums-fixed">
+          {formatTime(currentTime)}
+          {isRace && currentLap > 0 && <span className="text-f1-muted ml-2 font-mono tabular-nums-fixed">Lap {currentLap}</span>}
+          {!isRace && qualiPhase && <span className="text-f1-muted ml-2 font-sans">{qualiPhase.phase}</span>}
+        </span>
+        {speedSelector}
+        {pipButton}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted"
+        >
+          <svg className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Expanded mobile controls */}
+      {expanded && (
+        <div className="px-3 space-y-2 border-t border-white/5 pt-2 pb-2">
+          <div className="flex items-center justify-center gap-1">
+            {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (
+              <button key={`back-${label}`} onClick={() => skip(-seconds)}
+                className="px-2.5 py-1.5 text-xs font-bold text-f1-muted hover:text-white rounded bg-white/5 hover:bg-white/10 transition-colors">
+                -{label}
+              </button>
+            ))}
+            <span className="w-2" />
+            {SKIP_OPTIONS.map(({ label, seconds }) => (
+              <button key={`fwd-${label}`} onClick={() => skip(seconds)}
+                className="px-2.5 py-1.5 text-xs font-bold text-f1-muted hover:text-white rounded bg-white/5 hover:bg-white/10 transition-colors">
+                +{label}
+              </button>
+            ))}
+          </div>
           {qualiPhases && qualiPhases.length > 0 && (
             <div className="flex items-center justify-center gap-1">
               {qualiPhases.map((qp) => (
-                <button
-                  key={qp.phase}
-                  onClick={() => onSeek(qp.timestamp)}
+                <button key={qp.phase} onClick={() => onSeek(qp.timestamp)}
                   className={`px-2.5 py-1.5 text-xs font-bold rounded transition-colors ${
-                    qualiPhase?.phase === qp.phase
-                      ? "bg-f1-red text-white"
-                      : "bg-f1-border text-f1-muted hover:text-white"
-                  }`}
-                >
+                    qualiPhase?.phase === qp.phase ? "bg-f1-red text-white" : "bg-white/5 text-f1-muted hover:text-white"
+                  }`}>
                   {qp.phase}
                 </button>
               ))}
             </div>
           )}
-
-          {/* Race: Sync + Lap selector */}
           {isRace && (
             <div className="flex items-center justify-center gap-3">
               {onSyncPhoto && (
-                <button
-                  onClick={onSyncPhoto}
-                  className="px-3 py-1.5 rounded border border-f1-border hover:bg-white/10 transition-colors text-f1-muted hover:text-white text-xs font-bold"
-                >
+                <button onClick={onSyncPhoto} className="px-3 py-1.5 rounded border border-white/10 hover:bg-white/10 transition-colors text-f1-muted hover:text-white text-xs font-bold">
                   Sync
                 </button>
               )}
               {onSeekToLap && (
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-extrabold text-white">Lap</span>
-                  <select
-                    value={currentLap}
-                    onChange={(e) => onSeekToLap(Number(e.target.value))}
-                    className="bg-f1-border text-white text-xs font-extrabold rounded px-2 py-1 cursor-pointer"
-                  >
+                  <select value={currentLap} onChange={(e) => onSeekToLap(Number(e.target.value))}
+                    className="bg-white/10 text-white text-xs font-extrabold rounded px-2 py-1 cursor-pointer outline-none">
                     {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
                       <option key={lap} value={lap} className="bg-f1-card text-white">{lap}</option>
                     ))}
@@ -239,8 +260,6 @@ export default function PlaybackControls({
               )}
             </div>
           )}
-
-          {/* Quali: time info */}
           {!isRace && qualiPhase && (
             <div className="flex items-center justify-center gap-4">
               <span className="text-xs font-extrabold text-white">{qualiPhase.phase}</span>
@@ -252,19 +271,50 @@ export default function PlaybackControls({
           )}
         </div>
       )}
+    </div>
+  );
 
-      {/* Desktop: full layout (unchanged) */}
-      <div className="hidden sm:block px-6 py-3">
-        <div className="mb-3">{progressBar}</div>
+  /* ─── Desktop layout ─── */
+  const desktopLayout = (
+    <div className="hidden sm:block px-5 py-3">
+      {/* Progress bar */}
+      <div className="mb-3">{progressBar}</div>
 
-        <div className="flex items-center gap-3">
-          {/* Skip back buttons */}
+      {/* Controls row — 3 columns grid */}
+      <div className="grid grid-cols-3 items-center">
+        
+        {/* Left Column: Time & Session info */}
+        <div className="flex items-center justify-start gap-4">
+          <span className="text-sm font-extrabold text-white font-mono tabular-nums-fixed tracking-tight whitespace-nowrap">
+            {formatTime(currentTime)}
+            {showSessionTime && (
+              <span className="text-f1-muted ml-1 font-normal opacity-80">/ {formatTime(totalTime)}</span>
+            )}
+          </span>
+          {!isRace && qualiPhase && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold text-white px-2 py-0.5 bg-white/10 rounded">{qualiPhase.phase}</span>
+              <span className="text-xs font-mono font-bold text-f1-muted">
+                {formatTime(qualiPhase.remaining)}
+              </span>
+            </div>
+          )}
+          {!isRace && !qualiPhase && (
+            <span className="text-xs font-mono font-bold text-f1-muted">
+              {formatTime(Math.max(0, totalTime - currentTime))}
+            </span>
+          )}
+        </div>
+
+        {/* Center Column: Playback Controls (Play button perfectly centered) */}
+        <div className="flex items-center justify-center gap-3">
+          {/* Skip back */}
           <div className="flex items-center gap-0.5">
             {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (
               <button
                 key={`back-${label}`}
                 onClick={() => skip(-seconds)}
-                className="px-1.5 py-1 text-[10px] font-bold text-f1-muted hover:text-white rounded hover:bg-white/10 transition-colors"
+                className="px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors"
                 title={`Back ${label}`}
               >
                 -{label}
@@ -274,179 +324,94 @@ export default function PlaybackControls({
 
           {playPauseBtn}
 
-          {/* Skip forward buttons */}
+          {/* Skip forward */}
           <div className="flex items-center gap-0.5">
             {SKIP_OPTIONS.map(({ label, seconds }) => (
               <button
                 key={`fwd-${label}`}
                 onClick={() => skip(seconds)}
-                className="px-1.5 py-1 text-[10px] font-bold text-f1-muted hover:text-white rounded hover:bg-white/10 transition-colors"
+                className="px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors"
                 title={`Forward ${label}`}
               >
                 +{label}
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Speed buttons */}
-          <div className="flex items-center gap-1 ml-2">
-            {SPEED_OPTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => onSpeedChange(s)}
-                className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
-                  speed === s
-                    ? "bg-f1-red text-white"
-                    : "bg-f1-border text-f1-muted hover:text-white"
-                }`}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
+        {/* Right Column: Speed, Sync, Telemetry, PiP, Lap */}
+        <div className="flex items-center justify-end gap-3">
+          {speedSelector}
 
-          {/* Qualifying phase skip buttons */}
-          {qualiPhases && qualiPhases.length > 0 && (
-            <div className="flex items-center gap-1 ml-2">
-              {qualiPhases.map((qp) => (
-                <button
-                  key={qp.phase}
-                  onClick={() => onSeek(qp.timestamp)}
-                  className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
-                    qualiPhase?.phase === qp.phase
-                      ? "bg-f1-red text-white"
-                      : "bg-f1-border text-f1-muted hover:text-white"
-                  }`}
-                >
-                  {qp.phase}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Dividing line if we have more tools */}
+          {(isRace || (qualiPhases && qualiPhases.length > 0) || onSyncPhoto) && <div className="w-px h-4 bg-white/10 hidden md:block" />}
 
-          {/* Time display */}
           {isRace ? (
             <>
-              <span className="text-sm font-extrabold text-white ml-auto tabular-nums">
-                {formatTime(currentTime)}{showSessionTime && ` / ${formatTime(totalTime)}`}
-              </span>
-
+              {/* Sync button */}
               {onSyncPhoto && (
                 <button
                   onClick={onSyncPhoto}
-                  className="px-3 py-1.5 rounded border border-f1-border hover:bg-white/10 transition-colors text-f1-muted hover:text-white text-xs font-bold"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-f1-muted hover:text-white hover:bg-white/10 transition-colors"
+                  title="Sync with onboard video"
                 >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                   Sync
                 </button>
               )}
-
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-extrabold text-white">Lap</span>
-                <select
-                  value={currentLap}
-                  onChange={(e) => {
-                    const lap = Number(e.target.value);
-                    if (onSeekToLap) {
-                      onSeekToLap(lap);
-                    }
-                  }}
-                  className="bg-f1-border text-white text-sm font-extrabold rounded px-2 py-1 cursor-pointer hover:bg-white/20 transition-colors"
-                >
-                  {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-                    <option key={lap} value={lap} className="bg-f1-card text-white">
-                      {lap}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-sm font-extrabold text-white">/{totalLaps}</span>
-              </div>
-
-              {onPiP && (
-                <button
-                  onClick={onPiP}
-                  className={`px-3 py-1.5 rounded border transition-colors text-xs font-bold ${
-                    pipActive
-                      ? "border-f1-red text-f1-red hover:bg-f1-red/10"
-                      : "border-f1-border text-f1-muted hover:text-white hover:bg-white/10"
-                  }`}
-                  title="Picture-in-Picture"
-                >
-                  <svg className="w-4 h-4 inline-block mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <rect x="12" y="10" width="10" height="10" rx="1" fill="currentColor" opacity="0.3" />
-                  </svg>
-                  PiP
-                </button>
-              )}
             </>
-          ) : qualiPhase ? (
-            <div className="flex items-end gap-4 ml-auto">
-              <span className="text-sm font-extrabold text-white" style={{ marginBottom: 1, marginRight: -10 }}>{qualiPhase.phase}</span>
-              <div className="text-center">
-                <span className="text-[10px] font-bold text-f1-muted uppercase block">Remaining</span>
-                <span className="text-sm font-extrabold text-white tabular-nums">
-                  {formatTime(qualiPhase.remaining)}
-                </span>
-              </div>
-              <div className="text-center">
-                <span className="text-[10px] font-bold text-f1-muted uppercase block">Elapsed</span>
-                <span className="text-sm font-extrabold text-f1-muted tabular-nums">{formatTime(currentTime)}</span>
-              </div>
-              {showSessionTime && (
-                <div className="text-center">
-                  <span className="text-[10px] font-bold text-f1-muted uppercase block">Total</span>
-                  <span className="text-sm font-extrabold text-f1-muted tabular-nums">{formatTime(Math.max(0, totalTime - currentTime))}</span>
-                </div>
-              )}
-              {onPiP && (
-                <button
-                  onClick={onPiP}
-                  className={`px-3 py-1.5 rounded border transition-colors text-xs font-bold ${
-                    pipActive
-                      ? "border-f1-red text-f1-red hover:bg-f1-red/10"
-                      : "border-f1-border text-f1-muted hover:text-white hover:bg-white/10"
-                  }`}
-                  title="Picture-in-Picture"
-                >
-                  <svg className="w-4 h-4 inline-block mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <rect x="12" y="10" width="10" height="10" rx="1" fill="currentColor" opacity="0.3" />
-                  </svg>
-                  PiP
-                </button>
-              )}
-            </div>
           ) : (
-            <div className="flex items-center gap-4 ml-auto">
-              <div className="text-center">
-                <span className="text-[10px] font-bold text-f1-muted uppercase block">Remaining</span>
-                <span className="text-sm font-extrabold text-white tabular-nums">{formatTime(Math.max(0, totalTime - currentTime))}</span>
+            qualiPhases && qualiPhases.length > 0 && (
+              <div className="flex items-center gap-1">
+                {qualiPhases.map((qp) => (
+                  <button
+                    key={qp.phase}
+                    onClick={() => onSeek(qp.timestamp)}
+                    className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
+                      qualiPhase?.phase === qp.phase
+                        ? "bg-f1-red text-white"
+                        : "bg-white/5 text-f1-muted hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {qp.phase}
+                  </button>
+                ))}
               </div>
-              <div className="text-center">
-                <span className="text-[10px] font-bold text-f1-muted uppercase block">Elapsed</span>
-                <span className="text-sm font-extrabold text-f1-muted tabular-nums">{formatTime(currentTime)}</span>
-              </div>
-              {onPiP && (
-                <button
-                  onClick={onPiP}
-                  className={`px-3 py-1.5 rounded border transition-colors text-xs font-bold ${
-                    pipActive
-                      ? "border-f1-red text-f1-red hover:bg-f1-red/10"
-                      : "border-f1-border text-f1-muted hover:text-white hover:bg-white/10"
-                  }`}
-                  title="Picture-in-Picture"
-                >
-                  <svg className="w-4 h-4 inline-block mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <rect x="12" y="10" width="10" height="10" rx="1" fill="currentColor" opacity="0.3" />
-                  </svg>
-                  PiP
-                </button>
-              )}
+            )
+          )}
+
+          {pipButton}
+
+          {/* Dividing line before Lap */}
+          {isRace && <div className="w-px h-4 bg-white/10 hidden md:block" />}
+
+          {/* Lap selector */}
+          {isRace && (
+            <div className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2 py-1">
+              <span className="text-[10px] font-bold text-f1-muted uppercase">Lap</span>
+              <select
+                value={currentLap}
+                onChange={(e) => { if (onSeekToLap) onSeekToLap(Number(e.target.value)); }}
+                className="bg-transparent text-white text-xs font-mono font-bold cursor-pointer outline-none appearance-none text-center"
+              >
+                {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
+                  <option key={lap} value={lap} className="bg-f1-card text-white">{lap}</option>
+                ))}
+              </select>
+              <span className="text-xs font-mono font-bold text-f1-muted">/ {totalLaps}</span>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-f1-dark/90 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl">
+      {mobileLayout}
+      {desktopLayout}
     </div>
   );
 }

@@ -622,6 +622,7 @@ export default function LivePage() {
                     drivers={[]}
                     highlightedDrivers={selectedDrivers}
                     showDriverNames={settings.showDriverNames}
+                    compact={true}
                   />
                 </div>
               )}
@@ -652,7 +653,7 @@ export default function LivePage() {
                         isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                       }`} />
                       <div className="min-w-0">
-                        <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                        <p className="text-xs font-mono tracking-tight text-white leading-tight">{latest.message}</p>
                         {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
                       </div>
                     </div>
