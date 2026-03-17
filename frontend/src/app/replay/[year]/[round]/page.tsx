@@ -369,8 +369,15 @@ export default function ReplayPage() {
                   </svg>
                 </button>
                 {mobileTelemetryOpen && (
-                  <div className="bg-f1-card px-3 py-2">
-                    <TelemetryChart visible driver={null} year={year} />
+                  <div className="bg-f1-card px-3 py-2 space-y-1">
+                    {selectedDrivers.length > 0 ? (
+                      selectedDrivers.map((abbr) => {
+                        const drv = drivers.find((d) => d.abbr === abbr) || null;
+                        return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                      })
+                    ) : (
+                      <TelemetryChart visible driver={null} year={year} />
+                    )}
                   </div>
                 )}
               </div>
