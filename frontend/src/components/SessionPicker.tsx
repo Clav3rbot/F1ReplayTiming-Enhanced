@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
 
 interface SessionEntry {
@@ -126,17 +127,6 @@ export default function SessionPicker() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [navigating, setNavigating] = useState(false);
-  useEffect(() => {
-    setNavigating(false);
-    const handlePageShow = () => setNavigating(false);
-    window.addEventListener("pageshow", handlePageShow);
-    window.addEventListener("popstate", handlePageShow);
-    return () => {
-      window.removeEventListener("pageshow", handlePageShow);
-      window.removeEventListener("popstate", handlePageShow);
-    };
-  }, []);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -244,12 +234,8 @@ export default function SessionPicker() {
                         {localTime.dayDate}<br />{localTime.time}
                       </span>
                     )}
-                    <a
+                    <Link
                       href={`/live/${year}/${evt.round_number}?type=${code}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNavigating(true);
-                      }}
                       className="px-3 py-1.5 bg-red-600/90 text-white text-xs font-bold rounded-md hover:bg-f1-red hover:shadow-[0_0_15px_rgba(225,6,0,0.6)] transition-all duration-300 flex items-center gap-1.5 border border-red-500/50"
                     >
                       <span className="relative flex h-1.5 w-1.5">
@@ -257,7 +243,7 @@ export default function SessionPicker() {
                         <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
                       </span>
                       {session.name}
-                    </a>
+                    </Link>
                   </div>
                 );
               }
@@ -269,16 +255,12 @@ export default function SessionPicker() {
                         {localTime.dayDate}<br />{localTime.time}
                       </span>
                     )}
-                    <a
+                    <Link
                       href={`/replay/${year}/${evt.round_number}?type=${code}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNavigating(true);
-                      }}
                       className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300"
                     >
                       {session.name}
-                    </a>
+                    </Link>
                   </div>
                 );
               }
@@ -308,16 +290,10 @@ export default function SessionPicker() {
   }
 
   return (
-    <div className="min-h-screen bg-f1-dark bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508] text-f1-text">
-      {/* Loading overlay */}
-      {navigating && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-3 border-f1-muted border-t-f1-red rounded-full animate-spin" />
-            <p className="text-white font-bold text-sm">Loading session...</p>
-          </div>
-        </div>
-      )}
+    <div className="min-h-screen bg-f1-dark text-f1-text relative">
+      {/* Persistent Radial Glow Background (Old version restored and made fixed) */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
+
       {/* Header */}
       <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center justify-between gap-4">
@@ -335,18 +311,18 @@ export default function SessionPicker() {
           </div>
           <div className="flex items-center gap-2">
             {/* Desktop: text buttons */}
-            <a
+            <Link
               href="/features"
               className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
             >
               Features
-            </a>
-            <a
+            </Link>
+            <Link
               href="/about"
               className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
             >
               About
-            </a>
+            </Link>
           {/* Mobile: hamburger menu */}
           <div className="relative sm:hidden" ref={menuRef}>
             <button
@@ -359,18 +335,18 @@ export default function SessionPicker() {
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-11 w-40 bg-f1-card border border-f1-border rounded-lg shadow-xl z-50 py-1">
-                <a
+                <Link
                   href="/features"
                   className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
                 >
                   Features
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/about"
                   className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
                 >
                   About
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -406,10 +382,9 @@ export default function SessionPicker() {
             {/* Live session banner — only show on the year that has the live session */}
             {liveSession && liveSession.year === year && (
               <div className="mb-8">
-                <a
+                <Link
                   href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
-                  onClick={() => setNavigating(true)}
-                  className="block glass-panel border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red hover:shadow-[0_4px_30px_rgba(225,6,0,0.2)] transition-all duration-300 group hover:-translate-y-1"
+                  className="block glass-panel border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red hover:shadow-[0_4px_30_px_rgba(225,6,0,0.2)] transition-all duration-300 group hover:-translate-y-1"
                 >
                   <div className="px-4 py-4 flex items-center gap-4">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/90 shadow-[0_0_10px_rgba(225,6,0,0.5)] rounded-md text-sm font-extrabold text-white uppercase flex-shrink-0">
@@ -434,7 +409,7 @@ export default function SessionPicker() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
-                </a>
+                </Link>
               </div>
             )}
 
