@@ -145,7 +145,7 @@ def _parse_gap_float(gap_str: str | None) -> float | None:
 
 def _match_frame(frames: list[dict], extracted: dict) -> dict:
     """Find the frame that best matches the extracted leaderboard data."""
-    target_lap = extracted.get("lap", 1)
+    target_lap = extracted.get("lap") or 1  
     extracted_drivers = extracted.get("drivers", [])
 
     if not extracted_drivers:
