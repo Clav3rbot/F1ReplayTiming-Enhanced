@@ -87,6 +87,13 @@ export default function PlaybackControls({
     onSeek(target);
   }
 
+  // Control visibility of skip buttons at different widths to keep UI clean
+  function skipVisibility(label: string): string {
+    if (label === "5m") return "hidden xl:inline-flex";
+    if (label === "1m") return "hidden lg:inline-flex";
+    return "";
+  }
+
   /* ─── Shared sub-components ─── */
 
   const playPauseBtn = (
@@ -192,7 +199,7 @@ export default function PlaybackControls({
 
   /* ─── Mobile layout ─── */
   const mobileLayout = (
-    <div className="sm:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
+    <div className="md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
       <div className="px-3 pt-2 pb-1">
         {progressBar}
       </div>
@@ -281,15 +288,15 @@ export default function PlaybackControls({
 
   /* ─── Desktop layout ─── */
   const desktopLayout = (
-    <div className="hidden sm:block px-5 py-3">
+    <div className="hidden md:block px-5 py-3">
       {/* Progress bar */}
       <div className="mb-3">{progressBar}</div>
 
-      {/* Controls row — 3 columns grid */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Controls row — column layout on md, 3-column grid on lg+ for predictable behavior */}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-12 lg:gap-x-4 lg:gap-y-3 lg:items-center">
 
         {/* Left Column: Time & Session info */}
-        <div className="flex items-center justify-start gap-4 flex-1 min-w-0">
+        <div className="col-span-12 lg:col-span-3 flex items-center justify-start gap-4 min-w-0">
           <span className="text-sm font-extrabold text-white font-mono tabular-nums-fixed tracking-tight whitespace-nowrap">
             {formatTime(currentTime)}
             {showSessionTime && (
@@ -312,14 +319,14 @@ export default function PlaybackControls({
         </div>
 
         {/* Center Column: Playback Controls */}
-        <div className="flex items-center justify-center gap-1.5 sm:gap-3 flex-shrink-0">
+        <div className="col-span-12 lg:col-span-6 flex items-center justify-center gap-3 min-w-0">
           {/* Skip back */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 flex-nowrap overflow-x-auto no-scrollbar min-w-0 max-w-[320px] lg:max-w-none">
             {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (
               <button
                 key={`back-${label}`}
                 onClick={() => skip(-seconds)}
-                className="px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className={`px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors ${skipVisibility(label)}`}
                 title={`Back ${label}`}
               >
                 -{label}
@@ -330,12 +337,12 @@ export default function PlaybackControls({
           {playPauseBtn}
 
           {/* Skip forward */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 flex-nowrap overflow-x-auto no-scrollbar min-w-0 max-w-[320px] lg:max-w-none">
             {SKIP_OPTIONS.map(({ label, seconds }) => (
               <button
                 key={`fwd-${label}`}
                 onClick={() => skip(seconds)}
-                className="px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className={`px-2 py-1.5 text-[11px] font-bold text-f1-muted hover:text-white rounded-lg hover:bg-white/10 transition-colors ${skipVisibility(label)}`}
                 title={`Forward ${label}`}
               >
                 +{label}
@@ -345,7 +352,7 @@ export default function PlaybackControls({
         </div>
 
         {/* Right Column: Speed, Sync, PiP, Lap */}
-        <div className="flex items-center justify-end gap-1.5 sm:gap-3 flex-1 min-w-0">
+        <div className="col-span-12 lg:col-span-3 flex flex-wrap items-center justify-center lg:justify-end gap-1.5 sm:gap-3 min-w-0">
           <div className="flex-shrink-0">{speedSelector}</div>
 
           {/* Dividing line if we have more tools */}
@@ -369,7 +376,7 @@ export default function PlaybackControls({
             </>
           ) : (
             qualiPhases && qualiPhases.length > 0 && (
-              <div className="flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar max-w-full">
                 {qualiPhases.map((qp) => (
                   <button
                     key={qp.phase}
@@ -415,7 +422,7 @@ export default function PlaybackControls({
               <select
                 value={currentLap}
                 onChange={(e) => { if (onSeekToLap) onSeekToLap(Number(e.target.value)); }}
-                className="bg-transparent text-white text-xs font-mono font-bold cursor-pointer outline-none appearance-none text-center"
+                className="bg-transparent text-white text-xs font-mono font-bold cursor-pointer outline-none appearance-none text-center min-w-[2.5rem]"
               >
                 {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
                   <option key={lap} value={lap} className="bg-f1-card text-white">{lap}</option>
