@@ -95,52 +95,62 @@ export default function PlaybackControls({
   }
 
   const lapSelector = isRace && (
-    <div className="group flex items-center gap-1.5 bg-white/5 hover:bg-white/10 rounded-lg px-2 py-1 flex-shrink-0 border border-white/10 hover:border-white/20 transition-all duration-300 focus-within:ring-2 focus-within:ring-f1-red/50 focus-within:border-f1-red/40 focus-within:shadow-[0_0_15px_rgba(225,6,0,0.4)]">
-      <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">
-        Lap
-      </span>
-      <div className="relative">
-        <select
-          value={currentLap}
-          onFocus={(e) => {
-            e.currentTarget.setAttribute("data-was-focused", "true");
-          }}
-          onBlur={(e) => {
-            e.currentTarget.removeAttribute("data-was-focused");
-          }}
-          onClick={(e) => {
-            if (e.currentTarget.getAttribute("data-was-focused") === "already") {
-              e.currentTarget.blur();
-            } else {
-              e.currentTarget.setAttribute("data-was-focused", "already");
-            }
-          }}
-          onChange={(e) => {
-            const lap = Number(e.target.value);
-            if (onSeekToLap) onSeekToLap(lap);
-            e.currentTarget.blur();
-          }}
-          className="lap-select bg-transparent text-white text-xs font-mono font-extrabold cursor-pointer outline-none appearance-none text-center min-w-[3rem] pr-6 pl-1 py-1"
-          title="Click to select lap"
-          aria-label="Select lap"
-        >
-          {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-            <option key={lap} value={lap} className="bg-f1-card text-white">
-              {lap}
-            </option>
-          ))}
-        </select>
-        <svg
-          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-f1-muted group-hover:text-white transition-colors"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+    <div className="group relative flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-1.5 flex-shrink-0 border border-white/10 hover:border-white/20 transition-all duration-300 focus-within:ring-2 focus-within:ring-f1-red/50 focus-within:border-f1-red/40 focus-within:shadow-[0_0_15px_rgba(225,6,0,0.4)] cursor-pointer">
+      {/* Visual Overlay - Content is non-interactive to let the select beneath capture clicks */}
+      <div className="flex items-center gap-2 pointer-events-none">
+        <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider mb-[1px]">
+          Lap
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-mono font-extrabold text-white leading-none">
+            {currentLap}
+          </span>
+          <span className="text-xs font-mono font-bold text-f1-muted whitespace-nowrap leading-none">
+            / {totalLaps}
+          </span>
+          <svg
+            className="w-3 h-3 text-f1-muted group-hover:text-white transition-colors ml-0.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
-      <span className="text-xs font-mono font-bold text-f1-muted whitespace-nowrap">/ {totalLaps}</span>
+
+      {/* Hidden Select - Covers the entire box to make everything clickable */}
+      <select
+        value={currentLap}
+        onFocus={(e) => {
+          e.currentTarget.setAttribute("data-was-focused", "true");
+        }}
+        onBlur={(e) => {
+          e.currentTarget.removeAttribute("data-was-focused");
+        }}
+        onClick={(e) => {
+          if (e.currentTarget.getAttribute("data-was-focused") === "already") {
+            e.currentTarget.blur();
+          } else {
+            e.currentTarget.setAttribute("data-was-focused", "already");
+          }
+        }}
+        onChange={(e) => {
+          const lap = Number(e.target.value);
+          if (onSeekToLap) onSeekToLap(lap);
+          e.currentTarget.blur();
+        }}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 lap-select"
+        title="Click to select lap"
+        aria-label="Select lap"
+      >
+        {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
+          <option key={lap} value={lap} className="bg-f1-card text-white">
+            {lap}
+          </option>
+        ))}
+      </select>
     </div>
   );
 
