@@ -95,7 +95,7 @@ export default function PlaybackControls({
   }
 
   const lapSelector = isRace && (
-    <div className="group relative flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-1.5 flex-shrink-0 border border-white/10 hover:border-white/20 transition-all duration-300 focus-within:ring-2 focus-within:ring-f1-red/50 focus-within:border-f1-red/40 focus-within:shadow-[0_0_15px_rgba(225,6,0,0.4)] cursor-pointer">
+    <div className="group relative flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 h-9 flex-shrink-0 border border-white/10 hover:border-white/20 transition-all duration-300 focus-within:ring-2 focus-within:ring-f1-red/50 focus-within:border-f1-red/40 focus-within:shadow-[0_0_15px_rgba(225,6,0,0.4)] cursor-pointer">
       {/* Visual Overlay - Content is non-interactive to let the select beneath capture clicks */}
       <div className="flex items-center gap-2 pointer-events-none">
         <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider mb-[1px]">
@@ -217,7 +217,7 @@ export default function PlaybackControls({
     <div className="relative" ref={speedMenuRef}>
       <button
         onClick={() => setSpeedMenuOpen(!speedMenuOpen)}
-        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/20 transition-colors text-sm font-bold text-white border border-white/5 touch-manipulation select-none"
+        className="flex items-center gap-1 px-3 h-9 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/20 transition-colors text-xs font-bold text-white border border-white/10 touch-manipulation select-none"
       >
         <svg className="w-3.5 h-3.5 text-f1-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -413,7 +413,7 @@ export default function PlaybackControls({
               {onSyncPhoto && (
                 <button
                   onClick={onSyncPhoto}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-f1-muted hover:text-white hover:bg-white/10 transition-colors"
+                  className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-[11px] font-bold text-f1-muted hover:text-white hover:bg-white/10 transition-colors border border-transparent"
                   title="Sync with onboard video"
                 >
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -446,10 +446,10 @@ export default function PlaybackControls({
             {onPiP && (
               <button
                 onClick={onPiP}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${pipActive
-                    ? "bg-f1-red text-white"
-                    : "text-f1-muted hover:text-white bg-white/5 hover:bg-white/10"
-                  }`}
+                className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-[11px] font-bold transition-all ${pipActive
+                    ? "bg-f1-red text-white border-f1-red"
+                    : "text-f1-muted hover:text-white bg-white/5 hover:bg-white/10 border-transparent"
+                  } border`}
                 title="Picture-in-Picture"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
