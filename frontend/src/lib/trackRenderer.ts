@@ -33,6 +33,7 @@ export function drawTrack(
   trackStatus: string = "green",
   sectorOverlay?: SectorOverlay | null,
   compact: boolean = false,
+  zoom: number = 1,
 ) {
   if (points.length === 0) return;
 
@@ -71,7 +72,7 @@ export function drawTrack(
 
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
-  const scale = Math.min(w / rangeX, h / rangeY);
+  const scale = Math.min(w / rangeX, h / rangeY) * Math.max(0.25, zoom);
 
   const offsetX = padX + (w - rangeX * scale) / 2;
   const offsetY = padTop + (h - rangeY * scale) / 2;
@@ -176,6 +177,7 @@ export function drawDrivers(
   highlightedDrivers: string[],
   showNames: boolean = true,
   compact: boolean = false,
+  zoom: number = 1,
 ) {
   if (trackPoints.length === 0) return;
 
@@ -207,7 +209,7 @@ export function drawDrivers(
 
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
-  const scale = Math.min(w / rangeX, h / rangeY);
+  const scale = Math.min(w / rangeX, h / rangeY) * Math.max(0.25, zoom);
   const offsetX = padX + (w - rangeX * scale) / 2;
   const offsetY = padTop + (h - rangeY * scale) / 2;
 

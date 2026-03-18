@@ -36,7 +36,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling (general) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -47,16 +47,34 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Scrollbar styling for lap selector dropdown (darker grey track) */
+.lap-select::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lap-select::-webkit-scrollbar-track {
+  background: #1f1f2a;
+}
+
+.lap-select::-webkit-scrollbar-thumb {
+  background: #4b4b5a;
+  border-radius: 999px;
+}
+
+.lap-select::-webkit-scrollbar-thumb:hover {
+  background: #6b6b7a;
 }
 
 /* Typography styles to apply perfectly fixed tabular numbers in monospaced areas */

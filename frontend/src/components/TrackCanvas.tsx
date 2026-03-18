@@ -13,6 +13,7 @@ interface Props {
   showDriverNames?: boolean;
   sectorOverlay?: SectorOverlay | null;
   compact?: boolean;
+  zoom?: number;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -43,6 +44,7 @@ export default function TrackCanvas({
   showDriverNames = true,
   sectorOverlay = null,
   compact = false,
+  zoom = 1,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,6 +62,8 @@ export default function TrackCanvas({
   sectorOverlayRef.current = sectorOverlay;
   const compactRef = useRef(compact);
   compactRef.current = compact;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   // Update targets when drivers prop changes
   useEffect(() => {
@@ -128,7 +132,17 @@ export default function TrackCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, compactRef.current);
+      drawTrack(
+        ctx,
+        trackPoints,
+        w,
+        h,
+        rotation,
+        trackStatusRef.current,
+        sectorOverlayRef.current,
+        compactRef.current,
+        zoomRef.current,
+      );
 
       const now = performance.now();
       const curr = driversRef.current;
@@ -144,7 +158,18 @@ export default function TrackCanvas({
         return { ...drv, x, y };
       });
 
-      drawDrivers(ctx, interpolated, trackPoints, w, h, rotation, highlightedDrivers, showNamesRef.current, compactRef.current);
+      drawDrivers(
+        ctx,
+        interpolated,
+        trackPoints,
+        w,
+        h,
+        rotation,
+        highlightedDrivers,
+        showNamesRef.current,
+        compactRef.current,
+        zoomRef.current,
+      );
 
       hostWindow.requestAnimationFrame(animate);
     }

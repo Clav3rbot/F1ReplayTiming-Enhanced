@@ -62,6 +62,7 @@ export default function ReplayPage() {
   const [sectorFocusDriver, setSectorFocusDriver] = useState<string | null>(null);
   const [rcPanelOpen, setRcPanelOpen] = useState(false);
   const [rcPanelSize, setRcPanelSize] = useState<"sm" | "md" | "lg">("md");
+  const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -212,6 +213,26 @@ export default function ReplayPage() {
               </svg>
             </button>
             <div className={`flex-1 relative bg-black/40 overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
+              {/* Mobile zoom controls */}
+              <div className="absolute right-3 bottom-3 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setMobileTrackZoom((z) => Math.min(2.2, Math.round((z + 0.15) * 100) / 100))}
+                  className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                  aria-label="Zoom in"
+                >
+                  <span className="text-lg font-extrabold leading-none">+</span>
+                </button>
+                <div className="h-px bg-white/10" />
+                <button
+                  type="button"
+                  onClick={() => setMobileTrackZoom((z) => Math.max(0.8, Math.round((z - 0.15) * 100) / 100))}
+                  className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                  aria-label="Zoom out"
+                >
+                  <span className="text-lg font-extrabold leading-none">−</span>
+                </button>
+              </div>
               <TrackCanvas
                 trackPoints={trackPoints}
                 rotation={rotation}
@@ -227,6 +248,7 @@ export default function ReplayPage() {
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
                 sectorOverlay={sectorOverlay}
+                zoom={mobileTrackZoom}
               />
             </div>
           </div>

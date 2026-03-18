@@ -94,6 +94,56 @@ export default function PlaybackControls({
     return "";
   }
 
+  const lapSelector = isRace && (
+    <div className="group flex items-center gap-1.5 bg-white/5 hover:bg-white/10 rounded-lg px-2 py-1 flex-shrink-0 border border-white/10 hover:border-white/20 transition-all duration-300 focus-within:ring-2 focus-within:ring-f1-red/50 focus-within:border-f1-red/40 focus-within:shadow-[0_0_15px_rgba(225,6,0,0.4)]">
+      <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">
+        Lap
+      </span>
+      <div className="relative">
+        <select
+          value={currentLap}
+          onFocus={(e) => {
+            e.currentTarget.setAttribute("data-was-focused", "true");
+          }}
+          onBlur={(e) => {
+            e.currentTarget.removeAttribute("data-was-focused");
+          }}
+          onClick={(e) => {
+            if (e.currentTarget.getAttribute("data-was-focused") === "already") {
+              e.currentTarget.blur();
+            } else {
+              e.currentTarget.setAttribute("data-was-focused", "already");
+            }
+          }}
+          onChange={(e) => {
+            const lap = Number(e.target.value);
+            if (onSeekToLap) onSeekToLap(lap);
+            e.currentTarget.blur();
+          }}
+          className="lap-select bg-transparent text-white text-xs font-mono font-extrabold cursor-pointer outline-none appearance-none text-center min-w-[3rem] pr-6 pl-1 py-1"
+          title="Click to select lap"
+          aria-label="Select lap"
+        >
+          {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
+            <option key={lap} value={lap} className="bg-f1-card text-white">
+              {lap}
+            </option>
+          ))}
+        </select>
+        <svg
+          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-f1-muted group-hover:text-white transition-colors"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      <span className="text-xs font-mono font-bold text-f1-muted whitespace-nowrap">/ {totalLaps}</span>
+    </div>
+  );
+
   /* ─── Shared sub-components ─── */
 
   const playPauseBtn = (
@@ -127,10 +177,10 @@ export default function PlaybackControls({
       }}
     >
       <div
-        className="h-full bg-f1-red rounded-full transition-all duration-100 relative"
+        className="h-full bg-f1-red rounded-full transition-all duration-100 relative shadow-[0_0_10px_rgba(225,6,0,0.3)]"
         style={{ width: `${progress}%` }}
       >
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_6px_rgba(255,255,255,0.5)]" />
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
       </div>
     </div>
   );
@@ -258,18 +308,7 @@ export default function PlaybackControls({
                   Sync
                 </button>
               )}
-              {onSeekToLap && (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-extrabold text-white">Lap</span>
-                  <select value={currentLap} onChange={(e) => onSeekToLap(Number(e.target.value))}
-                    className="bg-white/10 text-white text-xs font-extrabold rounded px-2 py-1 cursor-pointer outline-none">
-                    {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-                      <option key={lap} value={lap} className="bg-f1-card text-white">{lap}</option>
-                    ))}
-                  </select>
-                  <span className="text-xs font-extrabold text-white">/{totalLaps}</span>
-                </div>
-              )}
+              {onSeekToLap && lapSelector}
             </div>
           )}
           {!isRace && qualiPhase && (
@@ -416,21 +455,7 @@ export default function PlaybackControls({
           {isRace && <div className="w-px h-4 bg-white/10 hidden xl:block" />}
 
           {/* Lap selector */}
-          {isRace && (
-            <div className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2 py-1 flex-shrink-0">
-              <span className="text-[10px] font-bold text-f1-muted uppercase hidden md:inline">Lap</span>
-              <select
-                value={currentLap}
-                onChange={(e) => { if (onSeekToLap) onSeekToLap(Number(e.target.value)); }}
-                className="bg-transparent text-white text-xs font-mono font-bold cursor-pointer outline-none appearance-none text-center min-w-[2.5rem]"
-              >
-                {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-                  <option key={lap} value={lap} className="bg-f1-card text-white">{lap}</option>
-                ))}
-              </select>
-              <span className="text-xs font-mono font-bold text-f1-muted whitespace-nowrap">/ {totalLaps}</span>
-            </div>
-          )}
+          {lapSelector}
         </div>
       </div>
     </div>
