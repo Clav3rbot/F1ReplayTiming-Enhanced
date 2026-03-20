@@ -54,7 +54,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
 
   if (!driver) {
     return (
-      <div className="glass-panel border-white/5 rounded-xl px-4 py-2 shadow-glass backdrop-blur-md">
+      <div className="bg-[#1A1A26] border border-f1-border rounded-xl px-3 py-2 shadow-2xl">
         <p className="text-[10px] text-f1-muted/70 font-bold uppercase tracking-wider">
         Select drivers to view telemetry
         </p>
@@ -71,7 +71,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const drs = driver.drs ?? 0;
 
   return (
-    <div className="glass-panel border-white/10 rounded-xl px-3 sm:px-4 py-2 shadow-glass backdrop-blur-md overflow-hidden relative">
+    <div className="bg-[#1A1A26] border border-f1-border rounded-xl px-3 sm:px-4 py-2 shadow-2xl overflow-hidden relative">
       <div className="flex items-center gap-2 sm:gap-4 relative z-10">
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
@@ -106,7 +106,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
           <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {speed}
           </span>
-          <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">km/h</span>
+          <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>
         </div>
 
         {/* Throttle */}
@@ -145,7 +145,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
             className={`w-[28px] sm:w-[32px] text-center text-[9px] font-extrabold py-0.5 rounded shrink-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-colors ${
               drs >= 10
                 ? "text-f1-green bg-f1-green/20 border border-f1-green/40 shadow-[0_0_10px_rgba(0,255,65,0.3)]"
-                : "text-f1-muted/30 border border-white/5"
+                : "text-f1-muted/40 border border-f1-border bg-f1-card/40"
             }`}
           >
             DRS

@@ -542,8 +542,8 @@ export default function ReplayPage() {
                 <div
                   className={`flex-shrink-0 ${
                     telemetryPosition === "left"
-                      ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                      : "border-t border-f1-border py-1 flex overflow-hidden"
+                      ? "h-full bg-[#1A1A26] border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                      : "bg-[#1A1A26] border-t border-f1-border py-1 flex overflow-hidden"
                   }`}
                   style={
                     telemetryPosition === "left" && rcPinned && telemetryWidth > 0
@@ -554,7 +554,7 @@ export default function ReplayPage() {
                   <div
                     ref={telemetryPanelRef}
                     className={
-                      telemetryPosition === "bottom" ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0" : ""
+                      telemetryPosition === "bottom" ? "inline-block bg-[#1A1A26] px-3 pt-1 flex-shrink-0" : ""
                     }
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -596,7 +596,7 @@ export default function ReplayPage() {
               )}
               {rcPinned && (
                 <div
-                  className={`bg-f1-card ${
+                  className={`bg-[#1A1A26] ${
                     telemetryPosition === "bottom"
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
                       : "border-t border-f1-border px-3 py-2 mt-2"
