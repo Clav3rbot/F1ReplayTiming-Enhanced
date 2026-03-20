@@ -74,6 +74,13 @@ export default function ReplayPage() {
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
   const [telemetryHeight, setTelemetryHeight] = useState<number>(0);
   const [telemetryWidth, setTelemetryWidth] = useState<number>(0);
+  const telemetryResizeRef = useRef<{
+    kind: "width" | "height";
+    startX: number;
+    startY: number;
+    startSize: number;
+    pointerId: number;
+  } | null>(null);
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
   const [isIOS, setIsIOS] = useState(false);
 
@@ -168,6 +175,62 @@ export default function ReplayPage() {
       setTelemetryWidth(telemetryPanelRef.current.offsetWidth);
     }
   }, [selectedDrivers.length, showTelemetry, telemetryPosition]);
+
+  const startTelemetryResize = useCallback(
+    (e: React.PointerEvent, kind: "width" | "height") => {
+      if (isMobile) return;
+      e.preventDefault();
+
+      const currentEl = telemetryPanelRef.current;
+      if (!currentEl) return;
+
+      const startSize = kind === "width" ? (telemetryWidth || currentEl.offsetWidth) : (telemetryHeight || currentEl.offsetHeight);
+      if (!startSize) return;
+
+      telemetryResizeRef.current = {
+        kind,
+        startX: e.clientX,
+        startY: e.clientY,
+        startSize,
+        pointerId: e.pointerId,
+      };
+
+      // Avoid accidental text selection while resizing.
+      const prevUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+
+      const onMove = (ev: PointerEvent) => {
+        const st = telemetryResizeRef.current;
+        if (!st || st.pointerId !== ev.pointerId) return;
+
+        if (st.kind === "width") {
+          const minW = 220;
+          const maxW = Math.max(minW, Math.min(720, window.innerWidth - 260));
+          const next = st.startSize + (ev.clientX - st.startX);
+          setTelemetryWidth(Math.round(Math.max(minW, Math.min(maxW, next))));
+        } else {
+          const minH = 180;
+          const maxH = Math.max(minH, Math.min(560, window.innerHeight - 320));
+          // Handle is on top edge => dragging up increases height.
+          const next = st.startSize - (ev.clientY - st.startY);
+          setTelemetryHeight(Math.round(Math.max(minH, Math.min(maxH, next))));
+        }
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        const st = telemetryResizeRef.current;
+        if (!st || st.pointerId !== ev.pointerId) return;
+        telemetryResizeRef.current = null;
+        document.body.style.userSelect = prevUserSelect;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [isMobile, telemetryHeight, telemetryWidth]
+  );
 
   const isLoading = sessionLoading || trackLoading;
   const dataError = sessionError || trackError;
@@ -540,21 +603,22 @@ export default function ReplayPage() {
               {/* Expanded telemetry panel for 3+ drivers */}
               {showTelemetry && selectedDrivers.length > 2 && (
                 <div
-                  className={`flex-shrink-0 ${
-                    telemetryPosition === "left"
-                      ? "h-full bg-[#1A1A26] border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                      : "bg-[#1A1A26] border-t border-f1-border py-1 flex overflow-hidden"
-                  }`}
-                  style={
-                    telemetryPosition === "left" && rcPinned && telemetryWidth > 0
-                      ? { width: telemetryWidth + 24 }
-                      : undefined
-                  }
+                className={`flex-shrink-0 relative ${
+                  telemetryPosition === "left"
+                    ? "h-full bg-[#1A1A26] border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                    : "bg-[#1A1A26] border-t border-f1-border py-1 flex flex-col overflow-hidden"
+                }`}
+                style={{
+                  ...(telemetryPosition === "left" && telemetryWidth > 0 ? { width: telemetryWidth } : {}),
+                  ...(telemetryPosition === "bottom" && telemetryHeight > 0 ? { maxHeight: telemetryHeight } : {}),
+                }}
                 >
                   <div
                     ref={telemetryPanelRef}
                     className={
-                      telemetryPosition === "bottom" ? "inline-block bg-[#1A1A26] px-3 pt-1 flex-shrink-0" : ""
+                      telemetryPosition === "bottom"
+                        ? "inline-block bg-[#1A1A26] px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
+                        : ""
                     }
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -579,6 +643,24 @@ export default function ReplayPage() {
                   })}
                 </div>
               </div>
+
+                  {/* Resize handles (PC + iPad) */}
+                  {telemetryPosition === "left" && (
+                    <div
+                      role="separator"
+                      aria-label="Resize telemetry panel width"
+                      onPointerDown={(ev) => startTelemetryResize(ev, "width")}
+                      className="absolute right-0 top-0 h-full w-[6px] cursor-ew-resize z-[50] bg-transparent hover:bg-white/10 transition-colors"
+                    />
+                  )}
+                  {telemetryPosition === "bottom" && (
+                    <div
+                      role="separator"
+                      aria-label="Resize telemetry panel height"
+                      onPointerDown={(ev) => startTelemetryResize(ev, "height")}
+                      className="absolute left-0 top-0 w-full h-[6px] cursor-ns-resize z-[50] bg-transparent hover:bg-white/10 transition-colors"
+                    />
+                  )}
 
               {!rcPinned && (
                 <div className={`flex items-center justify-center ${
