@@ -56,7 +56,7 @@ export const DEFAULTS: ReplaySettings = {
   showSectors: true,
   highlightClose: true,
   useImperial: false,
-  rcSound: false,
+  rcSound: true,
   showCorners: true,
 };
 

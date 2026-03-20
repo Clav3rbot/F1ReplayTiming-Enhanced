@@ -46,10 +46,36 @@ export default function PiPWindow({
     pipWin.document.documentElement.className = document.documentElement.className;
     pipWin.document.body.className = document.body.className;
 
-    // Copy stylesheets and fonts from the main document head
+    // Copy stylesheets from the main document
     Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]')).forEach(node => {
       pipWin!.document.head.appendChild(node.cloneNode(true));
     });
+
+    // Copy constructed/adopted stylesheets (used by CSS-in-JS / Next.js)
+    try {
+      if (document.adoptedStyleSheets?.length) {
+        const sheets: CSSStyleSheet[] = [];
+        for (const sheet of document.adoptedStyleSheets) {
+          const clone = new CSSStyleSheet();
+          const rules = Array.from(sheet.cssRules).map(r => r.cssText).join("\n");
+          clone.replaceSync(rules);
+          sheets.push(clone);
+        }
+        pipWin!.document.adoptedStyleSheets = sheets;
+      }
+    } catch {}
+
+    // Observe new <style>/<link> nodes added dynamically by Next.js
+    const headObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        m.addedNodes.forEach((n) => {
+          if (n instanceof HTMLStyleElement || (n instanceof HTMLLinkElement && n.rel === "stylesheet")) {
+            pipWin?.document.head.appendChild(n.cloneNode(true));
+          }
+        });
+      }
+    });
+    headObserver.observe(document.head, { childList: true });
 
     const mount = pipWin.document.createElement("div");
     mount.id = "pip-root";
@@ -80,6 +106,7 @@ export default function PiPWindow({
 
     return () => {
       closedRef.current = true;
+      headObserver.disconnect();
       window.removeEventListener("beforeunload", handleMainUnload);
       window.removeEventListener("pagehide", handleMainUnload);
       if (pipWin && !pipWin.closed) {

@@ -414,7 +414,6 @@ export default function PlaybackControls({
 
           {isRace ? (
             <>
-              {/* Sync button */}
               {onSyncPhoto && (
                 <button
                   onClick={onSyncPhoto}
@@ -425,15 +424,6 @@ export default function PlaybackControls({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span className="hidden lg:inline">Sync</span>
-                </button>
-              )}
-              {onFullscreen && (
-                <button
-                  onClick={onFullscreen}
-                  className="px-3 py-1.5 rounded border border-f1-border text-f1-muted hover:text-white hover:bg-white/10 transition-colors text-xs font-bold"
-                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-                >
-                  {fullscreen ? <Minimize className="w-4 h-4 inline-block -mt-0.5" /> : <Maximize className="w-4 h-4 inline-block -mt-0.5" />}
                 </button>
               )}
             </>
@@ -473,7 +463,16 @@ export default function PlaybackControls({
             )
           )}
 
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center gap-1.5">
+            {onFullscreen && (
+              <button
+                onClick={onFullscreen}
+                className="flex items-center justify-center w-9 h-9 rounded-lg text-f1-muted hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-transparent"
+                title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {fullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </button>
+            )}
             {onPiP && (
               <button
                 onClick={onPiP}
