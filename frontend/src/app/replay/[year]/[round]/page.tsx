@@ -81,6 +81,7 @@ export default function ReplayPage() {
     startY: number;
     startSize: number;
     minSize: number;
+    maxSize: number;
     pointerId: number;
   } | null>(null);
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
@@ -198,6 +199,11 @@ export default function ReplayPage() {
       const contentMin =
         kind === "width" ? innerEl.scrollWidth : innerEl.scrollHeight;
       const minSize = Math.max(0, Math.ceil(contentMin + Math.max(0, outerToInnerDelta)));
+      const maxSize =
+        kind === "width"
+          // Keep width close to content width to avoid large empty area on the right.
+          ? Math.max(minSize, minSize + 24)
+          : Math.max(minSize, Math.min(560, window.innerHeight - 320));
 
       telemetryResizeRef.current = {
         kind,
@@ -205,6 +211,7 @@ export default function ReplayPage() {
         startY: e.clientY,
         startSize,
         minSize,
+        maxSize,
         pointerId: e.pointerId,
       };
 
@@ -217,11 +224,11 @@ export default function ReplayPage() {
         if (!st || st.pointerId !== ev.pointerId) return;
 
         if (st.kind === "width") {
-          const maxW = Math.max(st.minSize, Math.min(720, window.innerWidth - 260));
+          const maxW = Math.max(st.minSize, Math.min(st.maxSize, window.innerWidth - 260));
           const next = st.startSize + (ev.clientX - st.startX);
           setTelemetryWidth(Math.round(Math.max(st.minSize, Math.min(maxW, next))));
         } else {
-          const maxH = Math.max(st.minSize, Math.min(560, window.innerHeight - 320));
+          const maxH = Math.max(st.minSize, st.maxSize);
           // Handle is on top edge => dragging up increases height.
           const next = st.startSize - (ev.clientY - st.startY);
           setTelemetryHeight(Math.round(Math.max(st.minSize, Math.min(maxH, next))));
@@ -660,7 +667,16 @@ export default function ReplayPage() {
                     <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
                   <button
-                    onClick={() => setTelemetryPosition(telemetryPosition === "left" ? "bottom" : "left")}
+                    onClick={() => {
+                      if (telemetryPosition === "left") {
+                        setTelemetryPosition("bottom");
+                      } else {
+                        // Returning to left should restore the default layout width,
+                        // not reuse the width captured while in bottom mode.
+                        setTelemetryWidth(0);
+                        setTelemetryPosition("left");
+                      }
+                    }}
                     className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
                   >
                     {telemetryPosition === "left" ? "Move to bottom" : "Move to left"}

@@ -66,7 +66,8 @@ export default function PlaybackControls({
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const speedMenuRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
-  const scrubStateRef = useRef<{ pointerId: number } | null>(null);
+  const scrubStateRef = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
+  const ignoreNextClickRef = useRef(false);
   const progress = totalTime > 0 ? ((scrubTime ?? currentTime) / totalTime) * 100 : 0;
 
   // Close speed menu on outside click
@@ -107,7 +108,7 @@ export default function PlaybackControls({
     if (totalTime <= 0) return;
     const target = getSeekTimeFromClientX(e.clientX);
     setScrubTime(target);
-    scrubStateRef.current = { pointerId: e.pointerId };
+    scrubStateRef.current = { pointerId: e.pointerId, startX: e.clientX, moved: false };
 
     const prevUserSelect = document.body.style.userSelect;
     document.body.style.userSelect = "none";
@@ -115,24 +116,30 @@ export default function PlaybackControls({
     const onMove = (ev: PointerEvent) => {
       const st = scrubStateRef.current;
       if (!st || st.pointerId !== ev.pointerId) return;
+      if (!st.moved && Math.abs(ev.clientX - st.startX) > 3) st.moved = true;
       const next = getSeekTimeFromClientX(ev.clientX);
       setScrubTime(next);
     };
 
-    const onUp = (ev: PointerEvent) => {
+    const finishScrub = (ev: PointerEvent) => {
       const st = scrubStateRef.current;
       if (!st || st.pointerId !== ev.pointerId) return;
       const finalTime = getSeekTimeFromClientX(ev.clientX);
       onSeek(finalTime);
+      // Prevent synthetic click after pointer interaction from re-seeking.
+      ignoreNextClickRef.current = true;
+      window.setTimeout(() => { ignoreNextClickRef.current = false; }, 0);
       setScrubTime(null);
       scrubStateRef.current = null;
       document.body.style.userSelect = prevUserSelect;
       window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointerup", finishScrub);
+      window.removeEventListener("pointercancel", finishScrub);
     };
 
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointerup", finishScrub);
+    window.addEventListener("pointercancel", finishScrub);
   };
 
   // Control visibility of skip buttons at different widths to keep UI clean
@@ -232,6 +239,7 @@ export default function PlaybackControls({
       style={{ touchAction: "none" }}
       onPointerDown={startScrub}
       onClick={(e) => {
+        if (ignoreNextClickRef.current) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = (e.clientX - rect.left) / rect.width;
         onSeek(pct * totalTime);
