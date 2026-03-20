@@ -107,7 +107,6 @@ export default function PlaybackControls({
     if (totalTime <= 0) return;
     const target = getSeekTimeFromClientX(e.clientX);
     setScrubTime(target);
-    onSeek(target);
     scrubStateRef.current = { pointerId: e.pointerId };
 
     const prevUserSelect = document.body.style.userSelect;
@@ -118,7 +117,6 @@ export default function PlaybackControls({
       if (!st || st.pointerId !== ev.pointerId) return;
       const next = getSeekTimeFromClientX(ev.clientX);
       setScrubTime(next);
-      onSeek(next);
     };
 
     const onUp = (ev: PointerEvent) => {
