@@ -204,11 +204,15 @@ export function drawTrack(
       const ry = dx * sin + dy * cos + cy;
       const [screenX, screenY] = toScreen({ x: rx, y: ry });
 
-      // Offset label away from track using the angle
+      // Offset label away from track using the angle.
+      // Clamp to canvas bounds so labels don't get clipped on smaller layouts.
       const labelRad = ((c.angle + rotation) * Math.PI) / 180;
-      const labelOffset = 18;
-      const lx = screenX + Math.cos(labelRad) * labelOffset;
-      const ly = screenY - Math.sin(labelRad) * labelOffset;
+      const labelOffset = compact ? 14 : 12;
+      const lxRaw = screenX + Math.cos(labelRad) * labelOffset;
+      const lyRaw = screenY - Math.sin(labelRad) * labelOffset;
+      const textMargin = compact ? 6 : 8;
+      const lx = Math.min(Math.max(lxRaw, textMargin), width - textMargin);
+      const ly = Math.min(Math.max(lyRaw, textMargin), height - textMargin);
 
       const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
 
