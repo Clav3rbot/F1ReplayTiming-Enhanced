@@ -24,7 +24,7 @@ function BarPips({
 }) {
   const fill = Math.max(0, Math.min(pips, (value / Math.max(max, 1)) * pips));
   return (
-    <div className="flex items-end gap-[2px] h-[18px]">
+    <div className="flex items-end justify-end gap-[2px] h-[18px] w-[28px] overflow-hidden rounded-[1px]">
       {Array.from({ length: pips }, (_, i) => {
         const h = 6 + i * 3; // ascending heights: 6, 9, 12, 15, 18
         // Per-pip fractional fill for smoother transitions (no hard on/off jump)
@@ -104,6 +104,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const throttle = useSmoothedNumber(throttleRaw, 0.24);
   const brake = useSmoothedNumber(brakeRaw, 0.24);
   const rpm = useSmoothedNumber(rpmRaw, 0.2);
+  const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
 
   return (
     <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative min-w-[430px]">
@@ -166,10 +167,10 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         </div>
 
         {/* RPM */}
-        <div className="w-[64px] sm:w-[88px] min-w-0 flex items-center gap-[4px]">
+        <div className="w-[68px] sm:w-[92px] min-w-0 flex items-center gap-[4px] mr-0.5">
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
-          <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[28px] sm:w-[32px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-            {Math.round(rpm / 100) / 10}k
+          <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+            {rpmDisplay}
           </span>
           <BarPips value={rpm} max={15000} color="#F59E0B" />
         </div>

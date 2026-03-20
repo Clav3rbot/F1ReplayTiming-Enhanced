@@ -73,6 +73,7 @@ export default function ReplayPage() {
   const rcPanelRef = useRef<HTMLDivElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
   const telemetryOuterPanelRef = useRef<HTMLDivElement>(null);
+  const telemetryMinWidthRef = useRef<number>(0);
   const [telemetryHeight, setTelemetryHeight] = useState<number>(0);
   const [telemetryWidth, setTelemetryWidth] = useState<number>(0);
   const telemetryResizeRef = useRef<{
@@ -175,11 +176,40 @@ export default function ReplayPage() {
   }, [replay.frame?.rc_messages?.length, settings.rcSound]);
 
   useEffect(() => {
-    if (telemetryPanelRef.current) {
-      setTelemetryHeight(telemetryPanelRef.current.offsetHeight);
-      setTelemetryWidth(telemetryPanelRef.current.offsetWidth);
+    if (!telemetryPanelRef.current) return;
+
+    const inner = telemetryPanelRef.current;
+    const outer = telemetryOuterPanelRef.current;
+    setTelemetryHeight(inner.offsetHeight);
+
+    // On first open in "left" mode, ensure width can contain full telemetry row
+    // (prevents initial RPM/pips clipping before user resizes).
+    if (
+      showTelemetry &&
+      telemetryPosition === "left" &&
+      selectedDrivers.length > 2 &&
+      outer &&
+      telemetryWidth === 0
+    ) {
+      const delta = Math.max(0, outer.offsetWidth - inner.offsetWidth);
+      const contentRequired = Math.ceil(inner.scrollWidth + delta);
+      const baseline = Math.max(outer.offsetWidth, contentRequired, 430);
+      setTelemetryWidth(baseline);
+      return;
     }
-  }, [selectedDrivers.length, showTelemetry, telemetryPosition]);
+
+    if (telemetryWidth === 0) {
+      setTelemetryWidth(inner.offsetWidth);
+    }
+  }, [selectedDrivers.length, showTelemetry, telemetryPosition, telemetryWidth]);
+
+  useEffect(() => {
+    if (!showTelemetry || telemetryPosition !== "left") return;
+    if (telemetryWidth !== 0) return; // only capture default baseline width
+    if (telemetryOuterPanelRef.current) {
+      telemetryMinWidthRef.current = Math.max(430, telemetryOuterPanelRef.current.offsetWidth);
+    }
+  }, [showTelemetry, telemetryPosition, telemetryWidth, selectedDrivers.length]);
 
   const startTelemetryResize = useCallback(
     (e: React.PointerEvent, kind: "width" | "height") => {
@@ -193,16 +223,17 @@ export default function ReplayPage() {
       const startSize = kind === "width" ? (telemetryWidth || outerEl.offsetWidth) : (telemetryHeight || outerEl.offsetHeight);
       if (!startSize) return;
 
-      // Clamp min size to the actual content so the "last element in the row" stays visible.
       const outerToInnerDelta =
         kind === "width" ? outerEl.offsetWidth - innerEl.offsetWidth : outerEl.offsetHeight - innerEl.offsetHeight;
       const contentMin =
-        kind === "width" ? innerEl.scrollWidth : innerEl.scrollHeight;
+        kind === "width"
+          ? Math.max(430, telemetryMinWidthRef.current - Math.max(0, outerToInnerDelta))
+          : innerEl.scrollHeight;
       const minSize = Math.max(0, Math.ceil(contentMin + Math.max(0, outerToInnerDelta)));
       const maxSize =
         kind === "width"
-          // Keep width close to content width to avoid large empty area on the right.
-          ? Math.max(minSize, minSize + 24)
+          // Allow comfortable expansion to the right without hitting premature clamp.
+          ? Math.max(minSize, Math.min(920, window.innerWidth - 220))
           : Math.max(minSize, Math.min(560, window.innerHeight - 320));
 
       telemetryResizeRef.current = {
@@ -235,17 +266,19 @@ export default function ReplayPage() {
         }
       };
 
-      const onUp = (ev: PointerEvent) => {
+      const finishResize = (ev: PointerEvent) => {
         const st = telemetryResizeRef.current;
         if (!st || st.pointerId !== ev.pointerId) return;
         telemetryResizeRef.current = null;
         document.body.style.userSelect = prevUserSelect;
         window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointerup", finishResize);
+        window.removeEventListener("pointercancel", finishResize);
       };
 
       window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointerup", finishResize);
+      window.addEventListener("pointercancel", finishResize);
     },
     [isMobile, telemetryHeight, telemetryWidth]
   );
