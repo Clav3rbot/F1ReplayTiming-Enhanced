@@ -592,10 +592,25 @@ export default function ReplayPage() {
                     Hide
                   </button>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div
+                  className={`gap-1 ${
+                    telemetryPosition === "bottom"
+                      ? isIOS
+                        ? "flex overflow-x-auto overflow-y-hidden pb-1"
+                        : "flex flex-col overflow-y-auto"
+                      : "flex flex-col"
+                  }`}
+                >
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
-                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
+                    return (
+                      <div
+                        key={abbr}
+                        className={telemetryPosition === "bottom" && isIOS ? "flex-shrink-0" : ""}
+                      >
+                        <TelemetryChart visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />
+                      </div>
+                    );
                   })}
                 </div>
               </div>
