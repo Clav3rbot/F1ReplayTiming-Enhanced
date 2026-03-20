@@ -207,10 +207,12 @@ export function drawTrack(
       // Offset label away from track using the angle.
       // Clamp to canvas bounds so labels don't get clipped on smaller layouts.
       const labelRad = ((c.angle + rotation) * Math.PI) / 180;
-      const labelOffset = compact ? 14 : 12;
+      // Keep labels further from the racing line for readability,
+      // matching the spacing used in main.
+      const labelOffset = compact ? 18 : 16;
       const lxRaw = screenX + Math.cos(labelRad) * labelOffset;
       const lyRaw = screenY - Math.sin(labelRad) * labelOffset;
-      const textMargin = compact ? 6 : 8;
+      const textMargin = compact ? 8 : 10;
       const lx = Math.min(Math.max(lxRaw, textMargin), width - textMargin);
       const ly = Math.min(Math.max(lyRaw, textMargin), height - textMargin);
 
