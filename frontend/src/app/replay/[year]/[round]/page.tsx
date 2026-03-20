@@ -551,7 +551,7 @@ export default function ReplayPage() {
                 
                 {/* iPad zoom controls (same UI as iPhone) */}
                 {enableTrackZoom && (
-                  <div className="absolute right-3 bottom-3 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
+                  <div className="absolute right-3 bottom-14 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
                     <button
                       type="button"
                       onClick={() => setMobileTrackZoom((z) => Math.min(2.2, Math.round((z + 0.15) * 100) / 100))}
@@ -641,8 +641,8 @@ export default function ReplayPage() {
                 ref={telemetryOuterPanelRef}
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
-                    ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                    : "bg-f1-card border-t border-f1-border py-1 flex flex-col overflow-hidden"
+                    ? "h-full glass-panel-heavy border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden"
                 }`}
                 style={{
                   ...(telemetryPosition === "left" && telemetryWidth > 0 ? { width: telemetryWidth } : {}),
@@ -653,7 +653,7 @@ export default function ReplayPage() {
                     ref={telemetryPanelRef}
                     className={
                       telemetryPosition === "bottom"
-                        ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
+                        ? "inline-block glass-panel-heavy px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
                         : ""
                     }
                   >
@@ -686,7 +686,9 @@ export default function ReplayPage() {
                       role="separator"
                       aria-label="Resize telemetry panel width"
                       onPointerDown={(ev) => startTelemetryResize(ev, "width")}
-                      className="absolute right-0 top-0 h-full w-[6px] cursor-ew-resize z-[50] bg-transparent hover:bg-white/10 transition-colors"
+                      className={`absolute right-0 top-0 h-full cursor-ew-resize z-[50] transition-colors ${
+                        isIOS ? "w-4 bg-white/10 hover:bg-white/20 active:bg-white/25" : "w-[6px] bg-transparent hover:bg-white/10"
+                      }`}
                     />
                   )}
                   {telemetryPosition === "bottom" && (
@@ -694,7 +696,9 @@ export default function ReplayPage() {
                       role="separator"
                       aria-label="Resize telemetry panel height"
                       onPointerDown={(ev) => startTelemetryResize(ev, "height")}
-                      className="absolute left-0 top-0 w-full h-[6px] cursor-ns-resize z-[50] bg-transparent hover:bg-white/10 transition-colors"
+                      className={`absolute left-0 top-0 w-full cursor-ns-resize z-[50] transition-colors ${
+                        isIOS ? "h-4 bg-white/10 hover:bg-white/20 active:bg-white/25" : "h-[6px] bg-transparent hover:bg-white/10"
+                      }`}
                     />
                   )}
 
@@ -714,7 +718,7 @@ export default function ReplayPage() {
               )}
               {rcPinned && (
                 <div
-                  className={`bg-f1-card ${
+                  className={`glass-panel-heavy ${
                     telemetryPosition === "bottom"
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
                       : "border-t border-f1-border px-3 py-2 mt-2"
