@@ -560,14 +560,14 @@ export default function ReplayPage() {
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
                     ? "h-full glass-panel-heavy border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden"
+                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
                   <div
                     ref={telemetryPanelRef}
                     className={
                       telemetryPosition === "bottom"
-                        ? "inline-block glass-panel-heavy px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
+                        ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
                         : ""
                     }
                   >
@@ -595,19 +595,14 @@ export default function ReplayPage() {
                 <div
                   className={`gap-1 ${
                     telemetryPosition === "bottom"
-                      ? isIOS
-                        ? "flex overflow-x-auto overflow-y-hidden pb-1"
-                        : "flex flex-col overflow-y-auto"
+                      ? "flex flex-col overflow-y-auto flex-1 min-h-0 pr-1"
                       : "flex flex-col"
                   }`}
                 >
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
                     return (
-                      <div
-                        key={abbr}
-                        className={telemetryPosition === "bottom" && isIOS ? "flex-shrink-0" : ""}
-                      >
+                      <div key={abbr}>
                         <TelemetryChart visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />
                       </div>
                     );
