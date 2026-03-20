@@ -13,7 +13,7 @@ import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import type { SectorOverlay } from "@/lib/trackRenderer";
-import { Maximize, Minimize, ArrowUpRight, Pin, PinOff } from "lucide-react";
+import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
@@ -331,8 +331,14 @@ export default function ReplayPage() {
           </div>
         )}
 
-        {/* Scrollable container for widgets on mobile, normal grid on desktop */}
-        <div className={`flex flex-col min-w-0 ${isMobile ? "flex-1 overflow-y-auto" : "flex-1 overflow-hidden"}`}>
+        {/* Scrollable container for widgets on mobile, adaptive layout on desktop */}
+        <div className={`min-w-0 ${
+          isMobile
+            ? "flex flex-col flex-1 overflow-y-auto"
+            : showTelemetry && selectedDrivers.length > 2
+              ? `flex flex-1 overflow-hidden ${telemetryPosition === "left" ? "flex-row" : "flex-col"}`
+              : "flex flex-col flex-1 overflow-hidden"
+        }`}>
           {/* Desktop Left Column */}
           {!isMobile && (
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
@@ -342,9 +348,7 @@ export default function ReplayPage() {
                   <button
                     onClick={() => {
                       if (rcPinned) {
-                        // Unpin -> keep it open so the user can still drag/resize
                         setRcPinned(false);
-                        setRcPanelOpen(true);
                       } else {
                         setRcPanelOpen(!rcPanelOpen);
                       }
@@ -362,7 +366,7 @@ export default function ReplayPage() {
                 </div>
 
                 {/* RC floating panel (draggable) */}
-                {(rcPanelOpen || rcPinned) && (
+                {rcPanelOpen && !rcPinned && (
                   <div
                     ref={rcPanelRef}
                     className={`z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
@@ -370,18 +374,14 @@ export default function ReplayPage() {
                     }`}
                     style={rcPosition
                       ? { position: "fixed", left: rcPosition.x, top: rcPosition.y }
-                      : {
-                          position: rcPinned ? "fixed" : "absolute",
-                          top: 48,
-                          right: 12,
-                        }
+                      : { position: "absolute", top: 48, right: 12 }
                     }
                   >
                     <div
-                      className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0"
+                      className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0 cursor-grab active:cursor-grabbing"
                       style={{ touchAction: "none" }}
-                      onMouseDown={rcPinned ? undefined : onRcDragStart}
-                      onTouchStart={rcPinned ? undefined : onRcDragStart}
+                      onMouseDown={onRcDragStart}
+                      onTouchStart={onRcDragStart}
                     >
                       <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
                       <div className="flex items-center gap-1">
@@ -409,16 +409,8 @@ export default function ReplayPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => setRcPinned(!rcPinned)}
-                          className="text-f1-muted hover:text-white ml-1"
-                          title={rcPinned ? "Unpin" : "Pin"}
-                        >
-                          {rcPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-                        </button>
-                        <button
                           onClick={() => {
                             setRcPanelOpen(false);
-                            setRcPinned(false);
                             setRcPosition(null);
                           }}
                           className="text-f1-muted hover:text-white ml-1"
@@ -576,6 +568,66 @@ export default function ReplayPage() {
                   })}
                 </div>
               </div>
+
+              {!rcPinned && (
+                <div className={`flex items-center justify-center ${
+                  telemetryPosition === "bottom"
+                    ? "border-l border-f1-border px-4"
+                    : "border-t border-f1-border py-2 mt-2"
+                }`}>
+                  <button
+                    onClick={() => { setRcPinned(true); setRcPanelOpen(false); setRcPosition(null); }}
+                    className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                  >
+                    Show Race Control
+                  </button>
+                </div>
+              )}
+              {rcPinned && (
+                <div
+                  className={`bg-f1-card ${
+                    telemetryPosition === "bottom"
+                      ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
+                      : "border-t border-f1-border px-3 py-2 mt-2"
+                  }`}
+                  style={telemetryPosition === "bottom" && telemetryHeight > 0 ? { maxHeight: telemetryHeight } : undefined}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-f1-muted uppercase">Race Control</span>
+                    <button
+                      onClick={() => setRcPinned(false)}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="divide-y divide-f1-border/50 flex-1 overflow-y-auto">
+                    {(() => {
+                      const allMsgs = replay.frame?.rc_messages || [];
+                      if (allMsgs.length === 0) return <p className="text-f1-muted text-xs py-2 text-center">No messages yet</p>;
+                      return allMsgs.map((rc, i) => {
+                        const upper = rc.message.toUpperCase();
+                        const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
+                        const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
+                        const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                        return (
+                          <div key={i} className="py-1.5">
+                            <div className="flex items-start gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                                isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
+                              }`} />
+                              <div className="min-w-0">
+                                <p className="text-[11px] text-white leading-tight">{rc.message}</p>
+                                {rc.lap && <span className="text-[9px] text-f1-muted">Lap {rc.lap}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
