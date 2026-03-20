@@ -64,11 +64,12 @@ export default function PlaybackControls({
   const [expanded, setExpanded] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const [displayTime, setDisplayTime] = useState(currentTime);
   const speedMenuRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
   const scrubStateRef = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
   const ignoreNextClickRef = useRef(false);
-  const progress = totalTime > 0 ? ((scrubTime ?? currentTime) / totalTime) * 100 : 0;
+  const progress = totalTime > 0 ? ((scrubTime ?? displayTime) / totalTime) * 100 : 0;
 
   // Close speed menu on outside click
   useEffect(() => {
@@ -82,6 +83,22 @@ export default function PlaybackControls({
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [speedMenuOpen]);
+
+  // Smooth the timeline animation between backend frame updates.
+  useEffect(() => {
+    if (scrubTime !== null) return;
+    let raf = 0;
+    const animate = () => {
+      setDisplayTime((prev) => {
+        const next = prev + (currentTime - prev) * 0.22;
+        if (Math.abs(next - currentTime) < 0.05) return currentTime;
+        raf = requestAnimationFrame(animate);
+        return next;
+      });
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [currentTime, scrubTime]);
 
   function formatTime(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -246,7 +263,7 @@ export default function PlaybackControls({
       }}
     >
       <div
-        className="h-full bg-f1-red rounded-full transition-all duration-100 relative shadow-[0_0_10px_rgba(225,6,0,0.3)]"
+        className="h-full bg-f1-red rounded-full transition-[width] duration-120 ease-out relative shadow-[0_0_10px_rgba(225,6,0,0.3)]"
         style={{ width: `${progress}%` }}
       >
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_8px_rgba(255,255,255,0.8)]" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
 
 interface Props {
@@ -54,6 +55,31 @@ const SECTOR_COLORS: Record<string, string> = {
   yellow: "#EAB308",
 };
 
+function useSmoothedNumber(target: number, stiffness = 0.2) {
+  const [value, setValue] = useState(target);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    const step = () => {
+      setValue((prev) => {
+        const next = prev + (target - prev) * stiffness;
+        if (Math.abs(next - target) < 0.2) return target;
+        rafRef.current = requestAnimationFrame(step);
+        return next;
+      });
+    };
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, stiffness]);
+
+  return value;
+}
+
 export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial }: Props) {
   const hasDrs = !year || year < 2026;
   if (!visible) return null;
@@ -70,11 +96,14 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
 
   const speedKmh = Math.round(driver.speed ?? 0);
   const speed = useImperial ? Math.round(speedKmh * 0.6214) : speedKmh;
-  const throttle = driver.throttle ?? 0;
-  const brake = driver.brake ? 100 : 0;
+  const throttleRaw = driver.throttle ?? 0;
+  const brakeRaw = driver.brake ? 100 : 0;
   const gear = driver.gear ?? 0;
-  const rpm = driver.rpm ?? 0;
+  const rpmRaw = driver.rpm ?? 0;
   const drs = driver.drs ?? 0;
+  const throttle = useSmoothedNumber(throttleRaw, 0.24);
+  const brake = useSmoothedNumber(brakeRaw, 0.24);
+  const rpm = useSmoothedNumber(rpmRaw, 0.2);
 
   return (
     <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative w-full min-w-[430px]">
