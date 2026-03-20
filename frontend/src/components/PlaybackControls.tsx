@@ -63,8 +63,11 @@ export default function PlaybackControls({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
   const speedMenuRef = useRef<HTMLDivElement>(null);
-  const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const scrubStateRef = useRef<{ pointerId: number } | null>(null);
+  const progress = totalTime > 0 ? ((scrubTime ?? currentTime) / totalTime) * 100 : 0;
 
   // Close speed menu on outside click
   useEffect(() => {
@@ -91,6 +94,48 @@ export default function PlaybackControls({
     const target = Math.max(0, Math.min(totalTime, currentTime + delta));
     onSeek(target);
   }
+
+  function getSeekTimeFromClientX(clientX: number): number {
+    const el = progressBarRef.current;
+    if (!el || totalTime <= 0) return 0;
+    const rect = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return pct * totalTime;
+  }
+
+  const startScrub = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (totalTime <= 0) return;
+    const target = getSeekTimeFromClientX(e.clientX);
+    setScrubTime(target);
+    onSeek(target);
+    scrubStateRef.current = { pointerId: e.pointerId };
+
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev: PointerEvent) => {
+      const st = scrubStateRef.current;
+      if (!st || st.pointerId !== ev.pointerId) return;
+      const next = getSeekTimeFromClientX(ev.clientX);
+      setScrubTime(next);
+      onSeek(next);
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      const st = scrubStateRef.current;
+      if (!st || st.pointerId !== ev.pointerId) return;
+      const finalTime = getSeekTimeFromClientX(ev.clientX);
+      onSeek(finalTime);
+      setScrubTime(null);
+      scrubStateRef.current = null;
+      document.body.style.userSelect = prevUserSelect;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   // Control visibility of skip buttons at different widths to keep UI clean
   function skipVisibility(label: string): string {
@@ -184,7 +229,10 @@ export default function PlaybackControls({
 
   const progressBar = (
     <div
+      ref={progressBarRef}
       className="w-full h-1.5 bg-white/10 rounded-full cursor-pointer relative group hover:h-2.5 transition-all"
+      style={{ touchAction: "none" }}
+      onPointerDown={startScrub}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = (e.clientX - rect.left) / rect.width;
