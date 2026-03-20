@@ -55,6 +55,8 @@ export default function TrackCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+  const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panStartRef = useRef<{ touchX: number; touchY: number; baseX: number; baseY: number } | null>(null);
 
   const posRef = useRef<Map<string, PosEntry>>(new Map());
   const driversRef = useRef<DriverMarker[]>([]);
@@ -214,9 +216,75 @@ export default function TrackCanvas({
     return () => observer.disconnect();
   }, []);
 
+  // Two-finger pan gesture (mobile/tablet): move map without changing zoom.
+  useEffect(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+
+    const applyPan = () => {
+      const { x, y } = panRef.current;
+      canvas.style.transform = `translate(${x}px, ${y}px)`;
+    };
+
+    const clampPan = (x: number, y: number) => {
+      const { w, h } = sizeRef.current;
+      const maxX = Math.max(40, w * 0.35);
+      const maxY = Math.max(40, h * 0.35);
+      return {
+        x: Math.max(-maxX, Math.min(maxX, x)),
+        y: Math.max(-maxY, Math.min(maxY, y)),
+      };
+    };
+
+    const midpoint = (t0: Touch, t1: Touch) => ({
+      x: (t0.clientX + t1.clientX) / 2,
+      y: (t0.clientY + t1.clientY) / 2,
+    });
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const mid = midpoint(e.touches[0], e.touches[1]);
+      panStartRef.current = {
+        touchX: mid.x,
+        touchY: mid.y,
+        baseX: panRef.current.x,
+        baseY: panRef.current.y,
+      };
+      e.preventDefault();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !panStartRef.current) return;
+      const mid = midpoint(e.touches[0], e.touches[1]);
+      const dx = mid.x - panStartRef.current.touchX;
+      const dy = mid.y - panStartRef.current.touchY;
+      panRef.current = clampPan(panStartRef.current.baseX + dx, panStartRef.current.baseY + dy);
+      applyPan();
+      e.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+      if (panStartRef.current) panStartRef.current = null;
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+    applyPan();
+
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
+
   return (
-    <div ref={containerRef} className="w-full h-full bg-f1-dark">
-      <canvas ref={canvasRef} className="w-full h-full" />
+    <div ref={containerRef} className="w-full h-full bg-f1-dark overflow-hidden touch-none">
+      <canvas ref={canvasRef} className="w-full h-full will-change-transform" />
     </div>
   );
 }
