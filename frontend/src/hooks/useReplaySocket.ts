@@ -15,6 +15,8 @@ export interface ReplayDriver {
   tyre_life: number | null;
   pit_stops: number;
   in_pit: boolean;
+  pit_time: number | null;
+  finished: boolean;
   tyre_history: string[];
   gap: string | null;
   interval: string | null;
@@ -71,6 +73,7 @@ export interface ReplayFrame {
   quali_phase?: QualiPhase;
   rc_messages?: RCMessage[];
   red_flag_end?: number;
+  sector_flags?: { sector: number; flag: string; driver: string }[];
 }
 
 export interface QualiPhaseInfo {
@@ -152,6 +155,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
               quali_phase: msg.quali_phase,
               rc_messages: msg.rc_messages,
               red_flag_end: msg.red_flag_end,
+              sector_flags: msg.sector_flags,
             },
           }));
           break;

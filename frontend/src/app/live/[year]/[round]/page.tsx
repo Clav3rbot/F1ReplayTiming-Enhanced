@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useLiveSocket } from "@/hooks/useLiveSocket";
@@ -10,12 +10,14 @@ import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PiPWindow from "@/components/PiPWindow";
+import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
   rotation: number;
   circuit_name: string;
   sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
+  corners?: { x: number; y: number; number: number; letter: string; angle: number }[] | null;
 }
 
 interface SessionData {
@@ -44,6 +46,7 @@ export default function LivePage() {
   const devMode = searchParams.get("dev") === "1";
 
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [fullscreen, setFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
@@ -63,16 +66,59 @@ export default function LivePage() {
   const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
   const [rcPanelOpen, setRcPanelOpen] = useState(false);
   const [rcPanelSize, setRcPanelSize] = useState<"sm" | "md" | "lg">("md");
+  const [rcPosition, setRcPosition] = useState<{ x: number; y: number } | null>(null);
+  const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const rcPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try { localStorage.setItem("f1live_delay", String(delayOffset)); } catch {}
   }, [delayOffset]);
 
+  const [isIOS, setIsIOS] = useState(false);
+
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
     check();
     window.addEventListener("resize", check);
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
     return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const panel = rcPanelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    rcDragRef.current = { startX: clientX, startY: clientY, origX: rect.left, origY: rect.top };
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      ev.preventDefault();
+      if (!rcDragRef.current) return;
+      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
+      const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
+      const dx = cx - rcDragRef.current.startX;
+      const dy = cy - rcDragRef.current.startY;
+      setRcPosition({ x: rcDragRef.current.origX + dx, y: rcDragRef.current.origY + dy });
+    };
+    const onUp = () => {
+      rcDragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
   }, []);
 
   function handleDriverClick(abbr: string) {
@@ -102,6 +148,27 @@ export default function LivePage() {
   const sessionTypeUpper = sessionType.toUpperCase();
   const isRace = sessionTypeUpper === "R" || sessionTypeUpper === "S";
   const isQualifying = sessionTypeUpper === "Q" || sessionTypeUpper === "SQ";
+
+  // RC sound notification
+  const lastRcCountRef = useRef(0);
+  useEffect(() => {
+    const msgs = live.rcMessages || [];
+    if (msgs.length > lastRcCountRef.current && lastRcCountRef.current > 0 && settings.rcSound) {
+      try {
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.15;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.stop(ctx.currentTime + 0.15);
+      } catch {}
+    }
+    lastRcCountRef.current = msgs.length;
+  }, [live.rcMessages?.length, settings.rcSound]);
 
   // Show loading only while the WebSocket is connecting
   if (live.loading) {
@@ -160,9 +227,9 @@ export default function LivePage() {
   })();
 
   return (
-    <div className="h-screen flex flex-col bg-f1-dark overflow-hidden">
+    <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Banner */}
-      {sessionData && (
+      {!fullscreen && sessionData && (
         <SessionBanner
           eventName={sessionData.event_name}
           circuit={sessionData.circuit}
@@ -267,10 +334,22 @@ export default function LivePage() {
 
               {/* Race Control Messages panel */}
               {rcPanelOpen && (
-                <div className={`absolute top-12 right-3 z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
-                  rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
-                }`}>
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0">
+                <div
+                  ref={rcPanelRef}
+                  className={`z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
+                    rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
+                  }`}
+                  style={rcPosition
+                    ? { position: "fixed", left: rcPosition.x, top: rcPosition.y }
+                    : { position: "absolute", top: 48, right: 12 }
+                  }
+                >
+                  <div
+                    className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0 cursor-grab active:cursor-grabbing"
+                    style={{ touchAction: "none" }}
+                    onMouseDown={onRcDragStart}
+                    onTouchStart={onRcDragStart}
+                  >
                     <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
                     <div className="flex items-center gap-1">
                       {(["sm", "md", "lg"] as const).map((size) => (
@@ -291,6 +370,11 @@ export default function LivePage() {
                           )}
                         </button>
                       ))}
+                      {rcPosition && (
+                        <button onClick={() => setRcPosition(null)} className="text-f1-muted hover:text-white ml-1" title="Reset position">
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => setRcPanelOpen(false)} className="text-f1-muted hover:text-white ml-1">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -352,11 +436,31 @@ export default function LivePage() {
                   highlightedDrivers={selectedDrivers}
                   playbackSpeed={1}
                   showDriverNames={settings.showDriverNames}
+                  corners={settings.showCorners ? trackData?.corners : null}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <p className="text-f1-muted text-sm">Track data not available</p>
                 </div>
+              )}
+
+              {/* Fullscreen toggle - top-left */}
+              {!isMobile && (
+                <button
+                  onClick={() => {
+                    const next = !fullscreen;
+                    setFullscreen(next);
+                    if (next && document.documentElement.requestFullscreen) {
+                      document.documentElement.requestFullscreen();
+                    } else if (!next && document.fullscreenElement) {
+                      document.exitFullscreen();
+                    }
+                  }}
+                  className="absolute top-3 left-3 z-20 px-2 py-1 bg-f1-card/90 border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white transition-colors backdrop-blur-sm"
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+                </button>
               )}
             </div>
           )}
@@ -554,7 +658,7 @@ export default function LivePage() {
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               <span className="text-xs font-bold text-red-400 uppercase">Live</span>
             </div>
-            {!isMobile && (
+            {!isMobile && !isIOS && (
               <button
                 onClick={() => setPipActive(!pipActive)}
                 className={`px-3 py-1.5 rounded border transition-colors text-xs font-bold ${
@@ -576,7 +680,7 @@ export default function LivePage() {
       </div>
 
       {/* PiP window */}
-      {pipActive && !isMobile && (
+      {pipActive && !isMobile && !isIOS && (
         <PiPWindow onClose={() => setPipActive(false)} width={400} height={720}>
           <div className="flex flex-col h-full bg-f1-dark">
             {/* PiP Track Map */}
@@ -622,6 +726,7 @@ export default function LivePage() {
                     drivers={[]}
                     highlightedDrivers={selectedDrivers}
                     showDriverNames={settings.showDriverNames}
+                    corners={settings.showCorners ? trackData?.corners : null}
                   />
                 </div>
               )}

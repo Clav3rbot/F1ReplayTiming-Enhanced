@@ -11,6 +11,26 @@ export interface DriverMarker {
   position: number | null;
 }
 
+export interface Corner {
+  x: number;
+  y: number;
+  number: number;
+  letter: string;
+  angle: number;
+}
+
+export interface MarshalSector {
+  x: number;
+  y: number;
+  number: number;
+}
+
+export interface SectorFlag {
+  sector: number;
+  flag: string;
+  driver: string;
+}
+
 export interface SectorOverlay {
   boundaries: { s1_end: number; s2_end: number; total: number };
   colors: { s1: string; s2: string; s3: string };
@@ -32,6 +52,9 @@ export function drawTrack(
   rotation: number,
   trackStatus: string = "green",
   sectorOverlay?: SectorOverlay | null,
+  corners?: Corner[] | null,
+  marshalSectors?: MarshalSector[] | null,
+  sectorFlags?: SectorFlag[] | null,
 ) {
   if (points.length === 0) return;
 
@@ -122,7 +145,8 @@ export function drawTrack(
     }
   } else {
     ctx.beginPath();
-    ctx.strokeStyle = TRACK_STATUS_COLORS[trackStatus] || "#3A3A4A";
+    const effectiveStatus = (sectorFlags && sectorFlags.length > 0 && (trackStatus === "yellow")) ? "green" : trackStatus;
+    ctx.strokeStyle = TRACK_STATUS_COLORS[effectiveStatus] || "#3A3A4A";
     ctx.lineWidth = 12;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -163,6 +187,90 @@ export function drawTrack(
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
   ctx.stroke();
+
+  // Corner labels
+  if (corners && corners.length > 0) {
+    ctx.font = "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (const c of corners) {
+      // Apply same rotation as track points
+      const dx = c.x - cx;
+      const dy = c.y - cy;
+      const rx = dx * cos - dy * sin + cx;
+      const ry = dx * sin + dy * cos + cy;
+      const [screenX, screenY] = toScreen({ x: rx, y: ry });
+
+      // Offset label away from track using the angle
+      const labelRad = ((c.angle + rotation) * Math.PI) / 180;
+      const labelOffset = 18;
+      const lx = screenX + Math.cos(labelRad) * labelOffset;
+      const ly = screenY - Math.sin(labelRad) * labelOffset;
+
+      const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.fillText(label, lx, ly);
+    }
+  }
+
+  // Marshal sector flag indicators
+  if (marshalSectors && sectorFlags && sectorFlags.length > 0) {
+    const flagLookup = new Map<number, SectorFlag>();
+    for (const sf of sectorFlags) {
+      flagLookup.set(sf.sector, sf);
+    }
+
+    ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (const ms of marshalSectors) {
+      const sf = flagLookup.get(ms.number);
+      if (!sf) continue;
+
+      const dx = ms.x - cx;
+      const dy = ms.y - cy;
+      const rx = dx * cos - dy * sin + cx;
+      const ry = dx * sin + dy * cos + cy;
+      const [screenX, screenY] = toScreen({ x: rx, y: ry });
+
+      // Flag colour
+      const isDouble = sf.flag === "DOUBLE YELLOW";
+      const flagColor = sf.flag === "RED" ? "#FF0000" : "#FFD700";
+      const radius = 8;
+
+      // Dark outline for contrast
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius + 2, 0, Math.PI * 2);
+      ctx.fillStyle = "#000000";
+      ctx.globalAlpha = 0.6;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+
+      // Inner circle
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+      ctx.fillStyle = flagColor;
+      ctx.fill();
+
+      // Double yellow — outer ring
+      if (isDouble) {
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = "#B8960F";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Draw driver abbreviation if present
+      if (sf.driver) {
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillText(sf.driver, screenX, screenY + radius + 10);
+      }
+    }
+  }
 }
 
 export function drawDrivers(

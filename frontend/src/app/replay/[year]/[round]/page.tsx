@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useReplaySocket } from "@/hooks/useReplaySocket";
@@ -13,12 +13,15 @@ import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import type { SectorOverlay } from "@/lib/trackRenderer";
+import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
   rotation: number;
   circuit_name: string;
   sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
+  corners?: { x: number; y: number; number: number; letter: string; angle: number }[] | null;
+  marshal_sectors?: { x: number; y: number; number: number }[] | null;
 }
 
 interface SessionData {
@@ -46,8 +49,10 @@ export default function ReplayPage() {
 
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetryPosition, setTelemetryPosition] = useState<"left" | "bottom">("left");
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
   const [pipActive, setPipActive] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTrackOpen, setMobileTrackOpen] = useState(true);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
@@ -61,23 +66,65 @@ export default function ReplayPage() {
   const [showSectorOverlay, setShowSectorOverlay] = useState(false);
   const [sectorFocusDriver, setSectorFocusDriver] = useState<string | null>(null);
   const [rcPanelOpen, setRcPanelOpen] = useState(false);
+  const [rcPinned, setRcPinned] = useState(false);
   const [rcPanelSize, setRcPanelSize] = useState<"sm" | "md" | "lg">("md");
+  const [rcPosition, setRcPosition] = useState<{ x: number; y: number } | null>(null);
+  const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const rcPanelRef = useRef<HTMLDivElement>(null);
+  const telemetryPanelRef = useRef<HTMLDivElement>(null);
+  const [telemetryHeight, setTelemetryHeight] = useState<number>(0);
+
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
     check();
     window.addEventListener("resize", check);
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
     return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const panel = rcPanelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    rcDragRef.current = { startX: clientX, startY: clientY, origX: rect.left, origY: rect.top };
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      ev.preventDefault();
+      if (!rcDragRef.current) return;
+      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
+      const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
+      const dx = cx - rcDragRef.current.startX;
+      const dy = cy - rcDragRef.current.startY;
+      setRcPosition({ x: rcDragRef.current.origX + dx, y: rcDragRef.current.origY + dy });
+    };
+    const onUp = () => {
+      rcDragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
   }, []);
 
   function handleDriverClick(abbr: string) {
     setSelectedDrivers((prev) => {
       if (prev.includes(abbr)) {
         return prev.filter((d) => d !== abbr);
-      }
-      if (prev.length >= 2) {
-        // Replace the oldest selection
-        return [prev[1], abbr];
       }
       return [...prev, abbr];
     });
@@ -93,6 +140,35 @@ export default function ReplayPage() {
   );
 
   const replay = useReplaySocket(year, round, sessionType);
+
+  // RC sound notification
+  const lastRcCountRef = useRef(0);
+  useEffect(() => {
+    const msgs = replay.frame?.rc_messages || [];
+    if (msgs.length > lastRcCountRef.current && lastRcCountRef.current > 0 && settings.rcSound) {
+      try {
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.15;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.stop(ctx.currentTime + 0.15);
+      } catch {}
+    }
+    lastRcCountRef.current = msgs.length;
+  }, [replay.frame?.rc_messages?.length, settings.rcSound]);
+
+  const [telemetryWidth, setTelemetryWidth] = useState<number>(0);
+  useEffect(() => {
+    if (telemetryPanelRef.current) {
+      setTelemetryHeight(telemetryPanelRef.current.offsetHeight);
+      setTelemetryWidth(telemetryPanelRef.current.offsetWidth);
+    }
+  }, [selectedDrivers.length, showTelemetry, telemetryPosition]);
 
   const isLoading = sessionLoading || trackLoading;
   const dataError = sessionError || trackError;
@@ -148,9 +224,9 @@ export default function ReplayPage() {
   const DEFAULT_SECTOR = "#3A3A4A";
   const sectorOverlay: SectorOverlay | null = (() => {
     if (!isQualifying || !showSectorOverlay || !trackData?.sector_boundaries) return null;
-    const target = (sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver))
+    const target = sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver)
       ? sectorFocusDriver
-      : selectedDrivers[0] ?? null;
+      : null;
     if (!target) return null;
     const drv = drivers.find((d) => d.abbr === target);
     const sectors = drv?.sectors;
@@ -183,9 +259,9 @@ export default function ReplayPage() {
   })();
 
   return (
-    <div className="h-screen flex flex-col bg-f1-dark overflow-hidden">
+    <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Banner */}
-      {sessionData && (
+      {!fullscreen && sessionData && (
         <SessionBanner
           eventName={sessionData.event_name}
           circuit={sessionData.circuit}
@@ -199,9 +275,9 @@ export default function ReplayPage() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden pb-20 sm:pb-0">
+      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-y-auto sm:overflow-hidden pb-16 sm:pb-0">
         {/* Track section */}
-        <div className="sm:flex-1 relative">
+        <div className={`sm:flex-1 ${!isMobile && showTelemetry && selectedDrivers.length > 2 ? `flex ${telemetryPosition === "left" ? "flex-row" : "flex-col"} min-h-0` : "relative"}`}>
           {/* Mobile section header */}
           {isMobile && (
             <button
@@ -216,7 +292,7 @@ export default function ReplayPage() {
           )}
 
           {(!isMobile || mobileTrackOpen) && (
-            <div className="h-[42vh] sm:h-full relative">
+            <div className={`h-[42vh] sm:h-full relative ${!isMobile && showTelemetry && selectedDrivers.length > 2 ? "flex-1 min-w-0 min-h-0" : ""}`}>
               {/* Flag badge */}
               {trackStatus !== "green" && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
@@ -260,9 +336,15 @@ export default function ReplayPage() {
               {/* Race Control toggle - desktop only, mobile has its own section */}
               <div className="absolute top-3 right-3 z-10 hidden sm:block">
                 <button
-                  onClick={() => setRcPanelOpen(!rcPanelOpen)}
+                  onClick={() => {
+                    if (rcPinned) {
+                      setRcPinned(false);
+                    } else {
+                      setRcPanelOpen(!rcPanelOpen);
+                    }
+                  }}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
-                    rcPanelOpen
+                    rcPanelOpen || rcPinned
                       ? "bg-orange-500 text-white"
                       : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
                   }`}
@@ -275,12 +357,24 @@ export default function ReplayPage() {
                 </button>
               </div>
 
-              {/* Race Control Messages panel */}
-              {rcPanelOpen && (
-                <div className={`absolute top-12 right-3 z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
-                  rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
-                }`}>
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0">
+              {/* Race Control Messages panel (floating, hidden when pinned) */}
+              {rcPanelOpen && !rcPinned && (
+                <div
+                  ref={rcPanelRef}
+                  className={`z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
+                    rcPanelSize === "sm" ? "max-h-[25%]" : rcPanelSize === "md" ? "max-h-[50%]" : "max-h-[85%]"
+                  }`}
+                  style={rcPosition
+                    ? { position: "fixed", left: rcPosition.x, top: rcPosition.y }
+                    : { position: "absolute", top: 48, right: 12 }
+                  }
+                >
+                  <div
+                    className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0 cursor-grab active:cursor-grabbing"
+                    style={{ touchAction: "none" }}
+                    onMouseDown={onRcDragStart}
+                    onTouchStart={onRcDragStart}
+                  >
                     <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
                     <div className="flex items-center gap-1">
                       {(["sm", "md", "lg"] as const).map((size) => (
@@ -301,6 +395,11 @@ export default function ReplayPage() {
                           )}
                         </button>
                       ))}
+                      {rcPosition && (
+                        <button onClick={() => setRcPosition(null)} className="text-f1-muted hover:text-white ml-1" title="Reset position">
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => setRcPanelOpen(false)} className="text-f1-muted hover:text-white ml-1">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -341,7 +440,7 @@ export default function ReplayPage() {
                 trackPoints={trackPoints}
                 rotation={rotation}
                 trackStatus={trackStatus}
-                drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
                   abbr: d.abbr,
                   x: d.x,
                   y: d.y,
@@ -352,43 +451,27 @@ export default function ReplayPage() {
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
                 sectorOverlay={sectorOverlay}
+                corners={settings.showCorners ? trackData?.corners : null}
+                marshalSectors={trackData?.marshal_sectors}
+                sectorFlags={replay.frame?.sector_flags}
               />
 
-              {/* Telemetry overlay - desktop only */}
-              {!isMobile && showTelemetry && (
-                <div className="absolute bottom-2 left-8 z-10">
-                  {selectedDrivers.map((abbr) => {
-                    const drv = drivers.find((d) => d.abbr === abbr) || null;
-                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
-                  })}
-                  {selectedDrivers.length === 0 && (
-                    <TelemetryChart visible driver={null} year={year} />
-                  )}
-                </div>
-              )}
-
-              {/* Sector overlay info panel - desktop qualifying only */}
-              {!isMobile && isQualifying && showSectorOverlay && selectedDrivers.length === 0 && (
-                <div className="absolute bottom-2 left-8 z-10">
-                  <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
-                    <p className="text-[10px] text-f1-muted">
-                      Select a driver to view sectors
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Telemetry now in bottom drawer */}
 
               {/* Sector overlay toggle - desktop qualifying only */}
               {!isMobile && isQualifying && trackData?.sector_boundaries && (
                 <div className="absolute bottom-2 right-36 z-20 flex items-center gap-1">
-                  {showSectorOverlay && selectedDrivers.length === 2 && (
+                  {showSectorOverlay && selectedDrivers.length === 0 && (
+                    <span className="text-[10px] text-f1-muted mr-1">Select a driver to view sectors</span>
+                  )}
+                  {showSectorOverlay && selectedDrivers.length > 0 && (
                     selectedDrivers.map((abbr) => {
                       const drv = drivers.find((d) => d.abbr === abbr);
-                      const isActive = sectorFocusDriver === abbr || (!sectorFocusDriver && abbr === selectedDrivers[0]);
+                      const isActive = sectorFocusDriver === abbr;
                       return (
                         <button
                           key={abbr}
-                          onClick={() => setSectorFocusDriver(abbr)}
+                          onClick={() => setSectorFocusDriver(isActive ? null : abbr)}
                           className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
                             isActive
                               ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
@@ -414,14 +497,134 @@ export default function ReplayPage() {
                 </div>
               )}
 
-              {/* Telemetry toggle - desktop only */}
-              {!isMobile && (
+              {/* Fullscreen toggle moved to PlaybackControls */}
+
+              {/* Telemetry overlay - desktop only, bottom-left (1-2 drivers) */}
+              {!isMobile && showTelemetry && selectedDrivers.length <= 2 && (
+                <div className="absolute bottom-2 left-3 z-10 flex flex-col gap-1">
+                  <button
+                    onClick={() => setShowTelemetry(false)}
+                    className="self-start px-2 py-0.5 bg-f1-card/90 border border-f1-border rounded text-[9px] font-bold text-f1-muted hover:text-white transition-colors backdrop-blur-sm mb-0.5"
+                  >
+                    Hide Telemetry
+                  </button>
+                  {selectedDrivers.length > 0 ? (
+                    selectedDrivers.map((abbr) => {
+                      const drv = drivers.find((d) => d.abbr === abbr) || null;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
+                    })
+                  ) : (
+                    <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />
+                  )}
+                </div>
+              )}
+
+              {/* Telemetry toggle - desktop only, bottom-left */}
+              {!isMobile && !showTelemetry && (
                 <button
-                  onClick={() => setShowTelemetry(!showTelemetry)}
-                  className="absolute bottom-2 right-2 z-20 px-2 py-1 bg-f1-card border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white transition-colors"
+                  onClick={() => setShowTelemetry(true)}
+                  className="absolute bottom-2 left-3 z-20 px-2 py-1 bg-f1-card/90 border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white transition-colors backdrop-blur-sm"
                 >
-                  {showTelemetry ? "Hide" : "Show"} Telemetry
+                  Show Telemetry
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Telemetry panel - desktop only (3+ drivers) */}
+          {!isMobile && showTelemetry && selectedDrivers.length > 2 && (
+            <div
+              className={`flex-shrink-0 ${
+                telemetryPosition === "left"
+                  ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                  : "border-t border-f1-border py-1 flex overflow-hidden"
+              }`}
+              style={telemetryPosition === "left" && rcPinned && telemetryWidth > 0 ? { width: telemetryWidth + 24 } : undefined}
+            >
+              <div ref={telemetryPanelRef} className={telemetryPosition === "bottom" ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0" : ""}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
+                  <button
+                    onClick={() => setTelemetryPosition(telemetryPosition === "left" ? "bottom" : "left")}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    title={telemetryPosition === "left" ? "Move to bottom" : "Move to left"}
+                  >
+                    {telemetryPosition === "left" ? "Move to bottom" : "Move to left"}
+                  </button>
+                  <button
+                    onClick={() => setShowTelemetry(false)}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors ml-auto"
+                  >
+                    Hide
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {selectedDrivers.map((abbr) => {
+                    const drv = drivers.find((d) => d.abbr === abbr) || null;
+                    return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
+                  })}
+                </div>
+              </div>
+
+              {/* Race Control in panel: show button or pinned messages */}
+              {!rcPinned && (
+                <div className={`flex items-center justify-center ${
+                  telemetryPosition === "bottom"
+                    ? "border-l border-f1-border px-4"
+                    : "border-t border-f1-border py-2 mt-2"
+                }`}>
+                  <button
+                    onClick={() => { setRcPinned(true); setRcPanelOpen(false); setRcPosition(null); }}
+                    className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                  >
+                    Show Race Control
+                  </button>
+                </div>
+              )}
+              {rcPinned && (
+                <div
+                  className={`bg-f1-card ${
+                    telemetryPosition === "bottom"
+                      ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
+                    : "border-t border-f1-border px-3 py-2 mt-2"
+                  }`}
+                  style={telemetryPosition === "bottom" && telemetryHeight > 0 ? { maxHeight: telemetryHeight } : undefined}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-f1-muted uppercase">Race Control</span>
+                    <button
+                      onClick={() => setRcPinned(false)}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="divide-y divide-f1-border/50 flex-1 overflow-y-auto">
+                    {(() => {
+                      const allMsgs = replay.frame?.rc_messages || [];
+                      if (allMsgs.length === 0) return <p className="text-f1-muted text-xs py-2 text-center">No messages yet</p>;
+                      return allMsgs.map((rc, i) => {
+                        const upper = rc.message.toUpperCase();
+                        const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
+                        const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
+                        const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                        return (
+                          <div key={i} className="py-1.5">
+                            <div className="flex items-start gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                                isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
+                              }`} />
+                              <div className="min-w-0">
+                                <p className="text-[11px] text-white leading-tight">{rc.message}</p>
+                                {rc.lap && <span className="text-[9px] text-f1-muted">Lap {rc.lap}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -477,10 +680,10 @@ export default function ReplayPage() {
               {selectedDrivers.length > 0 ? (
                 selectedDrivers.map((abbr) => {
                   const drv = drivers.find((d) => d.abbr === abbr) || null;
-                  return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                  return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
                 })
               ) : (
-                <TelemetryChart visible driver={null} year={year} />
+                <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />
               )}
             </div>
           )}
@@ -536,14 +739,24 @@ export default function ReplayPage() {
         onReset={replay.reset}
         isRace={isRace}
         onSyncPhoto={() => setShowSyncPhoto(true)}
-        onPiP={!isMobile ? () => setPipActive(true) : undefined}
+        onPiP={!isMobile && !isIOS ? () => setPipActive(true) : undefined}
         pipActive={pipActive}
+        onFullscreen={!isMobile ? () => {
+          const next = !fullscreen;
+          setFullscreen(next);
+          if (next && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+          } else if (!next && document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+        } : undefined}
+        fullscreen={fullscreen}
         qualiPhase={replay.frame?.quali_phase}
         qualiPhases={replay.qualiPhases}
       />
 
       {/* Document PiP window — visible across tabs */}
-      {pipActive && !isMobile && (
+      {pipActive && !isMobile && !isIOS && (
         <PiPWindow onClose={() => setPipActive(false)} width={400} height={780}>
           <div className="flex flex-col h-full bg-f1-dark">
             {/* PiP Track Map */}
@@ -586,7 +799,7 @@ export default function ReplayPage() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
                       abbr: d.abbr,
                       x: d.x,
                       y: d.y,
@@ -597,6 +810,9 @@ export default function ReplayPage() {
                     playbackSpeed={replay.speed}
                     showDriverNames={settings.showDriverNames}
                     sectorOverlay={sectorOverlay}
+                    corners={settings.showCorners ? trackData?.corners : null}
+                    marshalSectors={trackData?.marshal_sectors}
+                    sectorFlags={replay.frame?.sector_flags}
                   />
                 </div>
               )}
@@ -652,10 +868,10 @@ export default function ReplayPage() {
                   {selectedDrivers.length > 0 ? (
                     selectedDrivers.map((abbr) => {
                       const drv = drivers.find((d) => d.abbr === abbr) || null;
-                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
                     })
                   ) : (
-                    <TelemetryChart visible driver={null} year={year} />
+                    <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />
                   )}
                 </div>
               )}
