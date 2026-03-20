@@ -192,7 +192,7 @@ export function drawTrack(
 
   // Corner labels
   if (corners && corners.length > 0) {
-    ctx.font = "bold 10px sans-serif";
+    ctx.font = `bold ${compact ? 11 : 10}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -212,7 +212,11 @@ export function drawTrack(
 
       const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
 
-      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      // Strong contrast for dark map background (fill + stroke)
+      ctx.lineWidth = compact ? 3 : 2;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.fillText(label, lx, ly);
     }
   }

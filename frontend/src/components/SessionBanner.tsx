@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ReplaySettings, DEFAULTS as DEFAULT_SETTINGS } from "@/hooks/useSettings";
 import { WeatherData } from "@/hooks/useReplaySocket";
@@ -78,12 +79,16 @@ export default function SessionBanner({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Race Control" | "Other">("Leaderboard");
   const settingsRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Close settings on outside click
   useEffect(() => {
     if (!settingsOpen) return;
     function handleClick(e: MouseEvent) {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedInsideSettings = !!(settingsRef.current && settingsRef.current.contains(target));
+      const clickedInsideModal = !!(modalRef.current && modalRef.current.contains(target));
+      if (!clickedInsideSettings && !clickedInsideModal) {
         setSettingsOpen(false);
       }
     }
@@ -198,12 +203,18 @@ export default function SessionBanner({
               </svg>
             </button>
 
-            {settingsOpen && (<>
-              {/* Modal backdrop */}
-              <div className="fixed inset-0 bg-black/50 z-[10000]" onClick={() => setSettingsOpen(false)} />
+            {settingsOpen &&
+              (typeof document !== "undefined"
+                ? createPortal(
+              <>
+                {/* Modal backdrop */}
+                <div className="fixed inset-0 bg-black/50 z-[10000]" onClick={() => setSettingsOpen(false)} />
 
-              {/* Settings modal */}
-              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 h-[450px] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[10001] sm:w-[520px] sm:h-[420px] bg-[#1A1A26] border border-f1-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                {/* Settings modal */}
+                <div
+                  ref={modalRef}
+                  className="fixed inset-x-4 top-1/2 -translate-y-1/2 h-[450px] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[10001] sm:w-[520px] sm:h-[420px] bg-[#1A1A26] border border-f1-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+                >
                 {/* Modal header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-f1-border">
                   <span className="text-sm font-bold text-white">Settings</span>
@@ -335,8 +346,11 @@ export default function SessionBanner({
                   </>)}
                 </div>
                 </div>
-              </div>
-            </>)}
+                </div>
+              </>,
+              document.body
+            )
+                : null)}
           </div>
         </div>
       </div>
