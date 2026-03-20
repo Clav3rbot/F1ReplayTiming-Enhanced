@@ -703,7 +703,7 @@ export default function ReplayPage() {
                       aria-label="Resize telemetry panel width"
                       onPointerDown={(ev) => startTelemetryResize(ev, "width")}
                       className={`absolute right-0 top-0 h-full cursor-ew-resize z-[50] transition-colors ${
-                        isIOS ? "w-4 bg-white/10 hover:bg-white/20 active:bg-white/25" : "w-[6px] bg-transparent hover:bg-white/10"
+                        isIOS ? "w-2.5 bg-white/8 hover:bg-white/15 active:bg-white/20" : "w-[6px] bg-transparent hover:bg-white/10"
                       }`}
                     />
                   )}
@@ -713,7 +713,7 @@ export default function ReplayPage() {
                       aria-label="Resize telemetry panel height"
                       onPointerDown={(ev) => startTelemetryResize(ev, "height")}
                       className={`absolute left-0 top-0 w-full cursor-ns-resize z-[50] transition-colors ${
-                        isIOS ? "h-4 bg-white/10 hover:bg-white/20 active:bg-white/25" : "h-[6px] bg-transparent hover:bg-white/10"
+                        isIOS ? "h-2.5 bg-white/8 hover:bg-white/15 active:bg-white/20" : "h-[6px] bg-transparent hover:bg-white/10"
                       }`}
                     />
                   )}

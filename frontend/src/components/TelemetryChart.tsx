@@ -106,7 +106,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const rpm = useSmoothedNumber(rpmRaw, 0.2);
 
   return (
-    <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative w-full min-w-[430px]">
+    <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative min-w-[430px]">
       <div className="flex items-center gap-2 sm:gap-4 relative z-10 min-w-0">
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
