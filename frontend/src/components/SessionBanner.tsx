@@ -213,7 +213,7 @@ export default function SessionBanner({
                 {/* Settings modal */}
                 <div
                   ref={modalRef}
-                  className="fixed inset-x-4 top-1/2 -translate-y-1/2 h-[450px] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[10001] sm:w-[520px] sm:h-[420px] bg-[#1A1A26] border border-f1-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+                  className="fixed inset-x-4 top-1/2 -translate-y-1/2 h-[450px] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[10001] sm:w-[520px] sm:h-[420px] bg-f1-card border border-f1-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
                 >
                 {/* Modal header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-f1-border">

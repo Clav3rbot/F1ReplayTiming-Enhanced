@@ -86,6 +86,8 @@ export default function ReplayPage() {
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
   const [isIOS, setIsIOS] = useState(false);
 
+  const enableTrackZoom = isIOS && !fullscreen && !isMobile;
+
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
     check();
@@ -541,10 +543,34 @@ export default function ReplayPage() {
                   playbackSpeed={replay.speed}
                   showDriverNames={settings.showDriverNames}
                   sectorOverlay={sectorOverlay}
+                  zoom={enableTrackZoom ? mobileTrackZoom : 1}
                   corners={settings.showCorners ? trackData?.corners : null}
                   marshalSectors={trackData?.marshal_sectors}
                   sectorFlags={replay.frame?.sector_flags}
                 />
+                
+                {/* iPad zoom controls (same UI as iPhone) */}
+                {enableTrackZoom && (
+                  <div className="absolute right-3 bottom-3 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => setMobileTrackZoom((z) => Math.min(2.2, Math.round((z + 0.15) * 100) / 100))}
+                      className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                      aria-label="Zoom in"
+                    >
+                      <span className="text-lg font-extrabold leading-none">+</span>
+                    </button>
+                    <div className="h-px bg-white/10" />
+                    <button
+                      type="button"
+                      onClick={() => setMobileTrackZoom((z) => Math.max(0.8, Math.round((z - 0.15) * 100) / 100))}
+                      className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                      aria-label="Zoom out"
+                    >
+                      <span className="text-lg font-extrabold leading-none">−</span>
+                    </button>
+                  </div>
+                )}
                 
                 {showTelemetry && selectedDrivers.length <= 2 && (
                   <div className="absolute bottom-2 left-8 z-10">
@@ -615,8 +641,8 @@ export default function ReplayPage() {
                 ref={telemetryOuterPanelRef}
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
-                    ? "h-full bg-[#1A1A26] border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                    : "bg-[#1A1A26] border-t border-f1-border py-1 flex flex-col overflow-hidden"
+                    ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                    : "bg-f1-card border-t border-f1-border py-1 flex flex-col overflow-hidden"
                 }`}
                 style={{
                   ...(telemetryPosition === "left" && telemetryWidth > 0 ? { width: telemetryWidth } : {}),
@@ -627,7 +653,7 @@ export default function ReplayPage() {
                     ref={telemetryPanelRef}
                     className={
                       telemetryPosition === "bottom"
-                        ? "inline-block bg-[#1A1A26] px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
+                        ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
                         : ""
                     }
                   >
@@ -688,7 +714,7 @@ export default function ReplayPage() {
               )}
               {rcPinned && (
                 <div
-                  className={`bg-[#1A1A26] ${
+                  className={`bg-f1-card ${
                     telemetryPosition === "bottom"
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
                       : "border-t border-f1-border px-3 py-2 mt-2"

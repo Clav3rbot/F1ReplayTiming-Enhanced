@@ -54,7 +54,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
 
   if (!driver) {
     return (
-      <div className="bg-[#1A1A26] border border-f1-border rounded-xl px-3 py-2 shadow-2xl">
+      <div className="bg-f1-card border border-f1-border rounded-xl px-3 py-2 shadow-2xl">
         <p className="text-[10px] text-f1-muted/70 font-bold uppercase tracking-wider">
         Select drivers to view telemetry
         </p>
@@ -71,7 +71,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const drs = driver.drs ?? 0;
 
   return (
-    <div className="bg-[#1A1A26] border border-f1-border rounded-xl px-3 sm:px-4 py-2 shadow-2xl overflow-hidden relative">
+    <div className="bg-f1-card border border-f1-border rounded-xl px-3 sm:px-4 py-2 shadow-2xl overflow-hidden relative">
       <div className="flex items-center gap-2 sm:gap-4 relative z-10">
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
