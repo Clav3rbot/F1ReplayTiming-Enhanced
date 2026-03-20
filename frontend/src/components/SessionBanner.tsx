@@ -241,7 +241,7 @@ export default function SessionBanner({
                       className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                     >
                       <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Leaderboard</span>
-                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.showLeaderboard ? "bg-f1-red" : "bg-f1-border"}`}>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.showLeaderboard ? "bg-f1-red" : "bg-f1-border"}`}>
                         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.showLeaderboard ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </div>
                     </button>
@@ -259,7 +259,7 @@ export default function SessionBanner({
                             {label}
                             {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-f1-red/20 text-f1-red leading-none">{badge}</span>}
                           </span>
-                          <div className={`relative ${parent ? "w-7 h-4" : "w-9 h-5"} rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`relative ${parent ? "w-7 h-4" : "w-9 h-5"} rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                             <div className={`absolute top-0.5 ${parent ? "w-3 h-3" : "w-4 h-4"} bg-white rounded-full transition-transform ${settings[key] ? (parent ? "translate-x-[14px]" : "translate-x-[18px]") : "translate-x-0.5"}`} />
                           </div>
                         </button>
@@ -273,7 +273,7 @@ export default function SessionBanner({
                       className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                     >
                       <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Weather</span>
-                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.showWeather ? "bg-f1-red" : "bg-f1-border"}`}>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.showWeather ? "bg-f1-red" : "bg-f1-border"}`}>
                         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.showWeather ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </div>
                     </button>
@@ -285,7 +285,7 @@ export default function SessionBanner({
                         className={`w-full flex items-center justify-between pl-4 sm:pl-10 pr-2 sm:pr-6 py-1 hover:bg-white/5 transition-colors ${!settings.showWeather ? "opacity-40 pointer-events-none" : ""}`}
                       >
                         <span className="text-sm text-white">{label}</span>
-                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
                       </button>
@@ -300,7 +300,7 @@ export default function SessionBanner({
                         className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                       >
                         <span className="text-sm text-white">{label}</span>
-                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
                       </button>
@@ -313,7 +313,7 @@ export default function SessionBanner({
                       className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                     >
                       <span className="text-sm text-white">Notification sound</span>
-                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.rcSound ? "bg-f1-red" : "bg-f1-border"}`}>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.rcSound ? "bg-f1-red" : "bg-f1-border"}`}>
                         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.rcSound ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </div>
                     </button>
@@ -327,7 +327,7 @@ export default function SessionBanner({
                         className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                       >
                         <span className="text-sm text-white">{label}</span>
-                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
                       </button>
