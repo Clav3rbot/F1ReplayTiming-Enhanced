@@ -71,8 +71,8 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const drs = driver.drs ?? 0;
 
   return (
-    <div className="glass-panel-heavy border-f1-border rounded-xl px-3 sm:px-4 py-2 shadow-2xl overflow-hidden relative">
-      <div className="flex items-center gap-2 sm:gap-4 relative z-10">
+    <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative">
+      <div className="flex items-center gap-2 sm:gap-4 relative z-10 min-w-0">
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
           <span
@@ -131,7 +131,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         </div>
 
         {/* RPM */}
-        <div className="w-[62px] sm:w-[94px] flex items-center gap-[5px] shrink-0">
+        <div className="w-[56px] sm:w-[88px] min-w-0 flex items-center gap-[4px]">
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
           <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[28px] sm:w-[32px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {Math.round(rpm / 100) / 10}k
