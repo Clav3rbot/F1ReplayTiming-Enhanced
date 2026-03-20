@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { SPEED_OPTIONS } from "@/lib/constants";
 import { QualiPhase, QualiPhaseInfo } from "@/hooks/useReplaySocket";
+import { Maximize, Minimize } from "lucide-react";
 
 const SKIP_OPTIONS = [
   { label: "5s", seconds: 5 },
@@ -30,6 +31,8 @@ interface Props {
   onSyncPhoto?: () => void;
   onPiP?: () => void;
   pipActive?: boolean;
+  onFullscreen?: () => void;
+  fullscreen?: boolean;
   qualiPhase?: QualiPhase | null;
   qualiPhases?: QualiPhaseInfo[];
 }
@@ -53,6 +56,8 @@ export default function PlaybackControls({
   onSyncPhoto,
   onPiP,
   pipActive,
+  onFullscreen,
+  fullscreen,
   qualiPhase,
   qualiPhases,
 }: Props) {
@@ -422,7 +427,36 @@ export default function PlaybackControls({
                   <span className="hidden lg:inline">Sync</span>
                 </button>
               )}
+              {onFullscreen && (
+                <button
+                  onClick={onFullscreen}
+                  className="px-3 py-1.5 rounded border border-f1-border text-f1-muted hover:text-white hover:bg-white/10 transition-colors text-xs font-bold"
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <Minimize className="w-4 h-4 inline-block -mt-0.5" /> : <Maximize className="w-4 h-4 inline-block -mt-0.5" />}
+                </button>
+              )}
             </>
+          ) : qualiPhase ? (
+            <div className="flex items-end gap-4 ml-auto">
+              <span className="text-sm font-extrabold text-white" style={{ marginBottom: 1, marginRight: -10 }}>{qualiPhase.phase}</span>
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-f1-muted uppercase block">Remaining</span>
+                <span className="text-sm font-extrabold text-white tabular-nums">
+                  {formatTime(qualiPhase.remaining)}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-f1-muted uppercase block">Elapsed</span>
+                <span className="text-sm font-extrabold text-f1-muted tabular-nums">{formatTime(currentTime)}</span>
+              </div>
+              {showSessionTime && (
+                <div className="text-center">
+                  <span className="text-[10px] font-bold text-f1-muted uppercase block">Total</span>
+                  <span className="text-sm font-extrabold text-f1-muted tabular-nums">{formatTime(Math.max(0, totalTime - currentTime))}</span>
+                </div>
+              )}
+            </div>
           ) : (
             qualiPhases && qualiPhases.length > 0 && (
               <div className="flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar max-w-full">
@@ -430,10 +464,7 @@ export default function PlaybackControls({
                   <button
                     key={qp.phase}
                     onClick={() => onSeek(qp.timestamp)}
-                    className={`px-2 py-1 text-xs font-bold rounded transition-colors whitespace-nowrap ${qualiPhase?.phase === qp.phase
-                        ? "bg-f1-red text-white"
-                        : "bg-white/5 text-f1-muted hover:text-white hover:bg-white/10"
-                      }`}
+                    className="px-2 py-1 text-xs font-bold rounded transition-colors whitespace-nowrap bg-white/5 text-f1-muted hover:text-white hover:bg-white/10"
                   >
                     {qp.phase}
                   </button>

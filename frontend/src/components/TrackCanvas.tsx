@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay } from "@/lib/trackRenderer";
+import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
@@ -14,6 +14,9 @@ interface Props {
   sectorOverlay?: SectorOverlay | null;
   compact?: boolean;
   zoom?: number;
+  corners?: Corner[] | null;
+  marshalSectors?: MarshalSector[] | null;
+  sectorFlags?: SectorFlag[] | null;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -45,6 +48,9 @@ export default function TrackCanvas({
   sectorOverlay = null,
   compact = false,
   zoom = 1,
+  corners = null,
+  marshalSectors = null,
+  sectorFlags = null,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,6 +70,12 @@ export default function TrackCanvas({
   compactRef.current = compact;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+  const cornersRef = useRef(corners);
+  cornersRef.current = corners;
+  const marshalSectorsRef = useRef(marshalSectors);
+  marshalSectorsRef.current = marshalSectors;
+  const sectorFlagsRef = useRef(sectorFlags);
+  sectorFlagsRef.current = sectorFlags;
 
   // Update targets when drivers prop changes
   useEffect(() => {
@@ -142,6 +154,9 @@ export default function TrackCanvas({
         sectorOverlayRef.current,
         compactRef.current,
         zoomRef.current,
+        cornersRef.current,
+        marshalSectorsRef.current,
+        sectorFlagsRef.current,
       );
 
       const now = performance.now();

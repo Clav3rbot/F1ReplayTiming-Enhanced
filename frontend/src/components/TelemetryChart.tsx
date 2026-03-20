@@ -7,6 +7,7 @@ interface Props {
   driver: ReplayDriver | null;
   year?: number;
   isQualifying?: boolean;
+  useImperial?: boolean;
 }
 
 function BarPips({
@@ -47,7 +48,7 @@ const SECTOR_COLORS: Record<string, string> = {
   yellow: "#EAB308",
 };
 
-export default function TelemetryChart({ visible, driver, year, isQualifying }: Props) {
+export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial }: Props) {
   const hasDrs = !year || year < 2026;
   if (!visible) return null;
 
@@ -61,7 +62,8 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
     );
   }
 
-  const speed = Math.round(driver.speed ?? 0);
+  const speedKmh = Math.round(driver.speed ?? 0);
+  const speed = useImperial ? Math.round(speedKmh * 0.6214) : speedKmh;
   const throttle = driver.throttle ?? 0;
   const brake = driver.brake ? 100 : 0;
   const gear = driver.gear ?? 0;

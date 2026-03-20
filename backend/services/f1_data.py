@@ -246,9 +246,15 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     session = _load_session(year, round_num, session_type)
 
     rotation = 0.0
+    corners_raw = None
+    marshal_sectors_raw = None
     try:
         circuit_info = session.get_circuit_info()
         rotation = float(circuit_info.rotation) if hasattr(circuit_info, "rotation") else 0.0
+        if hasattr(circuit_info, "corners") and circuit_info.corners is not None and len(circuit_info.corners) > 0:
+            corners_raw = circuit_info.corners
+        if hasattr(circuit_info, "marshal_sectors") and circuit_info.marshal_sectors is not None and len(circuit_info.marshal_sectors) > 0:
+            marshal_sectors_raw = circuit_info.marshal_sectors
     except Exception:
         pass
 
@@ -293,6 +299,40 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     except Exception as e:
         logger.warning(f"Could not compute sector boundaries: {e}")
 
+    # Normalize corner positions using the same scale as track points
+    corners = None
+    if corners_raw is not None:
+        try:
+            corners = []
+            for _, c in corners_raw.iterrows():
+                corners.append({
+                    "x": float((c["X"] - x_min) / scale),
+                    "y": float((c["Y"] - y_min) / scale),
+                    "number": int(c["Number"]),
+                    "letter": str(c.get("Letter", "")),
+                    "angle": float(c.get("Angle", 0)),
+                })
+            logger.info(f"Extracted {len(corners)} corner positions")
+        except Exception as e:
+            logger.warning(f"Could not extract corner data: {e}")
+            corners = None
+
+    # Normalize marshal sector positions
+    marshal_sectors = None
+    if marshal_sectors_raw is not None:
+        try:
+            marshal_sectors = []
+            for _, ms in marshal_sectors_raw.iterrows():
+                marshal_sectors.append({
+                    "x": float((ms["X"] - x_min) / scale),
+                    "y": float((ms["Y"] - y_min) / scale),
+                    "number": int(ms["Number"]),
+                })
+            logger.info(f"Extracted {len(marshal_sectors)} marshal sector positions")
+        except Exception as e:
+            logger.warning(f"Could not extract marshal sector data: {e}")
+            marshal_sectors = None
+
     return {
         "track_points": [{"x": px, "y": py} for px, py in zip(x_norm, y_norm)],
         "rotation": rotation,
@@ -300,6 +340,8 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
         # Raw normalization params so driver positions use the same reference
         "norm": {"x_min": x_min, "y_min": y_min, "scale": scale},
         "sector_boundaries": sector_boundaries,
+        "corners": corners,
+        "marshal_sectors": marshal_sectors,
     }
 
 
@@ -512,6 +554,8 @@ def _get_driver_positions_by_time_sync(
     teams = {}
     number_to_abbr = {}
     retired_drivers = set()
+    finished_drivers: dict[str, int] = {}  # abbr -> final position
+    finished_driver_laps: dict[str, int] = {}  # abbr -> total laps completed
     grid_positions = {}
     for _, row in session.results.iterrows():
         abbr = str(row.get("Abbreviation", ""))
@@ -524,8 +568,16 @@ def _get_driver_positions_by_time_sync(
         if num:
             number_to_abbr[num] = abbr
         status = str(row.get("Status", "")).strip()
-        if status and status not in ("Finished", "") and not status.startswith("+"):
+        is_classified = status in ("Finished", "Lapped") or status.startswith("+")
+        if status and not is_classified and status != "":
             retired_drivers.add(abbr)
+        if is_classified:
+            final_pos = row.get("Position")
+            if pd.notna(final_pos):
+                finished_drivers[abbr] = int(final_pos)
+            result_laps = row.get("Laps")
+            if pd.notna(result_laps):
+                finished_driver_laps[abbr] = int(result_laps)
         grid = row.get("GridPosition")
         if pd.notna(grid):
             grid_val = int(grid)
@@ -657,6 +709,23 @@ def _get_driver_positions_by_time_sync(
                 entry: dict = {"message": message, "category": category, "timestamp": time_sec}
                 if racing_number and racing_number != "nan":
                     entry["racing_number"] = racing_number
+                    # Map racing number to driver abbreviation
+                    drv_abbr = number_to_abbr.get(racing_number, "")
+                    if drv_abbr:
+                        entry["driver"] = drv_abbr
+                # Flag data for sector-level visualisation
+                scope = str(msg_row.get("Scope", ""))
+                if scope and scope != "nan":
+                    entry["scope"] = scope
+                flag_val = str(msg_row.get("Flag", ""))
+                if flag_val and flag_val != "nan":
+                    entry["flag"] = flag_val
+                sector_num = msg_row.get("Sector")
+                if not pd.isna(sector_num):
+                    try:
+                        entry["sector"] = int(sector_num)
+                    except (ValueError, TypeError):
+                        pass
                 # Try to find lap number
                 lap_num = msg_row.get("Lap")
                 if not pd.isna(lap_num):
@@ -668,6 +737,26 @@ def _get_driver_positions_by_time_sync(
             rc_message_list.sort(key=lambda e: e["timestamp"])
     except Exception as e:
         logger.error(f"Failed to build RC message list: {e}")
+
+    # Build sector flag events timeline: [(timestamp, sector_num, flag, driver_abbr)]
+    sector_flag_events: list[tuple[float, int, str, str]] = []
+    for entry in rc_message_list:
+        if entry.get("scope") == "Sector" and "sector" in entry and "flag" in entry:
+            driver = entry.get("driver", "")
+            sector_flag_events.append((entry["timestamp"], entry["sector"], entry["flag"], driver))
+
+    def _get_sector_flags(frame_time: float) -> list[dict] | None:
+        """Get active marshal sector flags at a given time."""
+        # Track active flags per marshal sector
+        active: dict[int, dict] = {}
+        for evt_time, sector_num, flag, driver in sector_flag_events:
+            if evt_time > frame_time:
+                break
+            if flag in ("CLEAR", "GREEN"):
+                active.pop(sector_num, None)
+            else:
+                active[sector_num] = {"sector": sector_num, "flag": flag, "driver": driver}
+        return list(active.values()) if active else None
 
     def _get_rc_messages(frame_time: float) -> list[dict]:
         """Get RC messages up to frame_time (newest first, max 50)."""
@@ -724,6 +813,22 @@ def _get_driver_positions_by_time_sync(
                     pit_intervals[-1] = (pit_intervals[-1][0], pit_out_sec)
         driver_lap_lookup[drv] = lap_entries
         driver_pit_intervals[drv] = pit_intervals
+
+    # Build finish time lookup: session time (seconds) when each finished driver completed their final lap
+    finished_driver_times: dict[str, float] = {}
+    if is_race:
+        for drv, final_laps in finished_driver_laps.items():
+            try:
+                drv_laps_df = laps.pick_drivers(drv).sort_values("LapNumber")
+                final_lap_row = drv_laps_df[drv_laps_df["LapNumber"] == final_laps]
+                if len(final_lap_row) > 0:
+                    lap_time_td = final_lap_row.iloc[0].get("Time")
+                    if pd.notna(lap_time_td) and hasattr(lap_time_td, "total_seconds"):
+                        finished_driver_times[drv] = lap_time_td.total_seconds()
+            except Exception:
+                pass
+        if finished_driver_times:
+            logger.info(f"Finish times: {', '.join(f'{d}={t:.0f}s' for d, t in sorted(finished_driver_times.items(), key=lambda x: x[1]))}")
 
     # For non-race sessions (FP/Q/SQ): build best-lap-time lookup per driver
     # Each entry: (session_time_seconds_when_completed, lap_time_seconds)
@@ -1126,9 +1231,11 @@ def _get_driver_positions_by_time_sync(
             # Check if driver is currently in the pit lane
             session_t = t_sec + session_time_offset
             in_pit = False
+            pit_time = None
             for pit_in, pit_out in driver_pit_intervals.get(drv, []):
                 if pit_in <= session_t <= pit_out:
                     in_pit = True
+                    pit_time = round(session_t - pit_in, 1)
                     break
 
             # Tyre/pit data filled in after current lap is determined (below)
@@ -1143,6 +1250,8 @@ def _get_driver_positions_by_time_sync(
                 "grid_position": grid_pos if not is_pit_lane_starter else None,
                 "pit_start": show_pit_badge,
                 "in_pit": in_pit,
+                "pit_time": pit_time,
+                "finished": drv in finished_driver_times and session_t >= finished_driver_times[drv],
                 "compound": None,
                 "tyre_life": None,
                 "pit_stops": 0,
@@ -1169,11 +1278,21 @@ def _get_driver_positions_by_time_sync(
         for drv in driver_arrays:
             if drv not in seen_drivers and drv in last_known:
                 is_retired = drv in retired_drivers
-                restored = {**last_known[drv], "gap": None, "interval": None}
-                if is_retired:
+                is_finished = drv in finished_drivers
+                if is_finished:
+                    # Keep last known gap and position for finished drivers
+                    restored = {**last_known[drv]}
+                    restored["finished"] = True
+                    restored["no_timing"] = False
+                    restored["retired"] = False
+                    # Use final classified position
+                    restored["position"] = finished_drivers[drv]
+                elif is_retired:
+                    restored = {**last_known[drv], "gap": None, "interval": None}
                     restored["retired"] = True
                     restored["no_timing"] = False
                 else:
+                    restored = {**last_known[drv], "gap": None, "interval": None}
                     # Telemetry gap — grey out but keep on leaderboard
                     restored["no_timing"] = True
                 frame_drivers.append(restored)
@@ -1259,10 +1378,21 @@ def _get_driver_positions_by_time_sync(
                 frame_drivers.sort(key=lambda d: (d["position"] is None, d["position"] or 0))
             else:
                 # Derive positions by sorting on gap-to-leader
-                # Drivers with gap data are ranked by gap value; drivers without go to the bottom
-                frame_drivers.sort(key=lambda d: _gap_sort_key(d["gap"]))
+                # Finished drivers keep their classified position and sort first
+                finished_in_frame = [d for d in frame_drivers if d.get("finished")]
+                active_in_frame = [d for d in frame_drivers if not d.get("finished")]
+                active_in_frame.sort(key=lambda d: _gap_sort_key(d["gap"]))
+                # Assign final classified position to finished drivers
+                for d in finished_in_frame:
+                    final_pos = finished_drivers.get(d["abbr"])
+                    if final_pos:
+                        d["position"] = final_pos
+                finished_in_frame.sort(key=lambda d: d.get("position") or 9999)
+                # Combine: finished first (in order), then active (by gap)
+                frame_drivers = finished_in_frame + active_in_frame
                 for pos, d in enumerate(frame_drivers, 1):
-                    d["position"] = pos
+                    if not d.get("finished"):
+                        d["position"] = pos
         else:
             # Non-race sessions: sort by best lap time
             session_t_now = t_sec + session_time_offset
@@ -1491,6 +1621,9 @@ def _get_driver_positions_by_time_sync(
         rc_msgs = _get_rc_messages(i * sample_interval)
         if rc_msgs:
             frame["rc_messages"] = rc_msgs
+        s_flags = _get_sector_flags(i * sample_interval)
+        if s_flags:
+            frame["sector_flags"] = s_flags
         if frame["status"] == "red":
             rfe = _get_red_flag_end(i * sample_interval)
             if rfe is not None:

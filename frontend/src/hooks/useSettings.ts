@@ -25,6 +25,9 @@ export interface ReplaySettings {
   showPitFreeAir: boolean;
   showSectors: boolean;
   highlightClose: boolean;
+  useImperial: boolean;
+  rcSound: boolean;
+  showCorners: boolean;
 }
 
 const STORAGE_KEY = "f1replay_settings";
@@ -52,6 +55,9 @@ export const DEFAULTS: ReplaySettings = {
   showPitFreeAir: true,
   showSectors: true,
   highlightClose: true,
+  useImperial: false,
+  rcSound: false,
+  showCorners: true,
 };
 
 function loadSettings(): ReplaySettings {
