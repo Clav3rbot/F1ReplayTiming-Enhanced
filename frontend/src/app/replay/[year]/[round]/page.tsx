@@ -72,19 +72,6 @@ export default function ReplayPage() {
   const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const rcPanelRef = useRef<HTMLDivElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
-  const telemetryOuterPanelRef = useRef<HTMLDivElement>(null);
-  const telemetryMinWidthRef = useRef<number>(0);
-  const [telemetryHeight, setTelemetryHeight] = useState<number>(0);
-  const [telemetryWidth, setTelemetryWidth] = useState<number>(0);
-  const telemetryResizeRef = useRef<{
-    kind: "width" | "height";
-    startX: number;
-    startY: number;
-    startSize: number;
-    minSize: number;
-    maxSize: number;
-    pointerId: number;
-  } | null>(null);
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
   const [isIOS, setIsIOS] = useState(false);
 
@@ -174,114 +161,6 @@ export default function ReplayPage() {
     }
     lastRcCountRef.current = msgs.length;
   }, [replay.frame?.rc_messages?.length, settings.rcSound]);
-
-  useEffect(() => {
-    if (!telemetryPanelRef.current) return;
-
-    const inner = telemetryPanelRef.current;
-    const outer = telemetryOuterPanelRef.current;
-    setTelemetryHeight(inner.offsetHeight);
-
-    // On first open in "left" mode, ensure width can contain full telemetry row
-    // (prevents initial RPM/pips clipping before user resizes).
-    if (
-      showTelemetry &&
-      telemetryPosition === "left" &&
-      selectedDrivers.length > 2 &&
-      outer &&
-      telemetryWidth === 0
-    ) {
-      const delta = Math.max(0, outer.offsetWidth - inner.offsetWidth);
-      const contentRequired = Math.ceil(inner.scrollWidth + delta);
-      const baseline = Math.max(outer.offsetWidth, contentRequired, 430);
-      setTelemetryWidth(baseline);
-      return;
-    }
-
-    if (telemetryWidth === 0) {
-      setTelemetryWidth(inner.offsetWidth);
-    }
-  }, [selectedDrivers.length, showTelemetry, telemetryPosition, telemetryWidth]);
-
-  useEffect(() => {
-    if (!showTelemetry || telemetryPosition !== "left") return;
-    if (telemetryWidth !== 0) return; // only capture default baseline width
-    if (telemetryOuterPanelRef.current) {
-      telemetryMinWidthRef.current = Math.max(430, telemetryOuterPanelRef.current.offsetWidth);
-    }
-  }, [showTelemetry, telemetryPosition, telemetryWidth, selectedDrivers.length]);
-
-  const startTelemetryResize = useCallback(
-    (e: React.PointerEvent, kind: "width" | "height") => {
-      if (isMobile) return;
-      e.preventDefault();
-
-      const innerEl = telemetryPanelRef.current;
-      const outerEl = telemetryOuterPanelRef.current;
-      if (!innerEl || !outerEl) return;
-
-      const startSize = kind === "width" ? (telemetryWidth || outerEl.offsetWidth) : (telemetryHeight || outerEl.offsetHeight);
-      if (!startSize) return;
-
-      const outerToInnerDelta =
-        kind === "width" ? outerEl.offsetWidth - innerEl.offsetWidth : outerEl.offsetHeight - innerEl.offsetHeight;
-      const contentMin =
-        kind === "width"
-          ? Math.max(430, telemetryMinWidthRef.current - Math.max(0, outerToInnerDelta))
-          : innerEl.scrollHeight;
-      const minSize = Math.max(0, Math.ceil(contentMin + Math.max(0, outerToInnerDelta)));
-      const maxSize =
-        kind === "width"
-          // Allow comfortable expansion to the right without hitting premature clamp.
-          ? Math.max(minSize, Math.min(920, window.innerWidth - 220))
-          : Math.max(minSize, Math.min(560, window.innerHeight - 320));
-
-      telemetryResizeRef.current = {
-        kind,
-        startX: e.clientX,
-        startY: e.clientY,
-        startSize,
-        minSize,
-        maxSize,
-        pointerId: e.pointerId,
-      };
-
-      // Avoid accidental text selection while resizing.
-      const prevUserSelect = document.body.style.userSelect;
-      document.body.style.userSelect = "none";
-
-      const onMove = (ev: PointerEvent) => {
-        const st = telemetryResizeRef.current;
-        if (!st || st.pointerId !== ev.pointerId) return;
-
-        if (st.kind === "width") {
-          const maxW = Math.max(st.minSize, Math.min(st.maxSize, window.innerWidth - 260));
-          const next = st.startSize + (ev.clientX - st.startX);
-          setTelemetryWidth(Math.round(Math.max(st.minSize, Math.min(maxW, next))));
-        } else {
-          const maxH = Math.max(st.minSize, st.maxSize);
-          // Handle is on top edge => dragging up increases height.
-          const next = st.startSize - (ev.clientY - st.startY);
-          setTelemetryHeight(Math.round(Math.max(st.minSize, Math.min(maxH, next))));
-        }
-      };
-
-      const finishResize = (ev: PointerEvent) => {
-        const st = telemetryResizeRef.current;
-        if (!st || st.pointerId !== ev.pointerId) return;
-        telemetryResizeRef.current = null;
-        document.body.style.userSelect = prevUserSelect;
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", finishResize);
-        window.removeEventListener("pointercancel", finishResize);
-      };
-
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", finishResize);
-      window.addEventListener("pointercancel", finishResize);
-    },
-    [isMobile, telemetryHeight, telemetryWidth]
-  );
 
   const isLoading = sessionLoading || trackLoading;
   const dataError = sessionError || trackError;
@@ -678,16 +557,11 @@ export default function ReplayPage() {
               {/* Expanded telemetry panel for 3+ drivers */}
               {showTelemetry && selectedDrivers.length > 2 && (
                 <div
-                ref={telemetryOuterPanelRef}
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
                     ? "h-full glass-panel-heavy border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden"
                 }`}
-                style={{
-                  ...(telemetryPosition === "left" && telemetryWidth > 0 ? { width: telemetryWidth } : {}),
-                  ...(telemetryPosition === "bottom" && telemetryHeight > 0 ? { maxHeight: telemetryHeight } : {}),
-                }}
                 >
                   <div
                     ref={telemetryPanelRef}
@@ -704,9 +578,6 @@ export default function ReplayPage() {
                       if (telemetryPosition === "left") {
                         setTelemetryPosition("bottom");
                       } else {
-                        // Returning to left should restore the default layout width,
-                        // not reuse the width captured while in bottom mode.
-                        setTelemetryWidth(0);
                         setTelemetryPosition("left");
                       }
                     }}
@@ -728,29 +599,6 @@ export default function ReplayPage() {
                   })}
                 </div>
               </div>
-
-                  {/* Resize handles (PC + iPad) */}
-                  {telemetryPosition === "left" && (
-                    <div
-                      role="separator"
-                      aria-label="Resize telemetry panel width"
-                      onPointerDown={(ev) => startTelemetryResize(ev, "width")}
-                      className={`absolute right-0 top-0 h-full cursor-ew-resize z-[50] transition-colors ${
-                        isIOS ? "w-2.5 bg-white/8 hover:bg-white/15 active:bg-white/20" : "w-[6px] bg-transparent hover:bg-white/10"
-                      }`}
-                    />
-                  )}
-                  {telemetryPosition === "bottom" && (
-                    <div
-                      role="separator"
-                      aria-label="Resize telemetry panel height"
-                      onPointerDown={(ev) => startTelemetryResize(ev, "height")}
-                      className={`absolute left-0 top-0 w-full cursor-ns-resize z-[50] transition-colors ${
-                        isIOS ? "h-2.5 bg-white/8 hover:bg-white/15 active:bg-white/20" : "h-[6px] bg-transparent hover:bg-white/10"
-                      }`}
-                    />
-                  )}
-
               {!rcPinned && (
                 <div className={`flex items-center justify-center ${
                   telemetryPosition === "bottom"
@@ -772,7 +620,6 @@ export default function ReplayPage() {
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
                       : "border-t border-f1-border px-3 py-2 mt-2"
                   }`}
-                  style={telemetryPosition === "bottom" && telemetryHeight > 0 ? { maxHeight: telemetryHeight } : undefined}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-f1-muted uppercase">Race Control</span>
