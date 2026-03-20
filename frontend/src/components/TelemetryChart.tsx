@@ -56,7 +56,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
     return (
       <div className="glass-panel border-white/5 rounded-xl px-4 py-2 shadow-glass backdrop-blur-md">
         <p className="text-[10px] text-f1-muted/70 font-bold uppercase tracking-wider">
-          Select 1–2 drivers to view telemetry
+        Select drivers to view telemetry
         </p>
       </div>
     );
