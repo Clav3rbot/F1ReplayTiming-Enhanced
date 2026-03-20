@@ -2,6 +2,32 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
+## 1.2.3 — Track detail, telemetry expansion, and race finish improvements
+
+### New Features
+- **Marshal sector flags** — localised yellow/double yellow flags on the track map at marshal sector positions. Requires recompute
+- **Corner numbers** — turn numbers shown on the track map from FastF1 circuit data. Toggleable in settings. Requires recompute
+- **Expanded telemetry** — unlimited driver selection. 3+ drivers open a moveable side panel with pinnable race control
+- **Draggable race control** — RC panel can be repositioned anywhere on the track map
+- **RC sound notification** — optional alert sound for new race control messages
+- **Full screen mode** — hides session banner and enters browser fullscreen
+- **Imperial units** — toggle for °F, mph in settings
+- **Pit stop timer** — live count-up shown in gap column while driver is in pit lane. Requires recompute
+
+### Improvements
+- **Pit prediction accuracy** — recalculated using precise pit lane timestamps. Unified 73% SC/VSC factor
+- **Qualifying sector selection** — sector overlay buttons for all selected drivers
+- **Settings modal** — redesigned as tabbed sidebar (Leaderboard, Weather, Track Map, Race Control, Other)
+- **Features page** — consolidated with info panel content
+
+### Fixes
+- **Race finish** — drivers stay on leaderboard at classified position with chequered flag icon. Requires recompute
+- **Track map bounds** — drivers no longer fly off screen with invalid position data
+- **iPad viewport** — layout accounts for browser address bar
+- **PiP on iOS** — hidden on unsupported devices
+
+---
+
 ## 1.2.2
 
 ### Improvements

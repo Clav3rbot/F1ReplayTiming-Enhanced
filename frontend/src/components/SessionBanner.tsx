@@ -37,7 +37,7 @@ const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly
   { key: "showTyreAge", label: "Tyre age" },
   { key: "showTyreHistory", label: "Tyre history", raceOnly: true },
   { key: "showSectors", label: "Live sectors", qualiOnly: true },
-  { key: "showPitPrediction", label: "Pit prediction", raceOnly: true, badge: "Beta" },
+  { key: "showPitPrediction", label: "Pit prediction", raceOnly: true },
   { key: "showPitConfidence", label: "Confidence", raceOnly: true, parent: "showPitPrediction" },
   { key: "showPitFreeAir", label: "Pit gaps", raceOnly: true, parent: "showPitPrediction" },
 ];
@@ -50,9 +50,14 @@ const WEATHER_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showRainfall", label: "Rainfall" },
 ];
 
-const OTHER_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
+const TRACK_MAP_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showDriverNames", label: "Driver names on track" },
+  { key: "showCorners", label: "Corner numbers" },
+];
+
+const OTHER_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showSessionTime", label: "Total session time" },
+  { key: "useImperial", label: "Imperial units (°F, mph)" },
 ];
 
 export default function SessionBanner({
@@ -70,7 +75,7 @@ export default function SessionBanner({
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Race Control" | "Other">("Leaderboard");
   const settingsRef = useRef<HTMLDivElement>(null);
 
   // Close settings on outside click
@@ -93,7 +98,7 @@ export default function SessionBanner({
             <path d="m15.98 11.52c-.33-.28-.51-.74-.51-1.26v-4.62c0-1.86-1.38-3.45-3.14-3.63-.98-.1-1.97.22-2.71.89-.73.66-1.15 1.61-1.15 2.6v4.79c0 .53-.19 1-.51 1.3-1.58 1.43-2.27 3.55-1.84 5.66.46 2.31 2.31 4.18 4.61 4.66.43.09.86.13 1.28.13 1.38 0 2.72-.46 3.8-1.34 1.42-1.15 2.23-2.86 2.23-4.68 0-1.72-.75-3.36-2.06-4.51zm-1.43 7.63c-.96.78-2.17 1.07-3.42.81-1.52-.32-2.75-1.56-3.06-3.1-.28-1.41.18-2.83 1.23-3.79.74-.67 1.17-1.69 1.17-2.78v-4.79c0-.43.18-.83.49-1.11.28-.25.63-.39 1.01-.39h.16c.75.08 1.34.79 1.34 1.64v4.62c0 1.09.44 2.1 1.2 2.77.87.76 1.37 1.86 1.37 3 0 1.22-.54 2.36-1.49 3.13z"/>
             <circle cx="12" cy="16" r="2.47"/>
           </svg>
-          {weather.air_temp}°C
+          {settings.useImperial ? `${Math.round(weather.air_temp * 9 / 5 + 32)}°F` : `${weather.air_temp}°C`}
         </span>
       )}
       {settings.showTrackTemp && (
@@ -106,7 +111,7 @@ export default function SessionBanner({
             <path d="M256 85.3c-5.9 0-10.7 4.8-10.7 10.7v64c0 5.9 4.8 10.7 10.7 10.7s10.7-4.8 10.7-10.7v-64c0-5.9-4.8-10.7-10.7-10.7z"/>
             <path d="M256 0c-5.9 0-10.7 4.8-10.7 10.7V32c0 5.9 4.8 10.7 10.7 10.7s10.7-4.8 10.7-10.7V10.7C266.7 4.8 261.9 0 256 0z"/>
           </svg>
-          {weather.track_temp}°C
+          {settings.useImperial ? `${Math.round(weather.track_temp * 9 / 5 + 32)}°F` : `${weather.track_temp}°C`}
         </span>
       )}
       {settings.showHumidity && (
@@ -132,7 +137,7 @@ export default function SessionBanner({
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-4 4m4-4l4 4" />
           </svg>
-          {weather.wind_speed} m/s
+          {settings.useImperial ? `${Math.round(weather.wind_speed * 2.237)} mph` : `${weather.wind_speed} m/s`}
         </span>
       )}
     </div>
@@ -168,27 +173,17 @@ export default function SessionBanner({
             {SESSION_LABELS[sessionType] || sessionType}
           </div>
 
-          {/* Features link - hidden on mobile */}
+          {/* Features/info link - hidden on mobile */}
           <a
             href="/features"
             className="hidden sm:flex w-9 h-9 items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
-            title="Features"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </a>
-
-          {/* Info button - hidden on mobile */}
-          <button
-            onClick={() => setInfoOpen(true)}
-            className="hidden sm:flex w-9 h-9 items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            title="How it works"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
               <path strokeLinecap="round" d="M12 16v-4m0-4h.01" />
             </svg>
-          </button>
+          </a>
 
           {/* Settings */}
           <div className="relative" ref={settingsRef}>
@@ -202,135 +197,145 @@ export default function SessionBanner({
               </svg>
             </button>
 
-            {settingsOpen && (
-              <div className="fixed right-2 top-[52px] mt-2 w-72 bg-[#1A1A26] border border-f1-border rounded-lg shadow-xl z-50 py-2">
-                {/* Driver Leaderboard section */}
-                <button
-                  onClick={() => onSettingChange?.("showLeaderboard", !settings.showLeaderboard)}
-                  className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/5 transition-colors"
-                >
-                  <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Driver Leaderboard</span>
-                  <div
-                    className={`relative w-9 h-5 rounded-full transition-colors ${
-                      settings.showLeaderboard ? "bg-f1-red" : "bg-f1-border"
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                        settings.showLeaderboard ? "translate-x-[18px]" : "translate-x-0.5"
-                      }`}
-                    />
-                  </div>
-                </button>
-                {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.nonRaceOnly || !isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
-                  const parentOff = parent ? !settings[parent] : false;
-                  const disabled = !settings.showLeaderboard || parentOff;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => onSettingChange?.(key, !settings[key])}
-                      disabled={disabled}
-                      className={`w-full flex items-center justify-between ${parent ? "pl-14" : "pl-8"} pr-4 ${parent ? "py-0.5" : "py-1"} hover:bg-white/5 transition-colors ${
-                        disabled ? "opacity-40 pointer-events-none" : ""
-                      }`}
-                    >
-                      <span className={`${parent ? "text-xs text-f1-muted" : "text-sm text-white"} flex items-center gap-2`}>
-                        {label}
-                        {badge && (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-f1-red/20 text-f1-red leading-none">
-                            {badge}
-                          </span>
-                        )}
-                      </span>
-                      <div
-                        className={`relative ${parent ? "w-7 h-4" : "w-9 h-5"} rounded-full transition-colors ${
-                          settings[key] ? "bg-f1-red" : "bg-f1-border"
+            {settingsOpen && (<>
+              {/* Modal backdrop */}
+              <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSettingsOpen(false)} />
+
+              {/* Settings modal */}
+              <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 h-[450px] sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-50 sm:w-[520px] sm:h-[420px] bg-[#1A1A26] border border-f1-border rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                {/* Modal header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-f1-border">
+                  <span className="text-sm font-bold text-white">Settings</span>
+                  <button onClick={() => setSettingsOpen(false)} className="text-f1-muted hover:text-white">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Tabs + content side by side */}
+                <div className="flex flex-1 min-h-0">
+                  {/* Tab sidebar */}
+                  <div className="flex flex-col border-r border-f1-border py-2 w-36 flex-shrink-0">
+                    {(["Leaderboard", "Weather", "Track Map", "Race Control", "Other"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setSettingsTab(tab)}
+                        className={`px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-left transition-colors ${
+                          settingsTab === tab
+                            ? "text-white bg-white/5 border-l-2 border-f1-red"
+                            : "text-f1-muted hover:text-white border-l-2 border-transparent"
                         }`}
                       >
-                        <div
-                          className={`absolute top-0.5 ${parent ? "w-3 h-3" : "w-4 h-4"} bg-white rounded-full transition-transform ${
-                            settings[key] ? (parent ? "translate-x-[14px]" : "translate-x-[18px]") : "translate-x-0.5"
-                          }`}
-                        />
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab content */}
+                  <div className="pt-4 pb-2 flex-1 overflow-y-auto px-1 sm:px-4">
+                  {settingsTab === "Leaderboard" && (<>
+                    <button
+                      onClick={() => onSettingChange?.("showLeaderboard", !settings.showLeaderboard)}
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Leaderboard</span>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.showLeaderboard ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.showLeaderboard ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </div>
                     </button>
-                  );
-                })}
+                    {LEADERBOARD_SETTINGS.filter(s => (!s.raceOnly || isRace) && (!s.nonRaceOnly || !isRace) && (!s.qualiOnly || isQualifying)).map(({ key, label, badge, parent }) => {
+                      const parentOff = parent ? !settings[parent] : false;
+                      const disabled = !settings.showLeaderboard || parentOff;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => onSettingChange?.(key, !settings[key])}
+                          disabled={disabled}
+                          className={`w-full flex items-center justify-between ${parent ? "pl-6 sm:pl-12" : "pl-4 sm:pl-10"} pr-2 sm:pr-6 py-1 hover:bg-white/5 transition-colors ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+                        >
+                          <span className={`${parent ? "text-xs text-f1-muted" : "text-sm text-white"} flex items-center gap-2`}>
+                            {label}
+                            {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-f1-red/20 text-f1-red leading-none">{badge}</span>}
+                          </span>
+                          <div className={`relative ${parent ? "w-7 h-4" : "w-9 h-5"} rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                            <div className={`absolute top-0.5 ${parent ? "w-3 h-3" : "w-4 h-4"} bg-white rounded-full transition-transform ${settings[key] ? (parent ? "translate-x-[14px]" : "translate-x-[18px]") : "translate-x-0.5"}`} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>)}
 
-                {/* Divider */}
-                <div className="border-t border-f1-border my-1" />
-
-                {/* Weather section */}
-                <button
-                  onClick={() => onSettingChange?.("showWeather", !settings.showWeather)}
-                  className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-white/5 transition-colors"
-                >
-                  <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Weather</span>
-                  <div
-                    className={`relative w-9 h-5 rounded-full transition-colors ${
-                      settings.showWeather ? "bg-f1-red" : "bg-f1-border"
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                        settings.showWeather ? "translate-x-[18px]" : "translate-x-0.5"
-                      }`}
-                    />
-                  </div>
-                </button>
-                {WEATHER_SETTINGS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => onSettingChange?.(key, !settings[key])}
-                    disabled={!settings.showWeather}
-                    className={`w-full flex items-center justify-between pl-8 pr-4 py-1 hover:bg-white/5 transition-colors ${
-                      !settings.showWeather ? "opacity-40 pointer-events-none" : ""
-                    }`}
-                  >
-                    <span className="text-sm text-white">{label}</span>
-                    <div
-                      className={`relative w-9 h-5 rounded-full transition-colors ${
-                        settings[key] ? "bg-f1-red" : "bg-f1-border"
-                      }`}
+                  {settingsTab === "Weather" && (<>
+                    <button
+                      onClick={() => onSettingChange?.("showWeather", !settings.showWeather)}
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
                     >
-                      <div
-                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                          settings[key] ? "translate-x-[18px]" : "translate-x-0.5"
-                        }`}
-                      />
-                    </div>
-                  </button>
-                ))}
+                      <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Weather</span>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.showWeather ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.showWeather ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                      </div>
+                    </button>
+                    {WEATHER_SETTINGS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => onSettingChange?.(key, !settings[key])}
+                        disabled={!settings.showWeather}
+                        className={`w-full flex items-center justify-between pl-4 sm:pl-10 pr-2 sm:pr-6 py-1 hover:bg-white/5 transition-colors ${!settings.showWeather ? "opacity-40 pointer-events-none" : ""}`}
+                      >
+                        <span className="text-sm text-white">{label}</span>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </>)}
 
-                {/* Divider */}
-                <div className="border-t border-f1-border my-1" />
+                  {settingsTab === "Track Map" && (<>
+                    {TRACK_MAP_SETTINGS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => onSettingChange?.(key, !settings[key])}
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      >
+                        <span className="text-sm text-white">{label}</span>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </>)}
 
-                {/* Other settings */}
-                <div className="px-4 py-1.5">
-                  <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Other</span>
+                  {settingsTab === "Race Control" && (<>
+                    <button
+                      onClick={() => onSettingChange?.("rcSound", !settings.rcSound)}
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-sm text-white">Notification sound</span>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors ${settings.rcSound ? "bg-f1-red" : "bg-f1-border"}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.rcSound ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                      </div>
+                    </button>
+                  </>)}
+
+                  {settingsTab === "Other" && (<>
+                    {OTHER_SETTINGS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => onSettingChange?.(key, !settings[key])}
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      >
+                        <span className="text-sm text-white">{label}</span>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </>)}
                 </div>
-                {OTHER_SETTINGS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => onSettingChange?.(key, !settings[key])}
-                    className="w-full flex items-center justify-between px-4 py-1 hover:bg-white/5 transition-colors"
-                  >
-                    <span className="text-sm text-white">{label}</span>
-                    <div
-                      className={`relative w-9 h-5 rounded-full transition-colors ${
-                        settings[key] ? "bg-f1-red" : "bg-f1-border"
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                          settings[key] ? "translate-x-[18px]" : "translate-x-0.5"
-                        }`}
-                      />
-                    </div>
-                  </button>
-                ))}
+                </div>
               </div>
-            )}
+            </>)}
           </div>
         </div>
       </div>
@@ -342,198 +347,6 @@ export default function SessionBanner({
         </div>
       )}
 
-      {/* Info modal */}
-      {infoOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setInfoOpen(false);
-          }}
-        >
-          <div className="bg-f1-card border border-f1-border rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-f1-border">
-              <h2 className="text-lg font-bold text-white">How it works</h2>
-              <button
-                onClick={() => setInfoOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="px-6 py-5 space-y-6">
-              {/* Positions & Timing */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Driver positions &amp; timing
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  In replay mode, driver positions and gap times are processed from
-                  FastF1 data. In live mode, they are streamed directly from the F1
-                  SignalR feed. Positions are determined by sorting drivers on their
-                  gap to the leader, which updates multiple times per lap at sector
-                  and mini-sector boundaries.
-                </p>
-              </div>
-
-              {/* Starting Grid */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Starting grid
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  For the first 10 seconds of the race, the leaderboard displays the
-                  starting grid order before live timing data takes over.
-                </p>
-                <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  Where official starting grid data is unavailable, qualifying
-                  positions are used as a fallback. This may not reflect grid
-                  penalties or other post-qualifying changes to the starting order.
-                </p>
-              </div>
-
-              {/* Data availability */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Data availability
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Occasionally, timing data may be temporarily unavailable for a
-                  driver  - for example, during pit stops or if the F1 timing system
-                  has a brief gap. When this happens, the affected driver is shown
-                  greyed out at the bottom of the leaderboard. They return to their
-                  correct position as soon as data is available again.
-                </p>
-              </div>
-
-              {/* Track map */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Track map
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Car positions on the track are derived from GPS telemetry data
-                  processed via FastF1 and update every 0.5 seconds. Movement is
-                  smoothed for a cleaner visual. The track orientation matches the
-                  conventional broadcast view for each circuit. Track positions
-                  are available in replay mode only — live sessions do not include
-                  track positions as this data requires an F1 TV subscription.
-                </p>
-              </div>
-
-              {/* Tyre history */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Tyre history
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  The leaderboard shows the last two tyre compounds used by each
-                  driver as smaller icons next to their current tyre. Tyre changes
-                  and pit stop counts update when the driver exits the pit lane.
-                </p>
-              </div>
-
-              {/* Pit prediction */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Pit position prediction
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Shows the predicted position a driver would return to if they pitted
-                  now, using precomputed pit loss times for each circuit. Predictions
-                  appear from lap 5 onwards and adjust for Safety Car and Virtual
-                  Safety Car conditions.
-                </p>
-                <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  The confidence indicator colour-codes each prediction based on
-                  the margin to the next position behind: default colour means more
-                  than 2.5s of margin, <span className="text-yellow-400 font-bold">yellow</span> means
-                  1–2.5s (a slower pit stop could cost a position),
-                  and <span className="text-red-400 font-bold">red</span> means less than 1s (very tight).
-                  The pit gaps show the predicted gap to the car ahead (↑) and the
-                  car behind (↓) after pitting.
-                </p>
-              </div>
-
-              {/* Race Control Messages */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Race control messages
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Click the RC button on the track map to open a feed of all official
-                  race control messages — investigations, penalties, track limits,
-                  DRS activations, and flag changes.
-                </p>
-                <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  Drivers under investigation show a{" "}
-                  <svg className="w-3.5 h-3.5 text-orange-400 inline -mt-0.5" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 6v7m0 2v2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
-                  {" "}warning icon on the leaderboard. Drivers with a penalty show a{" "}
-                  <svg className="w-3.5 h-3.5 text-red-500 inline -mt-0.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" /><path d="M12 8v5m0 3v.01" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
-                  {" "}penalty icon. These clear when the stewards resolve the incident.
-                </p>
-              </div>
-
-              {/* Session time */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Session time
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Total session time is hidden by default to avoid spoilers. A
-                  longer-than-expected session can reveal red flags and
-                  stoppages. You can enable it in the settings menu.
-                </p>
-              </div>
-
-              {/* Live timing */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Live timing
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  During active sessions, live timing connects directly to the
-                  F1 SignalR stream to provide real-time leaderboard data, tyre
-                  information, race control messages, and weather.
-                </p>
-                <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  The broadcast delay slider pauses the live data feed until
-                  it aligns with your streaming service or TV broadcast. Set
-                  the delay to match how far behind your broadcast is, and the
-                  leaderboard will update in sync with what you see on screen.
-                  Your delay setting is saved automatically.
-                </p>
-                <p className="text-sm text-f1-muted leading-relaxed mt-2">
-                  Driver positions on the track map and telemetry data (speed,
-                  throttle, brake, gear) are not available in live mode as
-                  track position data requires an authenticated F1 TV
-                  subscription. These become available in replay mode once
-                  the session is processed via FastF1, typically 1-2 hours
-                  after the chequered flag.
-                </p>
-              </div>
-
-              {/* Data source */}
-              <div>
-                <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
-                  Data source
-                </h3>
-                <p className="text-sm text-f1-muted leading-relaxed">
-                  Replay data — including track positions, telemetry, and
-                  timing — is sourced from the FastF1 library. Session data
-                  typically becomes available 1–2 hours after the chequered
-                  flag. Live timing data is sourced directly from the F1
-                  SignalR stream.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -7,6 +7,7 @@ interface Props {
   driver: ReplayDriver | null;
   year?: number;
   isQualifying?: boolean;
+  useImperial?: boolean;
 }
 
 function BarPips({
@@ -47,21 +48,22 @@ const SECTOR_COLORS: Record<string, string> = {
   yellow: "#EAB308",
 };
 
-export default function TelemetryChart({ visible, driver, year, isQualifying }: Props) {
+export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial }: Props) {
   const hasDrs = !year || year < 2026;
   if (!visible) return null;
 
   if (!driver) {
     return (
-      <div className="bg-f1-card/90 border border-f1-border rounded px-4 py-1.5 backdrop-blur-sm">
-        <p className="text-[10px] text-f1-muted">
-          Select 1–2 drivers to view telemetry
+      <div className="w-full py-2">
+        <p className="text-[10px] text-f1-muted text-center">
+          Select drivers to view telemetry
         </p>
       </div>
     );
   }
 
-  const speed = Math.round(driver.speed ?? 0);
+  const speedKmh = Math.round(driver.speed ?? 0);
+  const speed = useImperial ? Math.round(speedKmh * 0.6214) : speedKmh;
   const throttle = driver.throttle ?? 0;
   const brake = driver.brake ? 100 : 0;
   const gear = driver.gear ?? 0;
@@ -104,7 +106,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying }: 
           <span className="text-[11px] sm:text-xs font-extrabold text-white tabular-nums text-right w-[26px] sm:w-[26px]">
             {speed}
           </span>
-          <span className="text-[8px] text-f1-muted hidden sm:inline ml-1">km/h</span>
+          <span className="text-[8px] text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>
         </div>
 
         {/* Throttle */}
