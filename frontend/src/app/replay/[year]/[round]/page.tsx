@@ -13,7 +13,7 @@ import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import type { SectorOverlay } from "@/lib/trackRenderer";
-import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
+import { Maximize, Minimize, ArrowUpRight, Pin, PinOff } from "lucide-react";
 
 interface TrackData {
   track_points: { x: number; y: number }[];
@@ -341,7 +341,13 @@ export default function ReplayPage() {
                 <div className="absolute top-3 right-3 z-10">
                   <button
                     onClick={() => {
-                      if (rcPinned) { setRcPinned(false); } else { setRcPanelOpen(!rcPanelOpen); }
+                      if (rcPinned) {
+                        // Unpin -> keep it open so the user can still drag/resize
+                        setRcPinned(false);
+                        setRcPanelOpen(true);
+                      } else {
+                        setRcPanelOpen(!rcPanelOpen);
+                      }
                     }}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
                       rcPanelOpen || rcPinned ? "bg-orange-500 text-white" : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
@@ -356,7 +362,7 @@ export default function ReplayPage() {
                 </div>
 
                 {/* RC floating panel (draggable) */}
-                {rcPanelOpen && !rcPinned && (
+                {(rcPanelOpen || rcPinned) && (
                   <div
                     ref={rcPanelRef}
                     className={`z-20 w-80 bg-f1-card/95 border border-f1-border rounded-lg shadow-xl backdrop-blur-sm overflow-hidden flex flex-col ${
@@ -364,14 +370,18 @@ export default function ReplayPage() {
                     }`}
                     style={rcPosition
                       ? { position: "fixed", left: rcPosition.x, top: rcPosition.y }
-                      : { position: "absolute", top: 48, right: 12 }
+                      : {
+                          position: rcPinned ? "fixed" : "absolute",
+                          top: 48,
+                          right: 12,
+                        }
                     }
                   >
                     <div
-                      className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0 cursor-grab active:cursor-grabbing"
+                      className="flex items-center justify-between px-3 py-2 border-b border-f1-border flex-shrink-0"
                       style={{ touchAction: "none" }}
-                      onMouseDown={onRcDragStart}
-                      onTouchStart={onRcDragStart}
+                      onMouseDown={rcPinned ? undefined : onRcDragStart}
+                      onTouchStart={rcPinned ? undefined : onRcDragStart}
                     >
                       <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
                       <div className="flex items-center gap-1">
@@ -398,7 +408,22 @@ export default function ReplayPage() {
                             <ArrowUpRight className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        <button onClick={() => setRcPanelOpen(false)} className="text-f1-muted hover:text-white ml-1">
+                        <button
+                          onClick={() => setRcPinned(!rcPinned)}
+                          className="text-f1-muted hover:text-white ml-1"
+                          title={rcPinned ? "Unpin" : "Pin"}
+                        >
+                          {rcPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRcPanelOpen(false);
+                            setRcPinned(false);
+                            setRcPosition(null);
+                          }}
+                          className="text-f1-muted hover:text-white ml-1"
+                          title="Close"
+                        >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                           </svg>
@@ -458,9 +483,9 @@ export default function ReplayPage() {
                   <div className="absolute bottom-2 left-8 z-10">
                     {selectedDrivers.map((abbr) => {
                       const drv = drivers.find((d) => d.abbr === abbr) || null;
-                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
                     })}
-                    {selectedDrivers.length === 0 && <TelemetryChart visible driver={null} year={year} />}
+                    {selectedDrivers.length === 0 && <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />}
                   </div>
                 )}
 
@@ -609,10 +634,10 @@ export default function ReplayPage() {
                     {selectedDrivers.length > 0 ? (
                       selectedDrivers.map((abbr) => {
                         const drv = drivers.find((d) => d.abbr === abbr) || null;
-                        return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                        return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
                       })
                     ) : (
-                      <TelemetryChart visible driver={null} year={year} />
+                      <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />
                     )}
                   </div>
                 )}
@@ -816,10 +841,10 @@ export default function ReplayPage() {
                   {selectedDrivers.length > 0 ? (
                     selectedDrivers.map((abbr) => {
                       const drv = drivers.find((d) => d.abbr === abbr) || null;
-                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} />;
+                      return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
                     })
                   ) : (
-                    <TelemetryChart visible driver={null} year={year} />
+                    <TelemetryChart visible driver={null} year={year} useImperial={settings.useImperial} />
                   )}
                 </div>
               )}
