@@ -72,6 +72,7 @@ export default function ReplayPage() {
   const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const rcPanelRef = useRef<HTMLDivElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
+  const telemetryOuterPanelRef = useRef<HTMLDivElement>(null);
   const [telemetryHeight, setTelemetryHeight] = useState<number>(0);
   const [telemetryWidth, setTelemetryWidth] = useState<number>(0);
   const telemetryResizeRef = useRef<{
@@ -79,6 +80,7 @@ export default function ReplayPage() {
     startX: number;
     startY: number;
     startSize: number;
+    minSize: number;
     pointerId: number;
   } | null>(null);
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
@@ -181,17 +183,26 @@ export default function ReplayPage() {
       if (isMobile) return;
       e.preventDefault();
 
-      const currentEl = telemetryPanelRef.current;
-      if (!currentEl) return;
+      const innerEl = telemetryPanelRef.current;
+      const outerEl = telemetryOuterPanelRef.current;
+      if (!innerEl || !outerEl) return;
 
-      const startSize = kind === "width" ? (telemetryWidth || currentEl.offsetWidth) : (telemetryHeight || currentEl.offsetHeight);
+      const startSize = kind === "width" ? (telemetryWidth || outerEl.offsetWidth) : (telemetryHeight || outerEl.offsetHeight);
       if (!startSize) return;
+
+      // Clamp min size to the actual content so the "last element in the row" stays visible.
+      const outerToInnerDelta =
+        kind === "width" ? outerEl.offsetWidth - innerEl.offsetWidth : outerEl.offsetHeight - innerEl.offsetHeight;
+      const contentMin =
+        kind === "width" ? innerEl.scrollWidth : innerEl.scrollHeight;
+      const minSize = Math.max(0, Math.ceil(contentMin + Math.max(0, outerToInnerDelta)));
 
       telemetryResizeRef.current = {
         kind,
         startX: e.clientX,
         startY: e.clientY,
         startSize,
+        minSize,
         pointerId: e.pointerId,
       };
 
@@ -204,16 +215,14 @@ export default function ReplayPage() {
         if (!st || st.pointerId !== ev.pointerId) return;
 
         if (st.kind === "width") {
-          const minW = 220;
-          const maxW = Math.max(minW, Math.min(720, window.innerWidth - 260));
+          const maxW = Math.max(st.minSize, Math.min(720, window.innerWidth - 260));
           const next = st.startSize + (ev.clientX - st.startX);
-          setTelemetryWidth(Math.round(Math.max(minW, Math.min(maxW, next))));
+          setTelemetryWidth(Math.round(Math.max(st.minSize, Math.min(maxW, next))));
         } else {
-          const minH = 180;
-          const maxH = Math.max(minH, Math.min(560, window.innerHeight - 320));
+          const maxH = Math.max(st.minSize, Math.min(560, window.innerHeight - 320));
           // Handle is on top edge => dragging up increases height.
           const next = st.startSize - (ev.clientY - st.startY);
-          setTelemetryHeight(Math.round(Math.max(minH, Math.min(maxH, next))));
+          setTelemetryHeight(Math.round(Math.max(st.minSize, Math.min(maxH, next))));
         }
       };
 
@@ -603,6 +612,7 @@ export default function ReplayPage() {
               {/* Expanded telemetry panel for 3+ drivers */}
               {showTelemetry && selectedDrivers.length > 2 && (
                 <div
+                ref={telemetryOuterPanelRef}
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
                     ? "h-full bg-[#1A1A26] border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
