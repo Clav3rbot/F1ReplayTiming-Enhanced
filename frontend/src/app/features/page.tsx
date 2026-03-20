@@ -151,26 +151,54 @@ export default function FeaturesPage() {
           </div>
         </section>
 
+        {/* Starting Grid */}
+        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
+          <h2 className="text-lg font-bold text-white mb-1">Starting Grid</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Race only</p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            For the first 10 seconds of the race, the leaderboard displays the starting grid order
+            before live timing data takes over.
+          </p>
+          <p className="text-f1-text leading-relaxed">
+            Where official starting grid data is unavailable, qualifying positions are used as a
+            fallback. This may not reflect grid penalties or other post-qualifying changes to the
+            starting order.
+          </p>
+        </section>
+
+        {/* Data Availability */}
+        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
+          <h2 className="text-lg font-bold text-white mb-1">Data Availability</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <p className="text-f1-text leading-relaxed">
+            Occasionally, timing data may be temporarily unavailable for a driver &mdash; for example,
+            during pit stops or if the F1 timing system has a brief gap. When this happens, the
+            affected driver is shown greyed out at the bottom of the leaderboard. They return to
+            their correct position as soon as data is available again.
+          </p>
+        </section>
+
         {/* Pit Position Prediction */}
         <section className="bg-f1-card border border-f1-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-bold text-white">Pit Position Prediction</h2>
-            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-f1-red/20 text-f1-red leading-none">Beta</span>
           </div>
           <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Race only</p>
           <p className="text-f1-text leading-relaxed mb-3">
             Shows the predicted position a driver would return to if they pitted right now. The prediction
-            uses precomputed pit loss times for each circuit, calculated from all 2025 race data.
+            uses precise pit lane times for each circuit, calculated from the actual pit entry and exit
+            timestamps across all 2025 race data.
           </p>
           <p className="text-f1-text leading-relaxed mb-3">
-            Pit loss is the total time lost by pitting, measured as the combined in-lap and out-lap time
-            minus two clean lap times. The prediction adds this loss to the driver&apos;s current gap and finds
-            where they&apos;d slot back into the order.
+            Pit loss is measured using the exact time each driver spends in the pit lane
+            (PitOutTime &minus; PitInTime), giving a precise per-circuit baseline unaffected by
+            driving pace on the rest of the lap. The prediction adds this loss to the driver&apos;s
+            current gap and finds where they&apos;d slot back into the order.
           </p>
           <p className="text-f1-text leading-relaxed mb-3">
-            Under Safety Car or Virtual Safety Car conditions, reduced pit loss values are used
-            (approximately 45% and 65% of the green flag loss respectively), reflecting the lower time
-            cost of pitting under caution. Predictions appear from lap 5 onwards.
+            Under Safety Car or Virtual Safety Car conditions, a reduced pit loss value is used
+            (73% of the green flag loss), reflecting the lower relative time cost of pitting
+            under caution. Predictions appear from lap 5 onwards.
           </p>
           <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
             Confidence indicator
@@ -298,12 +326,38 @@ export default function FeaturesPage() {
 
         {/* Track Status */}
         <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Track Status</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <h2 className="text-lg font-bold text-white mb-1">Track Status &amp; Flags</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Replay</p>
+          <p className="text-f1-text leading-relaxed mb-3">
+            Flag conditions are shown on the track map at marshal sector level, giving you a precise
+            view of where incidents are occurring rather than just a global status.
+          </p>
+          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+            Marshal sector flags
+          </h3>
+          <p className="text-f1-text leading-relaxed mb-3">
+            When a yellow or double yellow flag is waved, a coloured indicator appears at the exact
+            marshal sector position on the track map. If a specific driver is involved, their
+            three-letter abbreviation is shown next to the indicator.
+          </p>
+          <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
+            <li><span className="text-yellow-400 font-bold">Yellow circle</span> &mdash; single yellow flag in that marshal sector</li>
+            <li><span className="text-yellow-400 font-bold">Yellow circle with outer ring</span> &mdash; double yellow flag (more serious, drivers must slow significantly)</li>
+            <li><span className="text-red-400 font-bold">Red circle</span> &mdash; red flag at that location</li>
+          </ul>
+          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+            Full track colouring
+          </h3>
+          <p className="text-f1-text leading-relaxed mb-3">
+            For track-wide conditions, the entire track outline changes colour:
+          </p>
+          <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
+            <li><span className="text-yellow-400 font-bold">Yellow</span> &mdash; Safety Car or Virtual Safety Car deployed</li>
+            <li><span className="text-red-400 font-bold">Red</span> &mdash; session red flagged</li>
+          </ul>
           <p className="text-f1-text leading-relaxed">
-            The current track status is shown as a flag indicator: green flag, yellow flag, Safety Car,
-            Virtual Safety Car, or red flag. The track map border colour also changes to reflect the
-            current status.
+            Localised yellow flags (affecting one or two marshal sectors) do not colour the full track,
+            keeping the view clear so you can see exactly where the incident is.
           </p>
         </section>
 
@@ -321,16 +375,32 @@ export default function FeaturesPage() {
             subscription. These become available in replay mode once the session is processed via
             FastF1, typically 1&ndash;2 hours after the chequered flag.
           </p>
+          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+            Broadcast delay
+          </h3>
+          <p className="text-f1-text leading-relaxed">
+            The broadcast delay slider pauses the live data feed until it aligns with your streaming
+            service or TV broadcast. Set the delay to match how far behind your broadcast is, and the
+            leaderboard will update in sync with what you see on screen. Your delay setting is saved
+            automatically. You can also enter an exact delay value manually.
+          </p>
         </section>
 
         {/* Playback */}
         <section className="bg-f1-card border border-f1-border rounded-xl p-6">
           <h2 className="text-lg font-bold text-white mb-1">Playback Controls</h2>
           <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
-          <p className="text-f1-text leading-relaxed">
+          <p className="text-f1-text leading-relaxed mb-3">
             Control replay speed from 0.5x to 20x, skip forward and backward by 5 seconds, 30 seconds,
             1 minute, or 5 minutes, or jump directly to any lap. A progress bar shows the current position
             within the session. For qualifying and practice, elapsed and remaining session time are displayed.
+          </p>
+          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+            Session time
+          </h3>
+          <p className="text-f1-text leading-relaxed">
+            Total session time is hidden by default to avoid spoilers &mdash; a longer-than-expected
+            session can reveal red flags and stoppages. You can enable it in the settings menu.
           </p>
         </section>
 

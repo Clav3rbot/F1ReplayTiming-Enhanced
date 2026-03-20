@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SPEED_OPTIONS } from "@/lib/constants";
 import { QualiPhase, QualiPhaseInfo } from "@/hooks/useReplaySocket";
+import { Maximize, Minimize } from "lucide-react";
 
 const SKIP_OPTIONS = [
   { label: "5s", seconds: 5 },
@@ -30,6 +31,8 @@ interface Props {
   onSyncPhoto?: () => void;
   onPiP?: () => void;
   pipActive?: boolean;
+  onFullscreen?: () => void;
+  fullscreen?: boolean;
   qualiPhase?: QualiPhase | null;
   qualiPhases?: QualiPhaseInfo[];
 }
@@ -53,6 +56,8 @@ export default function PlaybackControls({
   onSyncPhoto,
   onPiP,
   pipActive,
+  onFullscreen,
+  fullscreen,
   qualiPhase,
   qualiPhases,
 }: Props) {
@@ -378,6 +383,15 @@ export default function PlaybackControls({
                   PiP
                 </button>
               )}
+              {onFullscreen && (
+                <button
+                  onClick={onFullscreen}
+                  className="px-3 py-1.5 rounded border border-f1-border text-f1-muted hover:text-white hover:bg-white/10 transition-colors text-xs font-bold"
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <Minimize className="w-4 h-4 inline-block -mt-0.5" /> : <Maximize className="w-4 h-4 inline-block -mt-0.5" />}
+                </button>
+              )}
             </>
           ) : qualiPhase ? (
             <div className="flex items-end gap-4 ml-auto">
@@ -415,6 +429,15 @@ export default function PlaybackControls({
                   PiP
                 </button>
               )}
+              {onFullscreen && (
+                <button
+                  onClick={onFullscreen}
+                  className="px-3 py-1.5 rounded border border-f1-border text-f1-muted hover:text-white hover:bg-white/10 transition-colors text-xs font-bold"
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <Minimize className="w-4 h-4 inline-block -mt-0.5" /> : <Maximize className="w-4 h-4 inline-block -mt-0.5" />}
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-4 ml-auto">
@@ -441,6 +464,15 @@ export default function PlaybackControls({
                     <rect x="12" y="10" width="10" height="10" rx="1" fill="currentColor" opacity="0.3" />
                   </svg>
                   PiP
+                </button>
+              )}
+              {onFullscreen && (
+                <button
+                  onClick={onFullscreen}
+                  className="px-3 py-1.5 rounded border border-f1-border text-f1-muted hover:text-white hover:bg-white/10 transition-colors text-xs font-bold"
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {fullscreen ? <Minimize className="w-4 h-4 inline-block -mt-0.5" /> : <Maximize className="w-4 h-4 inline-block -mt-0.5" />}
                 </button>
               )}
             </div>

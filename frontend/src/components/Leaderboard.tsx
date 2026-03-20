@@ -241,7 +241,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               {settings.showGapToLeader && (
                 isRace && isLeader && !drv.retired ? (
                   <span
-                    className="w-14 flex-shrink-0 flex justify-end"
+                    className="w-14 flex-shrink-0 flex justify-start"
                     onClick={(e) => { e.stopPropagation(); setShowInterval(!showInterval); }}
                   >
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white cursor-pointer hover:bg-white/20 transition-colors">
@@ -249,20 +249,27 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     </span>
                   </span>
                 ) : isRace ? (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right ${
-                    drv.in_pit && !drv.retired
-                      ? "text-yellow-400"
-                      : showInterval && settings.highlightClose && displayGap && (() => {
+                  drv.in_pit && !drv.retired ? (
+                    <span className="w-14 flex-shrink-0 text-left text-yellow-400">
+                      <span className="text-xs font-bold">PIT</span>
+                      {drv.pit_time != null && (
+                        <span className="text-[9px] font-bold ml-0.5 tabular-nums">{drv.pit_time.toFixed(1)}s</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className={`w-14 flex-shrink-0 text-xs font-bold text-left tabular-nums ${
+                      showInterval && settings.highlightClose && displayGap && (() => {
                           const val = parseFloat(displayGap.replace("+", ""));
                           return !isNaN(val) && val > 0 && val < 1;
                         })()
                         ? "text-green-400"
                         : "text-f1-muted"
-                  }`}>
-                    {displayGap}
-                  </span>
+                    }`}>
+                      {displayGap}
+                    </span>
+                  )
                 ) : (
-                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-right text-f1-muted`}>
+                  <span className={`w-14 flex-shrink-0 text-xs font-bold text-left tabular-nums text-f1-muted`}>
                     {displayGap}
                   </span>
                 )
@@ -288,14 +295,16 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                 </span>
               )}
 
-              {/* Pit stops - 20px (race only) */}
+              {/* Pit stops / chequered flag - 20px (race only) */}
               {isRace && settings.showPitStops && (
                 <span className="w-5 flex-shrink-0 flex items-center justify-center ml-1">
-                  {drv.pit_stops > 0 && (
+                  {drv.finished ? (
+                    <img src="/chequered-flag.png" alt="Finished" className="w-5 h-5 object-contain" />
+                  ) : drv.pit_stops > 0 ? (
                     <span className="w-5 h-5 border border-f1-muted rounded-sm flex items-center justify-center text-[10px] font-extrabold text-white">
                       {drv.pit_stops}
                     </span>
-                  )}
+                  ) : null}
                 </span>
               )}
 

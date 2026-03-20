@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay } from "@/lib/trackRenderer";
+import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
@@ -12,6 +12,9 @@ interface Props {
   playbackSpeed?: number;
   showDriverNames?: boolean;
   sectorOverlay?: SectorOverlay | null;
+  corners?: Corner[] | null;
+  marshalSectors?: MarshalSector[] | null;
+  sectorFlags?: SectorFlag[] | null;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -32,7 +35,7 @@ function getCanvasWindow(canvas: HTMLCanvasElement | null): Window {
 }
 
 
-export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null }: Props) {
+export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null, corners = null, marshalSectors = null, sectorFlags = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -47,6 +50,12 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
   showNamesRef.current = showDriverNames;
   const sectorOverlayRef = useRef(sectorOverlay);
   sectorOverlayRef.current = sectorOverlay;
+  const cornersRef = useRef(corners);
+  cornersRef.current = corners;
+  const marshalSectorsRef = useRef(marshalSectors);
+  marshalSectorsRef.current = marshalSectors;
+  const sectorFlagsRef = useRef(sectorFlags);
+  sectorFlagsRef.current = sectorFlags;
 
   // Update targets when drivers prop changes
   useEffect(() => {
@@ -115,7 +124,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current);
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, cornersRef.current, marshalSectorsRef.current, sectorFlagsRef.current);
 
       const now = performance.now();
       const curr = driversRef.current;
