@@ -303,14 +303,33 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     corners = None
     if corners_raw is not None:
         try:
+            def _pick(series_row, keys: list[str], default=None):
+                for k in keys:
+                    try:
+                        v = series_row.get(k, None)
+                    except Exception:
+                        v = None
+                    if v is not None and str(v) != "nan":
+                        return v
+                return default
+
             corners = []
             for _, c in corners_raw.iterrows():
+                x_val = _pick(c, ["X", "x", "PosX", "pos_x"])
+                y_val = _pick(c, ["Y", "y", "PosY", "pos_y"])
+                num_val = _pick(c, ["Number", "number", "CornerNumber", "Corner", "Corner_Num"])
+                letter_val = _pick(c, ["Letter", "letter", "CornerLetter", "corner_letter"], default="")
+                angle_val = _pick(c, ["Angle", "angle", "CornerAngle", "corner_angle"], default=0)
+
+                if x_val is None or y_val is None or num_val is None:
+                    continue
+
                 corners.append({
-                    "x": float((c["X"] - x_min) / scale),
-                    "y": float((c["Y"] - y_min) / scale),
-                    "number": int(c["Number"]),
-                    "letter": str(c.get("Letter", "")),
-                    "angle": float(c.get("Angle", 0)),
+                    "x": float((float(x_val) - x_min) / scale),
+                    "y": float((float(y_val) - y_min) / scale),
+                    "number": int(float(num_val)),
+                    "letter": str(letter_val) if letter_val is not None else "",
+                    "angle": float(angle_val) if angle_val is not None else 0,
                 })
             logger.info(f"Extracted {len(corners)} corner positions")
         except Exception as e:
@@ -321,12 +340,28 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     marshal_sectors = None
     if marshal_sectors_raw is not None:
         try:
+            def _pick(series_row, keys: list[str], default=None):
+                for k in keys:
+                    try:
+                        v = series_row.get(k, None)
+                    except Exception:
+                        v = None
+                    if v is not None and str(v) != "nan":
+                        return v
+                return default
+
             marshal_sectors = []
             for _, ms in marshal_sectors_raw.iterrows():
+                x_val = _pick(ms, ["X", "x", "PosX", "pos_x"])
+                y_val = _pick(ms, ["Y", "y", "PosY", "pos_y"])
+                num_val = _pick(ms, ["Number", "number", "MarshalNumber", "Marshal", "Marshal_Num"])
+                if x_val is None or y_val is None or num_val is None:
+                    continue
+
                 marshal_sectors.append({
-                    "x": float((ms["X"] - x_min) / scale),
-                    "y": float((ms["Y"] - y_min) / scale),
-                    "number": int(ms["Number"]),
+                    "x": float((float(x_val) - x_min) / scale),
+                    "y": float((float(y_val) - y_min) / scale),
+                    "number": int(float(num_val)),
                 })
             logger.info(f"Extracted {len(marshal_sectors)} marshal sector positions")
         except Exception as e:

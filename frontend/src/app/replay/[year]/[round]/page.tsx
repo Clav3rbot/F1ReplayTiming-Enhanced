@@ -331,18 +331,21 @@ export default function ReplayPage() {
           </div>
         )}
 
-        {/* Scrollable container for widgets on mobile, adaptive layout on desktop */}
-        <div className={`min-w-0 ${
-          isMobile
-            ? "flex flex-col flex-1 overflow-y-auto"
-            : showTelemetry && selectedDrivers.length > 2
-              ? `flex flex-1 overflow-hidden ${telemetryPosition === "left" ? "flex-row" : "flex-col"}`
-              : "flex flex-col flex-1 overflow-hidden"
-        }`}>
-          {/* Desktop Left Column */}
+        {/* Scroll container: keep widgets stack stable, only adapt map+telemetry layout */}
+        <div className="min-w-0 flex flex-col flex-1 overflow-hidden">
           {!isMobile && (
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-              <div className="flex-1 min-h-0 relative bg-black/40 overflow-hidden">
+            <div
+              className={`min-w-0 flex flex-1 overflow-hidden ${
+                showTelemetry && selectedDrivers.length > 2
+                  ? telemetryPosition === "left"
+                    ? "flex-row"
+                    : "flex-col"
+                  : "flex-col"
+              }`}
+            >
+              {/* Desktop Left Column */}
+              <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden relative">
+                <div className="flex-1 min-h-0 relative bg-black/40 overflow-hidden">
                 {/* RC toggle */}
                 <div className="absolute top-3 right-3 z-10">
                   <button
@@ -531,22 +534,30 @@ export default function ReplayPage() {
                     {showTelemetry ? "Hide" : "Show"} Telemetry
                   </button>
                 </div>
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Expanded telemetry panel for 3+ drivers - desktop only */}
-          {!isMobile && showTelemetry && selectedDrivers.length > 2 && (
-            <div
-              className={`flex-shrink-0 ${
-                telemetryPosition === "left"
-                  ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                  : "border-t border-f1-border py-1 flex overflow-hidden"
-              }`}
-              style={telemetryPosition === "left" && rcPinned && telemetryWidth > 0 ? { width: telemetryWidth + 24 } : undefined}
-            >
-              <div ref={telemetryPanelRef} className={telemetryPosition === "bottom" ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0" : ""}>
-                <div className="flex items-center gap-2 mb-1">
+              {/* Expanded telemetry panel for 3+ drivers */}
+              {showTelemetry && selectedDrivers.length > 2 && (
+                <div
+                  className={`flex-shrink-0 ${
+                    telemetryPosition === "left"
+                      ? "h-full bg-f1-card border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                      : "border-t border-f1-border py-1 flex overflow-hidden"
+                  }`}
+                  style={
+                    telemetryPosition === "left" && rcPinned && telemetryWidth > 0
+                      ? { width: telemetryWidth + 24 }
+                      : undefined
+                  }
+                >
+                  <div
+                    ref={telemetryPanelRef}
+                    className={
+                      telemetryPosition === "bottom" ? "inline-block bg-f1-card px-3 pt-1 flex-shrink-0" : ""
+                    }
+                  >
+                    <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
                   <button
                     onClick={() => setTelemetryPosition(telemetryPosition === "left" ? "bottom" : "left")}
@@ -628,11 +639,13 @@ export default function ReplayPage() {
                   </div>
                 </div>
               )}
+                </div>
+              )}
             </div>
           )}
 
           {/* Widgets that scroll below map on mobile */}
-          <div className={`${isMobile ? "pb-24" : "flex flex-col"}`}>
+          <div className={isMobile ? "flex flex-col flex-1 overflow-y-auto pb-24" : "flex flex-col"}>
             {/* Race Control - Mobile with colored indicators */}
             {isMobile && (
               <div className="border-b border-f1-border">

@@ -192,7 +192,8 @@ export function drawTrack(
 
   // Corner labels
   if (corners && corners.length > 0) {
-    ctx.font = `bold ${compact ? 11 : 10}px sans-serif`;
+    const fontSize = compact ? 12 : 13;
+    ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -207,10 +208,10 @@ export function drawTrack(
       // Offset label away from track using the angle.
       // Clamp to canvas bounds so labels don't get clipped on smaller layouts.
       const labelRad = ((c.angle + rotation) * Math.PI) / 180;
-      const labelOffset = compact ? 14 : 12;
+      const labelOffset = compact ? 16 : 13;
       const lxRaw = screenX + Math.cos(labelRad) * labelOffset;
       const lyRaw = screenY - Math.sin(labelRad) * labelOffset;
-      const textMargin = compact ? 6 : 8;
+      const textMargin = compact ? 8 : 10;
       const lx = Math.min(Math.max(lxRaw, textMargin), width - textMargin);
       const ly = Math.min(Math.max(lyRaw, textMargin), height - textMargin);
 
@@ -219,8 +220,20 @@ export function drawTrack(
       // Strong contrast for dark map background (fill + stroke)
       ctx.lineWidth = compact ? 3 : 2;
       ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+      const metrics = ctx.measureText(label);
+      const textW = metrics.width;
+      const textH = fontSize;
+
+      // Draw a semi-transparent plate behind the label for readability.
+      ctx.save();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      const padX = 4;
+      const padY = 3;
+      ctx.fillRect(lx - textW / 2 - padX, ly - textH / 2 - padY, textW + padX * 2, textH + padY * 2);
+      ctx.restore();
+
       ctx.strokeText(label, lx, ly);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.98)";
       ctx.fillText(label, lx, ly);
     }
   }
