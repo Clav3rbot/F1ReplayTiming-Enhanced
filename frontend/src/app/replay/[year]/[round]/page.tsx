@@ -560,14 +560,14 @@ export default function ReplayPage() {
                 className={`flex-shrink-0 relative ${
                   telemetryPosition === "left"
                     ? "h-full glass-panel-heavy border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
-                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
+                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden"
                 }`}
                 >
                   <div
                     ref={telemetryPanelRef}
                     className={
                       telemetryPosition === "bottom"
-                        ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
+                        ? "inline-block glass-panel-heavy px-3 pt-1 flex-shrink-0 max-h-full overflow-y-auto"
                         : ""
                     }
                   >
@@ -592,7 +592,7 @@ export default function ReplayPage() {
                     Hide
                   </button>
                 </div>
-                <div className={telemetryPosition === "bottom" ? "flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto pr-1" : "flex flex-col gap-1"}>
+                <div className="flex flex-col gap-1">
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
                     return <TelemetryChart key={abbr} visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />;
