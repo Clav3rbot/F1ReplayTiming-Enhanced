@@ -561,27 +561,7 @@ export default function PlaybackControls({
     </div>
   );
 
-  /** Mobile originale: PiP come pulsante dedicato (desktop resta su menu ⋯). */
-  const pipButton = onPiP && (
-    <button
-      type="button"
-      onClick={onPiP}
-      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${
-        pipActive
-          ? "bg-f1-red text-white"
-          : "bg-white/5 text-f1-muted hover:bg-white/10 hover:text-white"
-      }`}
-      title="Picture-in-Picture"
-    >
-      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
-        <path d="M12 11h6v6h-6z" />
-      </svg>
-      PiP
-    </button>
-  );
-
-  /* ─── Mobile layout (comportamento classico: una riga + espanso con tutti gli skip) ─── */
+  /* ─── Mobile layout: niente PiP (solo desktop nel menu ⋯) ─── */
   const mobileLayout = (
     <div className="md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
       <div className="px-3 pt-2 pb-1">
@@ -595,7 +575,6 @@ export default function PlaybackControls({
           {!isRace && qualiPhase && <span className="ml-2 font-sans text-f1-muted">{qualiPhase.phase}</span>}
         </span>
         {speedSelector}
-        {pipButton}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
