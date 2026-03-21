@@ -579,7 +579,7 @@ export default function ReplayPage() {
                 <div
                 className={`flex-shrink-0 relative min-h-0 ${
                   telemetryPosition === "left"
-                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,30rem)] max-w-[100vw] md:w-[min(100%,32rem)]"
+                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,28rem)] max-w-[100vw] md:w-[min(100%,30rem)]"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
@@ -615,15 +615,22 @@ export default function ReplayPage() {
                 <div
                   className={`gap-1 ${
                     telemetryPosition === "bottom"
-                      ? "flex flex-col overflow-y-auto flex-1 min-h-0 pr-1"
-                      : "flex flex-col pr-1"
+                      ? "relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain pr-1.5 pb-2"
+                      : "flex max-h-[42vh] flex-col overflow-y-auto overscroll-y-contain pr-1.5"
                   }`}
                 >
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
                     return (
                       <div key={abbr}>
-                        <TelemetryChart visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />
+                        <TelemetryChart
+                          visible
+                          driver={drv}
+                          year={year}
+                          isQualifying={isQualifying}
+                          useImperial={settings.useImperial}
+                          sidebar={telemetryPosition === "left" || telemetryPosition === "bottom"}
+                        />
                       </div>
                     );
                   })}

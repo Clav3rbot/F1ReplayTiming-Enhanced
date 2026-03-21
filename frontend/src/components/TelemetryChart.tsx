@@ -9,6 +9,7 @@ interface Props {
   year?: number;
   isQualifying?: boolean;
   useImperial?: boolean;
+  sidebar?: boolean;
 }
 
 function BarPips({
@@ -80,7 +81,7 @@ function useSmoothedNumber(target: number, stiffness = 0.2) {
   return value;
 }
 
-export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial }: Props) {
+export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial, sidebar = false }: Props) {
   const hasDrs = !year || year < 2026;
   if (!visible) return null;
 
@@ -107,8 +108,12 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
 
   return (
-    <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative min-w-[430px]">
-      <div className="flex items-center gap-2 sm:gap-4 relative z-10 min-w-0">
+    <div
+      className={`glass-panel-heavy border-f1-border rounded-xl py-2 shadow-2xl overflow-hidden relative ${
+        sidebar ? "min-w-0 w-full pl-2.5 pr-3" : "min-w-[430px] pl-3 pr-4 sm:pl-4 sm:pr-5"
+      }`}
+    >
+      <div className={`flex items-center relative z-10 min-w-0 ${sidebar ? "gap-2" : "gap-2 sm:gap-4"}`}>
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
           <span
@@ -142,7 +147,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
           <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {speed}
           </span>
-          <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>
+          {!sidebar && <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>}
         </div>
 
         {/* Throttle */}
