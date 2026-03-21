@@ -266,7 +266,11 @@ export default function ReplayPage() {
         />
       )}
       {/* Main content grid */}
-      <div className={`flex-1 flex min-h-0 ${isMobile ? "flex-col overflow-hidden" : "overflow-hidden"}`}>
+      <div
+        className={`flex min-h-0 flex-1 min-w-0 ${
+          isMobile ? "flex-col overflow-hidden" : "overflow-hidden"
+        }`}
+      >
         {/* Mobile: Map is fixed height at top, rest scrolls */}
         {isMobile && (
           <div className="flex-shrink-0 z-40 bg-f1-bg border-b border-f1-border flex flex-col" style={{ height: '40vh' }}>
@@ -324,11 +328,12 @@ export default function ReplayPage() {
           </div>
         )}
 
-        {/* Scroll container: keep widgets stack stable, only adapt map+telemetry layout */}
-        <div className="min-w-0 flex flex-col flex-1 overflow-hidden">
+        {/* Map/telemetry: overflow nascosto; widget + playbar nella colonna centrale */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div
-              className={`min-w-0 flex flex-1 overflow-hidden ${
+              className={`min-w-0 flex min-h-0 flex-1 overflow-hidden ${
                 showTelemetry && selectedDrivers.length > 2
                   ? telemetryPosition === "left"
                     ? "flex-row"
@@ -670,10 +675,15 @@ export default function ReplayPage() {
                 </div>
               )}
             </div>
+            </div>
           )}
 
           {/* Widgets that scroll below map on mobile */}
-          <div className={isMobile ? "flex flex-col flex-1 overflow-y-auto pb-24" : "flex flex-col"}>
+          <div
+            className={
+              isMobile ? "flex min-w-0 flex-1 flex-col overflow-y-auto pb-24" : "flex min-w-0 flex-shrink-0 flex-col overflow-x-visible"
+            }
+          >
             {/* Race Control - Mobile with colored indicators */}
             {isMobile && (
               <div className="border-b border-f1-border">
