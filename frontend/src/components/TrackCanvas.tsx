@@ -56,7 +56,12 @@ export default function TrackCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const panStartRef = useRef<{ touchX: number; touchY: number; baseX: number; baseY: number } | null>(null);
+
+  /** Two-finger touch or mouse drag (PC) */
+  type PanSession =
+    | { mode: "twofinger"; originX: number; originY: number; baseX: number; baseY: number }
+    | { mode: "mouse"; pointerId: number; originX: number; originY: number; baseX: number; baseY: number };
+  const panSessionRef = useRef<PanSession | null>(null);
 
   const posRef = useRef<Map<string, PosEntry>>(new Map());
   const driversRef = useRef<DriverMarker[]>([]);
@@ -229,10 +234,11 @@ export default function TrackCanvas({
     return () => observer.disconnect();
   }, []);
 
-  // Two-finger pan gesture (mobile/tablet): move map without changing zoom.
+  // Pan: two-finger touch (tablet) or click-drag with mouse (PC).
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
 
     const clampPan = (x: number, y: number) => {
       const { w, h } = sizeRef.current;
@@ -254,9 +260,10 @@ export default function TrackCanvas({
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 2) return;
       const mid = midpoint(e.touches[0], e.touches[1]);
-      panStartRef.current = {
-        touchX: mid.x,
-        touchY: mid.y,
+      panSessionRef.current = {
+        mode: "twofinger",
+        originX: mid.x,
+        originY: mid.y,
         baseX: panRef.current.x,
         baseY: panRef.current.y,
       };
@@ -264,16 +271,59 @@ export default function TrackCanvas({
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || !panStartRef.current) return;
+      const s = panSessionRef.current;
+      if (e.touches.length !== 2 || !s || s.mode !== "twofinger") return;
       const mid = midpoint(e.touches[0], e.touches[1]);
-      const dx = mid.x - panStartRef.current.touchX;
-      const dy = mid.y - panStartRef.current.touchY;
-      panRef.current = clampPan(panStartRef.current.baseX + dx, panStartRef.current.baseY + dy);
+      const dx = mid.x - s.originX;
+      const dy = mid.y - s.originY;
+      panRef.current = clampPan(s.baseX + dx, s.baseY + dy);
       e.preventDefault();
     };
 
     const onTouchEnd = () => {
-      if (panStartRef.current) panStartRef.current = null;
+      const s = panSessionRef.current;
+      if (s?.mode === "twofinger") panSessionRef.current = null;
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      if (panSessionRef.current?.mode === "twofinger") return;
+      panSessionRef.current = {
+        mode: "mouse",
+        pointerId: e.pointerId,
+        originX: e.clientX,
+        originY: e.clientY,
+        baseX: panRef.current.x,
+        baseY: panRef.current.y,
+      };
+      canvas.style.cursor = "grabbing";
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      e.preventDefault();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const s = panSessionRef.current;
+      if (!s || s.mode !== "mouse" || s.pointerId !== e.pointerId) return;
+      const dx = e.clientX - s.originX;
+      const dy = e.clientY - s.originY;
+      panRef.current = clampPan(s.baseX + dx, s.baseY + dy);
+      e.preventDefault();
+    };
+
+    const endMousePan = (e: PointerEvent) => {
+      const s = panSessionRef.current;
+      if (!s || s.mode !== "mouse" || s.pointerId !== e.pointerId) return;
+      panSessionRef.current = null;
+      canvas.style.cursor = "";
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
     };
 
     container.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -281,11 +331,23 @@ export default function TrackCanvas({
     container.addEventListener("touchend", onTouchEnd);
     container.addEventListener("touchcancel", onTouchEnd);
 
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", endMousePan);
+    canvas.addEventListener("pointercancel", endMousePan);
+    canvas.addEventListener("lostpointercapture", endMousePan);
+
     return () => {
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
       container.removeEventListener("touchend", onTouchEnd);
       container.removeEventListener("touchcancel", onTouchEnd);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", endMousePan);
+      canvas.removeEventListener("pointercancel", endMousePan);
+      canvas.removeEventListener("lostpointercapture", endMousePan);
+      canvas.style.cursor = "";
     };
   }, []);
 
@@ -297,7 +359,10 @@ export default function TrackCanvas({
   }, [zoom]);
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-f1-dark overflow-hidden touch-none">
+    <div
+      ref={containerRef}
+      className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing"
+    >
       <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );

@@ -213,11 +213,10 @@ export function drawTrack(
       // Keep labels further from the racing line for readability,
       // matching the spacing used in main.
       const labelOffset = compact ? 18 : 16;
-      const lxRaw = screenX + Math.cos(labelRad) * labelOffset;
-      const lyRaw = screenY - Math.sin(labelRad) * labelOffset;
-      const textMargin = compact ? 8 : 10;
-      const lx = Math.min(Math.max(lxRaw, textMargin), width - textMargin);
-      const ly = Math.min(Math.max(lyRaw, textMargin), height - textMargin);
+      // Do not clamp to canvas edges: that pins labels to the viewport border when zoom/pan moves
+      // the track, so numbers appear to "slide" off the real corner. Use geometric position only.
+      const lx = screenX + Math.cos(labelRad) * labelOffset;
+      const ly = screenY - Math.sin(labelRad) * labelOffset;
 
       const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
 
