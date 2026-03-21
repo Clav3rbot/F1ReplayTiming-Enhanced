@@ -146,7 +146,13 @@ export default function TrackCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      const { x: panX, y: panY } = panRef.current;
+      // Pan on the 2D context (not CSS transform): moving the <canvas> element under overflow:hidden
+      // clips the bitmap and leaves empty margins. Translate here keeps the full viewport as the bitmap.
+      const px = panRef.current.x;
+      const py = panRef.current.y;
+      ctx.save();
+      ctx.translate(px, py);
+
       drawTrack(
         ctx,
         trackPoints,
@@ -160,8 +166,8 @@ export default function TrackCanvas({
         cornersRef.current,
         marshalSectorsRef.current,
         sectorFlagsRef.current,
-        panX,
-        panY,
+        0,
+        0,
       );
 
       const now = performance.now();
@@ -189,9 +195,11 @@ export default function TrackCanvas({
         showNamesRef.current,
         compactRef.current,
         zoomRef.current,
-        panX,
-        panY,
+        0,
+        0,
       );
+
+      ctx.restore();
 
       hostWindow.requestAnimationFrame(animate);
     }
@@ -224,18 +232,14 @@ export default function TrackCanvas({
   // Two-finger pan gesture (mobile/tablet): move map without changing zoom.
   useEffect(() => {
     const container = containerRef.current;
-    const canvas = canvasRef.current;
-    if (!container || !canvas) return;
-
-    /** Pan is applied inside drawTrack/drawDrivers (pixel offset) — not CSS translate, so overflow:hidden on the container does not clip the map. */
-    const applyPan = () => {
-      canvas.style.transform = "";
-    };
+    if (!container) return;
 
     const clampPan = (x: number, y: number) => {
       const { w, h } = sizeRef.current;
-      const maxX = Math.max(40, w * 0.35);
-      const maxY = Math.max(40, h * 0.35);
+      const z = Math.max(1, zoomRef.current);
+      // Zoom enlarges the track in the padded box; allow proportionally more pan so edges stay reachable.
+      const maxX = Math.max(56, w * 0.42 * z);
+      const maxY = Math.max(56, h * 0.42 * z);
       return {
         x: Math.max(-maxX, Math.min(maxX, x)),
         y: Math.max(-maxY, Math.min(maxY, y)),
@@ -265,7 +269,6 @@ export default function TrackCanvas({
       const dx = mid.x - panStartRef.current.touchX;
       const dy = mid.y - panStartRef.current.touchY;
       panRef.current = clampPan(panStartRef.current.baseX + dx, panStartRef.current.baseY + dy);
-      applyPan();
       e.preventDefault();
     };
 
@@ -277,7 +280,6 @@ export default function TrackCanvas({
     container.addEventListener("touchmove", onTouchMove, { passive: false });
     container.addEventListener("touchend", onTouchEnd);
     container.addEventListener("touchcancel", onTouchEnd);
-    applyPan();
 
     return () => {
       container.removeEventListener("touchstart", onTouchStart);
@@ -287,9 +289,16 @@ export default function TrackCanvas({
     };
   }, []);
 
+  // Keep pan origin consistent when zoom buttons change; clear any stray CSS transform.
+  useEffect(() => {
+    panRef.current = { x: 0, y: 0 };
+    const canvas = canvasRef.current;
+    if (canvas) canvas.style.transform = "";
+  }, [zoom]);
+
   return (
     <div ref={containerRef} className="w-full h-full bg-f1-dark overflow-hidden touch-none">
-      <canvas ref={canvasRef} className="w-full h-full will-change-transform" />
+      <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );
 }
