@@ -763,7 +763,7 @@ export default function ReplayPage() {
             )}
 
             {/* Playback Controls */}
-            <div className="bg-f1-dark sticky bottom-0 z-50 sm:relative sm:z-10">
+            <div className="sticky bottom-0 z-50 overflow-visible bg-f1-dark sm:relative sm:z-10">
               <PlaybackControls
                 playing={replay.playing}
                 speed={replay.speed}
@@ -794,6 +794,7 @@ export default function ReplayPage() {
                 fullscreen={fullscreen}
                 qualiPhase={replay.frame?.quali_phase}
                 qualiPhases={replay.qualiPhases}
+                lapStarts={replay.lapStarts}
               />
             </div>
 
@@ -1015,6 +1016,7 @@ export default function ReplayPage() {
                 isRace={isRace}
                 qualiPhase={replay.frame?.quali_phase}
                 qualiPhases={replay.qualiPhases}
+                lapStarts={replay.lapStarts}
               />
             </div>
           </div>

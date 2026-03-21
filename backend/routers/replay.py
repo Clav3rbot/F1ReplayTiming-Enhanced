@@ -295,12 +295,32 @@ async def replay_websocket(
                 seen_phases.add(qp["phase"])
                 quali_phases.append({"phase": qp["phase"], "timestamp": f["timestamp"]})
 
+        # First session timestamp per lap (race/sprint) — used by the player scrubber
+        lap_starts = None
+        if is_race:
+            seen_laps = set()
+            lap_list = []
+            for f in frames:
+                lap = f.get("lap")
+                if lap is None:
+                    continue
+                try:
+                    li = int(lap)
+                except (TypeError, ValueError):
+                    continue
+                if li > 0 and li not in seen_laps:
+                    seen_laps.add(li)
+                    lap_list.append({"lap": li, "timestamp": float(f["timestamp"])})
+            lap_list.sort(key=lambda x: x["lap"])
+            lap_starts = lap_list if lap_list else None
+
         await websocket.send_json({
             "type": "ready",
             "total_frames": len(frames),
             "total_time": frames[-1]["timestamp"] if frames else 0,
             "total_laps": frames[-1]["total_laps"] if frames else 0,
             "quali_phases": quali_phases if quali_phases else None,
+            "lap_starts": lap_starts,
         })
 
         # Helper to send a frame with pit predictions added

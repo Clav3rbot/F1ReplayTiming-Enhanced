@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { SPEED_OPTIONS } from "@/lib/constants";
-import { QualiPhase, QualiPhaseInfo } from "@/hooks/useReplaySocket";
+import { QualiPhase, QualiPhaseInfo, type LapStart } from "@/hooks/useReplaySocket";
 import { Maximize, Minimize, MoreHorizontal } from "lucide-react";
 
 const SKIP_OPTIONS = [
@@ -12,6 +12,31 @@ const SKIP_OPTIONS = [
   { label: "1m", seconds: 60 },
   { label: "5m", seconds: 300 },
 ];
+
+/** Lap number at session time `t` using server-provided lap start times (or coarse fallback). */
+function lapAtSessionTime(
+  t: number,
+  lapStarts: LapStart[],
+  totalTime: number,
+  totalLaps: number,
+  fallbackLap: number,
+): number {
+  if (totalLaps <= 0) return Math.max(0, fallbackLap);
+  const x = totalTime > 0 ? Math.max(0, Math.min(t, totalTime)) : Math.max(0, t);
+  if (lapStarts.length > 0) {
+    let lap = 1;
+    for (const seg of lapStarts) {
+      if (seg.timestamp <= x) lap = seg.lap;
+      else break;
+    }
+    return Math.min(Math.max(1, lap), totalLaps);
+  }
+  if (totalTime > 0) {
+    const est = Math.max(1, Math.ceil((x / totalTime) * totalLaps));
+    return Math.min(est, totalLaps);
+  }
+  return Math.min(Math.max(1, fallbackLap || 1), totalLaps);
+}
 
 const PLAYBAR_ICON_BTN =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
@@ -171,6 +196,8 @@ interface Props {
   fullscreen?: boolean;
   qualiPhase?: QualiPhase | null;
   qualiPhases?: QualiPhaseInfo[];
+  /** Session timestamps when each lap starts (race/sprint) — from replay WebSocket `ready` */
+  lapStarts?: LapStart[];
 }
 
 export default function PlaybackControls({
@@ -196,6 +223,7 @@ export default function PlaybackControls({
   fullscreen,
   qualiPhase,
   qualiPhases,
+  lapStarts = [],
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
@@ -218,6 +246,11 @@ export default function PlaybackControls({
   const fillPct = Math.min(100, Math.max(0, progress));
   const isScrubbing = scrubTime !== null;
   const displayedSeconds = timelineSeconds;
+
+  const scrubLapDisplay = useMemo(() => {
+    if (!isRace || totalLaps <= 0) return null;
+    return lapAtSessionTime(timelineSeconds, lapStarts, totalTime, totalLaps, currentLap);
+  }, [isRace, totalLaps, timelineSeconds, lapStarts, totalTime, currentLap]);
 
   // Drop committed overlay once real playback time reflects the seek (or same-timestamp seek).
   useEffect(() => {
@@ -468,28 +501,56 @@ export default function PlaybackControls({
     </button>
   );
 
-  const progressBar = (
-    <div
-      ref={progressBarRef}
-      className="w-full h-1.5 bg-white/10 rounded-full cursor-pointer relative group hover:h-2.5 transition-[height] duration-150 ease-out select-none"
-      style={{ touchAction: "none" }}
-      onPointerDown={startScrub}
-      onClick={(e) => {
-        if (ignoreNextClickRef.current) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const pct = (e.clientX - rect.left) / rect.width;
-        commitSeek(pct * totalTime);
-      }}
-    >
+  const progressBarSection = (
+    <div className="w-full overflow-visible">
       <div
-        className="h-full bg-f1-red rounded-full relative shadow-[0_0_10px_rgba(225,6,0,0.3)]"
-        style={{ width: `${fillPct}%`, transition: "none" }}
+        ref={progressBarRef}
+        className="w-full h-1.5 cursor-pointer rounded-full bg-white/10 relative z-10 select-none group transition-[height] duration-150 ease-out hover:h-2.5"
+        style={{ touchAction: "none" }}
+        onPointerDown={startScrub}
+        onClick={(e) => {
+          if (ignoreNextClickRef.current) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const pct = (e.clientX - rect.left) / rect.width;
+          commitSeek(pct * totalTime);
+        }}
       >
         <div
-          className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full transition-opacity shadow-[0_0_8px_rgba(255,255,255,0.8)] ${
-            isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-        />
+          className="relative h-full rounded-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.3)]"
+          style={{ width: `${fillPct}%`, transition: "none" }}
+        >
+          {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
+          <div className="pointer-events-none absolute right-0 top-1/2 z-[60] -translate-y-1/2">
+            <div className="relative flex items-center justify-center">
+              {scrubLapDisplay != null && isScrubbing && (
+                <div
+                  className="absolute bottom-full left-1/2 z-[61] mb-1.5 flex -translate-x-1/2 justify-center"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="session-scrub-lap-bubble rounded-lg border border-white/10 bg-[#1a1a26] bg-glass-gradient px-2.5 py-1 shadow-2xl shadow-black/45 backdrop-blur-xl ring-1 ring-inset ring-white/[0.05]">
+                    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-f1-muted sm:text-[10px]">
+                        Lap
+                      </span>
+                      <div className="flex items-baseline gap-px font-mono tabular-nums">
+                        <span className="text-[11px] font-bold leading-none text-white sm:text-xs">{scrubLapDisplay}</span>
+                        <span className="text-[10px] font-semibold leading-none text-f1-muted/75 sm:text-[11px]">
+                          /{totalLaps}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div
+                className={`h-3 w-3 shrink-0 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-opacity ${
+                  isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }`}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -564,8 +625,8 @@ export default function PlaybackControls({
   /* ─── Mobile layout: niente PiP (solo desktop nel menu ⋯) ─── */
   const mobileLayout = (
     <div className="md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}>
-      <div className="px-3 pt-2 pb-1">
-        {progressBar}
+      <div className="overflow-visible px-3 pb-1 pt-3">
+        {progressBarSection}
       </div>
       <div className="flex items-center gap-2 px-3 py-1.5">
         {playPauseBtn}
@@ -676,7 +737,7 @@ export default function PlaybackControls({
   /* ─── Desktop layout ─── */
   const desktopLayout = (
     <div className="hidden min-w-0 max-w-full md:block px-5 py-3">
-      <div className="mb-3">{progressBar}</div>
+      <div className="mb-3 overflow-visible pt-1">{progressBarSection}</div>
 
       {/* <lg: tutto centrato. lg+: griglia — centro comprimibile + skip scrollabili, destra `auto` così 1x/LAP/⋯/FS restano sempre visibili. */}
       <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-4">
@@ -804,7 +865,7 @@ export default function PlaybackControls({
   );
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible bg-f1-dark/95 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible overflow-y-visible bg-f1-dark/95 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:overflow-y-visible sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl">
       {mobileLayout}
       {desktopLayout}
     </div>

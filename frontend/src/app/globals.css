@@ -219,3 +219,23 @@ input, textarea, select {
     will-change: auto;
   }
 }
+
+/* Playbar: chip giro mentre si scrubba — fade leggero (no transform: non interferisce col layout) */
+@keyframes session-scrub-lap-bubble-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.session-scrub-lap-bubble {
+  animation: session-scrub-lap-bubble-in 0.12s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-scrub-lap-bubble {
+    animation: none;
+  }
+}

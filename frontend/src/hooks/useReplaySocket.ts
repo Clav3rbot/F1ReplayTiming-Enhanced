@@ -81,6 +81,12 @@ export interface QualiPhaseInfo {
   timestamp: number;
 }
 
+/** First session time (s) at which each lap number appears in the replay (race/sprint). */
+export interface LapStart {
+  lap: number;
+  timestamp: number;
+}
+
 interface ReplayState {
   connected: boolean;
   ready: boolean;
@@ -91,6 +97,7 @@ interface ReplayState {
   totalTime: number;
   totalLaps: number;
   qualiPhases: QualiPhaseInfo[];
+  lapStarts: LapStart[];
   finished: boolean;
   error: string | null;
 }
@@ -107,6 +114,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
     totalTime: 0,
     totalLaps: 0,
     qualiPhases: [],
+    lapStarts: [],
     finished: false,
     error: null,
   });
@@ -135,6 +143,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
             totalTime: msg.total_time,
             totalLaps: msg.total_laps,
             qualiPhases: msg.quali_phases || [],
+            lapStarts: Array.isArray(msg.lap_starts) ? msg.lap_starts : [],
           }));
           // Request first frame so cars are visible before play
           if (ws.readyState === WebSocket.OPEN) {
