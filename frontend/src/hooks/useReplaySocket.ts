@@ -87,6 +87,12 @@ export interface LapStart {
   timestamp: number;
 }
 
+/** Run-length encoding of `frame.lap` in frame order — matches server seek (first frame with timestamp >= t). */
+export interface FrameLapsRleSegment {
+  lap: number;
+  count: number;
+}
+
 interface ReplayState {
   connected: boolean;
   ready: boolean;
@@ -98,6 +104,9 @@ interface ReplayState {
   totalLaps: number;
   qualiPhases: QualiPhaseInfo[];
   lapStarts: LapStart[];
+  totalFrames: number;
+  frameLapsRle: FrameLapsRleSegment[];
+  replaySampleInterval: number;
   finished: boolean;
   error: string | null;
 }
@@ -115,6 +124,9 @@ export function useReplaySocket(year: number, round: number, sessionType: string
     totalLaps: 0,
     qualiPhases: [],
     lapStarts: [],
+    totalFrames: 0,
+    frameLapsRle: [],
+    replaySampleInterval: 0.5,
     finished: false,
     error: null,
   });
@@ -135,7 +147,17 @@ export function useReplaySocket(year: number, round: number, sessionType: string
         case "status":
           setState((s) => ({ ...s, loading: true }));
           break;
-        case "ready":
+        case "ready": {
+          const rleRaw = Array.isArray(msg.frame_laps_rle) ? msg.frame_laps_rle : [];
+          const frameLapsRle: FrameLapsRleSegment[] = rleRaw
+            .map((row: { lap?: unknown; count?: unknown }) => ({
+              lap: Number(row.lap),
+              count: Number(row.count),
+            }))
+            .filter(
+              (row: FrameLapsRleSegment) =>
+                Number.isFinite(row.lap) && row.lap >= 1 && Number.isFinite(row.count) && row.count > 0,
+            );
           setState((s) => ({
             ...s,
             ready: true,
@@ -144,12 +166,19 @@ export function useReplaySocket(year: number, round: number, sessionType: string
             totalLaps: msg.total_laps,
             qualiPhases: msg.quali_phases || [],
             lapStarts: Array.isArray(msg.lap_starts) ? msg.lap_starts : [],
+            totalFrames: typeof msg.total_frames === "number" ? msg.total_frames : 0,
+            frameLapsRle,
+            replaySampleInterval:
+              typeof msg.replay_sample_interval === "number" && msg.replay_sample_interval > 0
+                ? msg.replay_sample_interval
+                : 0.5,
           }));
           // Request first frame so cars are visible before play
           if (ws.readyState === WebSocket.OPEN) {
             ws.send("seek:0");
           }
           break;
+        }
         case "frame":
           setState((s) => ({
             ...s,

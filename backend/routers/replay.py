@@ -295,8 +295,15 @@ async def replay_websocket(
                 seen_phases.add(qp["phase"])
                 quali_phases.append({"phase": qp["phase"], "timestamp": f["timestamp"]})
 
-        # First session timestamp per lap (race/sprint) — used by the player scrubber
+        # First session timestamp per lap (race/sprint) — legacy / fallback
         lap_starts = None
+        # Run-length lap list per frame index — matches send_seek_frame (first frame with timestamp >= t)
+        frame_laps_rle = None
+        replay_sample_interval = 0.5
+        if len(frames) >= 2:
+            replay_sample_interval = float(frames[1]["timestamp"]) - float(frames[0]["timestamp"])
+            if replay_sample_interval <= 0:
+                replay_sample_interval = 0.5
         if is_race:
             seen_laps = set()
             lap_list = []
@@ -314,6 +321,21 @@ async def replay_websocket(
             lap_list.sort(key=lambda x: x["lap"])
             lap_starts = lap_list if lap_list else None
 
+            rle = []
+            for f in frames:
+                lap = f.get("lap")
+                try:
+                    li = int(lap) if lap is not None else 1
+                except (TypeError, ValueError):
+                    li = 1
+                if li < 1:
+                    li = 1
+                if not rle or rle[-1]["lap"] != li:
+                    rle.append({"lap": li, "count": 1})
+                else:
+                    rle[-1]["count"] += 1
+            frame_laps_rle = rle if rle else None
+
         await websocket.send_json({
             "type": "ready",
             "total_frames": len(frames),
@@ -321,6 +343,8 @@ async def replay_websocket(
             "total_laps": frames[-1]["total_laps"] if frames else 0,
             "quali_phases": quali_phases if quali_phases else None,
             "lap_starts": lap_starts,
+            "frame_laps_rle": frame_laps_rle,
+            "replay_sample_interval": replay_sample_interval,
         })
 
         # Helper to send a frame with pit predictions added

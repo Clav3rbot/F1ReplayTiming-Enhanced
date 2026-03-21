@@ -57,6 +57,9 @@ export function drawTrack(
   corners?: Corner[] | null,
   marshalSectors?: MarshalSector[] | null,
   sectorFlags?: SectorFlag[] | null,
+  /** Pixel pan (tablet); apply in draw space so overflow:hidden does not clip the map */
+  panX: number = 0,
+  panY: number = 0,
 ) {
   if (points.length === 0) return;
 
@@ -102,8 +105,8 @@ export function drawTrack(
 
   function toScreen(p: TrackPoint): [number, number] {
     return [
-      offsetX + (p.x - minX) * scale,
-      offsetY + (maxY - p.y) * scale, // Flip Y: data Y-up → screen Y-down
+      offsetX + (p.x - minX) * scale + panX,
+      offsetY + (maxY - p.y) * scale + panY, // Flip Y: data Y-up → screen Y-down
     ];
   }
 
@@ -296,6 +299,8 @@ export function drawDrivers(
   showNames: boolean = true,
   compact: boolean = false,
   zoom: number = 1,
+  panX: number = 0,
+  panY: number = 0,
 ) {
   if (trackPoints.length === 0) return;
 
@@ -338,8 +343,8 @@ export function drawDrivers(
     const rx = dx * cos - dy * sin + cx;
     const ry = dx * sin + dy * cos + cy;
 
-    const sx = offsetX + (rx - minX) * scale;
-    const sy = offsetY + (maxY - ry) * scale; // Flip Y: data Y-up → screen Y-down
+    const sx = offsetX + (rx - minX) * scale + panX;
+    const sy = offsetY + (maxY - ry) * scale + panY; // Flip Y: data Y-up → screen Y-down
 
     const isHighlighted = highlightedDrivers.includes(drv.abbr);
     const radius = isHighlighted ? 8 : 5;

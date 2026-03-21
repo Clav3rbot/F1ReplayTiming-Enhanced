@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { SPEED_OPTIONS } from "@/lib/constants";
-import { QualiPhase, QualiPhaseInfo, type LapStart } from "@/hooks/useReplaySocket";
+import { QualiPhase, QualiPhaseInfo, type FrameLapsRleSegment, type LapStart } from "@/hooks/useReplaySocket";
 import { Maximize, Minimize, MoreHorizontal } from "lucide-react";
 
 const SKIP_OPTIONS = [
@@ -37,6 +37,44 @@ function lapAtSessionTime(
   }
   return Math.min(Math.max(1, fallbackLap || 1), totalLaps);
 }
+
+/**
+ * Same lap as server `send_seek_frame`: first frame index i where i * sampleInterval >= t (timestamps are on a fixed grid).
+ * Uses run-length `frame.lap` list from the ready payload — not `lap_starts` (that used max L with first(L)<=t and could differ by one sample).
+ */
+function lapAtSeekTime(
+  t: number,
+  totalFrames: number,
+  sampleInterval: number,
+  rle: FrameLapsRleSegment[],
+  totalLaps: number,
+  fallbackLap: number,
+): number {
+  if (totalFrames <= 0 || rle.length === 0) {
+    return Math.min(Math.max(1, fallbackLap || 1), totalLaps > 0 ? totalLaps : 999);
+  }
+  const si = sampleInterval > 1e-9 ? sampleInterval : 0.5;
+  const x = Math.max(0, t);
+  let idx = Math.ceil(x / si - 1e-9);
+  if (idx < 0) idx = 0;
+  if (idx >= totalFrames) idx = totalFrames - 1;
+
+  let rem = idx;
+  for (const seg of rle) {
+    if (rem < seg.count) {
+      const lap = seg.lap;
+      const cap = totalLaps > 0 ? totalLaps : lap;
+      return Math.min(Math.max(1, lap), cap);
+    }
+    rem -= seg.count;
+  }
+  const last = rle[rle.length - 1]!.lap;
+  const cap = totalLaps > 0 ? totalLaps : last;
+  return Math.min(Math.max(1, last), cap);
+}
+
+const EMPTY_LAP_STARTS: LapStart[] = [];
+const EMPTY_FRAME_LAPS_RLE: FrameLapsRleSegment[] = [];
 
 const PLAYBAR_ICON_BTN =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
@@ -196,8 +234,12 @@ interface Props {
   fullscreen?: boolean;
   qualiPhase?: QualiPhase | null;
   qualiPhases?: QualiPhaseInfo[];
-  /** Session timestamps when each lap starts (race/sprint) — from replay WebSocket `ready` */
+  /** Session timestamps when each lap starts (race/sprint) — fallback if RLE missing */
   lapStarts?: LapStart[];
+  /** Run-length frame laps + sample step — preferred for scrub (matches server seek). */
+  totalFrames?: number;
+  frameLapsRle?: FrameLapsRleSegment[];
+  replaySampleInterval?: number;
 }
 
 export default function PlaybackControls({
@@ -223,7 +265,10 @@ export default function PlaybackControls({
   fullscreen,
   qualiPhase,
   qualiPhases,
-  lapStarts = [],
+  lapStarts = EMPTY_LAP_STARTS,
+  totalFrames = 0,
+  frameLapsRle = EMPTY_FRAME_LAPS_RLE,
+  replaySampleInterval = 0.5,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
@@ -239,7 +284,6 @@ export default function PlaybackControls({
   const scrubRafRef = useRef<number | null>(null);
   const pendingScrubClientXRef = useRef<number | null>(null);
   const ignoreNextClickRef = useRef(false);
-  const prevCurrentTimeRef = useRef(currentTime);
 
   const timelineSeconds = scrubTime ?? committedTime ?? currentTime;
   const progress = totalTime > 0 ? (timelineSeconds / totalTime) * 100 : 0;
@@ -249,23 +293,43 @@ export default function PlaybackControls({
 
   const scrubLapDisplay = useMemo(() => {
     if (!isRace || totalLaps <= 0) return null;
+    if (totalFrames > 0 && frameLapsRle.length > 0) {
+      return lapAtSeekTime(
+        timelineSeconds,
+        totalFrames,
+        replaySampleInterval,
+        frameLapsRle,
+        totalLaps,
+        currentLap,
+      );
+    }
     return lapAtSessionTime(timelineSeconds, lapStarts, totalTime, totalLaps, currentLap);
-  }, [isRace, totalLaps, timelineSeconds, lapStarts, totalTime, currentLap]);
+  }, [
+    isRace,
+    totalLaps,
+    timelineSeconds,
+    totalFrames,
+    replaySampleInterval,
+    frameLapsRle,
+    lapStarts,
+    totalTime,
+    currentLap,
+  ]);
 
-  // Drop committed overlay once real playback time reflects the seek (or same-timestamp seek).
+  /** During scrub, show the lap for the thumb position (same as post-seek frame); otherwise last frame lap. */
+  const displayLap =
+    isRace && isScrubbing && scrubLapDisplay != null ? scrubLapDisplay : currentLap;
+
+  // Drop committed overlay only when the incoming frame matches the seek target.
+  // Do NOT clear on any currentTime delta: while playing, frames still advance from the old
+  // position until the seek response arrives — that used to wipe committedTime and made the bar jump.
   useEffect(() => {
-    if (committedTime === null) {
-      prevCurrentTimeRef.current = currentTime;
-      return;
-    }
-    const prev = prevCurrentTimeRef.current;
-    if (Math.abs(currentTime - prev) > 0.001) {
-      setCommittedTime(null);
-    } else if (Math.abs(currentTime - committedTime) < 0.5) {
+    if (committedTime === null) return;
+    const seekClose = Math.max(replaySampleInterval > 0 ? replaySampleInterval * 1.5 : 1.0, 1.0);
+    if (Math.abs(currentTime - committedTime) <= seekClose) {
       setCommittedTime(null);
     }
-    prevCurrentTimeRef.current = currentTime;
-  }, [currentTime, committedTime]);
+  }, [currentTime, committedTime, replaySampleInterval]);
 
   function commitSeek(time: number) {
     const t = Math.max(0, Math.min(totalTime, time));
@@ -430,7 +494,7 @@ export default function PlaybackControls({
           Lap
         </span>
         <div className="flex items-baseline gap-px font-mono tabular-nums">
-          <span className="text-[10px] font-extrabold leading-none text-white sm:text-[11px]">{currentLap}</span>
+          <span className="text-[10px] font-extrabold leading-none text-white sm:text-[11px]">{displayLap}</span>
           <span className="text-[9px] font-semibold leading-none text-f1-muted/80 sm:text-[10px]">/{totalLaps}</span>
         </div>
         <svg
@@ -632,7 +696,7 @@ export default function PlaybackControls({
         {playPauseBtn}
         <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-white font-mono tabular-nums-fixed">
           {formatTime(displayedSeconds)}
-          {isRace && currentLap > 0 && <span className="ml-2 font-mono tabular-nums-fixed text-f1-muted">Lap {currentLap}</span>}
+          {isRace && displayLap > 0 && <span className="ml-2 font-mono tabular-nums-fixed text-f1-muted">Lap {displayLap}</span>}
           {!isRace && qualiPhase && <span className="ml-2 font-sans text-f1-muted">{qualiPhase.phase}</span>}
         </span>
         {speedSelector}

@@ -146,6 +146,7 @@ export default function TrackCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
+      const { x: panX, y: panY } = panRef.current;
       drawTrack(
         ctx,
         trackPoints,
@@ -159,6 +160,8 @@ export default function TrackCanvas({
         cornersRef.current,
         marshalSectorsRef.current,
         sectorFlagsRef.current,
+        panX,
+        panY,
       );
 
       const now = performance.now();
@@ -186,6 +189,8 @@ export default function TrackCanvas({
         showNamesRef.current,
         compactRef.current,
         zoomRef.current,
+        panX,
+        panY,
       );
 
       hostWindow.requestAnimationFrame(animate);
@@ -222,9 +227,9 @@ export default function TrackCanvas({
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
+    /** Pan is applied inside drawTrack/drawDrivers (pixel offset) — not CSS translate, so overflow:hidden on the container does not clip the map. */
     const applyPan = () => {
-      const { x, y } = panRef.current;
-      canvas.style.transform = `translate(${x}px, ${y}px)`;
+      canvas.style.transform = "";
     };
 
     const clampPan = (x: number, y: number) => {

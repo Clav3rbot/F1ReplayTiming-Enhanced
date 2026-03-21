@@ -577,9 +577,9 @@ export default function ReplayPage() {
               {/* Expanded telemetry panel for 3+ drivers */}
               {showTelemetry && selectedDrivers.length > 2 && (
                 <div
-                className={`flex-shrink-0 relative ${
+                className={`flex-shrink-0 relative min-h-0 ${
                   telemetryPosition === "left"
-                    ? "h-full glass-panel-heavy border-r border-f1-border order-first px-3 py-2 overflow-y-auto overflow-x-hidden"
+                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,24rem)] max-w-[100vw] md:w-[min(100%,26rem)]"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
@@ -588,10 +588,10 @@ export default function ReplayPage() {
                     className={
                       telemetryPosition === "bottom"
                         ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
-                        : ""
+                        : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
                     }
                   >
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="mb-1 flex flex-shrink-0 items-center gap-2">
                   <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
                   <button
                     onClick={() => {
@@ -616,7 +616,7 @@ export default function ReplayPage() {
                   className={`gap-1 ${
                     telemetryPosition === "bottom"
                       ? "flex flex-col overflow-y-auto flex-1 min-h-0 pr-1"
-                      : "flex flex-col"
+                      : "flex min-h-0 flex-1 flex-col overflow-y-auto pr-1"
                   }`}
                 >
                   {selectedDrivers.map((abbr) => {
@@ -630,7 +630,7 @@ export default function ReplayPage() {
                 </div>
               </div>
               {!rcPinned && (
-                <div className={`flex items-center justify-center ${
+                <div className={`flex flex-shrink-0 items-center justify-center ${
                   telemetryPosition === "bottom"
                     ? "border-l border-f1-border px-4"
                     : "border-t border-f1-border py-2 mt-2"
@@ -647,11 +647,11 @@ export default function ReplayPage() {
                 <div
                   className={`glass-panel-heavy ${
                     telemetryPosition === "bottom"
-                      ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col"
-                      : "border-t border-f1-border px-3 py-2 mt-2"
+                      ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col min-h-0"
+                      : "mt-2 flex max-h-[min(38vh,22rem)] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-f1-border px-3 py-2"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="mb-1 flex flex-shrink-0 items-center justify-between">
                     <span className="text-[10px] font-bold text-f1-muted uppercase">Race Control</span>
                     <button
                       onClick={() => setRcPinned(false)}
@@ -660,7 +660,7 @@ export default function ReplayPage() {
                       Hide
                     </button>
                   </div>
-                  <div className="divide-y divide-f1-border/50 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 divide-y divide-f1-border/50 overflow-y-auto overscroll-y-contain">
                     {(() => {
                       const allMsgs = replay.frame?.rc_messages || [];
                       if (allMsgs.length === 0) return <p className="text-f1-muted text-xs py-2 text-center">No messages yet</p>;
@@ -795,6 +795,9 @@ export default function ReplayPage() {
                 qualiPhase={replay.frame?.quali_phase}
                 qualiPhases={replay.qualiPhases}
                 lapStarts={replay.lapStarts}
+                totalFrames={replay.totalFrames}
+                frameLapsRle={replay.frameLapsRle}
+                replaySampleInterval={replay.replaySampleInterval}
               />
             </div>
 
@@ -1017,6 +1020,9 @@ export default function ReplayPage() {
                 qualiPhase={replay.frame?.quali_phase}
                 qualiPhases={replay.qualiPhases}
                 lapStarts={replay.lapStarts}
+                totalFrames={replay.totalFrames}
+                frameLapsRle={replay.frameLapsRle}
+                replaySampleInterval={replay.replaySampleInterval}
               />
             </div>
           </div>
