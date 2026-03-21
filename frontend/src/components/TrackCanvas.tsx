@@ -75,8 +75,11 @@ export default function TrackCanvas({
   sectorOverlayRef.current = sectorOverlay;
   const compactRef = useRef(compact);
   compactRef.current = compact;
+  const wheelZoomFactorRef = useRef(1);
   const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  useEffect(() => {
+    zoomRef.current = zoom * wheelZoomFactorRef.current;
+  }, [zoom]);
   const cornersRef = useRef(corners);
   cornersRef.current = corners;
   const marshalSectorsRef = useRef(marshalSectors);
@@ -305,6 +308,18 @@ export default function TrackCanvas({
       e.preventDefault();
     };
 
+    const onWheel = (e: WheelEvent) => {
+      // Desktop wheel zoom (mouse / trackpad) on map canvas
+      const isMouseLike = e.deltaMode === 0 || e.deltaMode === 1;
+      if (!isMouseLike) return;
+      const base = zoom > 0 ? zoom : 1;
+      const current = wheelZoomFactorRef.current;
+      const next = current * Math.exp(-e.deltaY * 0.0015);
+      wheelZoomFactorRef.current = Math.max(0.8 / base, Math.min(2.2 / base, next));
+      zoomRef.current = base * wheelZoomFactorRef.current;
+      e.preventDefault();
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       const s = panSessionRef.current;
       if (!s || s.mode !== "mouse" || s.pointerId !== e.pointerId) return;
@@ -336,6 +351,7 @@ export default function TrackCanvas({
     canvas.addEventListener("pointerup", endMousePan);
     canvas.addEventListener("pointercancel", endMousePan);
     canvas.addEventListener("lostpointercapture", endMousePan);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
       container.removeEventListener("touchstart", onTouchStart);
@@ -347,9 +363,10 @@ export default function TrackCanvas({
       canvas.removeEventListener("pointerup", endMousePan);
       canvas.removeEventListener("pointercancel", endMousePan);
       canvas.removeEventListener("lostpointercapture", endMousePan);
+      canvas.removeEventListener("wheel", onWheel);
       canvas.style.cursor = "";
     };
-  }, []);
+  }, [zoom]);
 
   // Keep pan origin consistent when zoom buttons change; clear any stray CSS transform.
   useEffect(() => {
