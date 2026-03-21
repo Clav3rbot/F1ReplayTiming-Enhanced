@@ -184,9 +184,8 @@ input, textarea, select {
   pointer-events: none;
 }
 
-.session-loading-exit-active .session-loading-car {
-  animation: none;
-}
+/* Do not clear .session-loading-car animation here: that drops keyframed `left`/`transform`
+   and the emoji snaps back to the start. Keep the lap loop running while the screen fades out. */
 
 @media (prefers-reduced-motion: reduce) {
   .session-loading-exit-active {

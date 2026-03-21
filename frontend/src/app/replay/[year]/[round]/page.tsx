@@ -579,7 +579,7 @@ export default function ReplayPage() {
                 <div
                 className={`flex-shrink-0 relative min-h-0 ${
                   telemetryPosition === "left"
-                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-2 py-1.5 w-[min(100%,24rem)] max-w-[100vw] md:w-[min(100%,26rem)]"
+                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,30rem)] max-w-[100vw] md:w-[min(100%,32rem)]"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
@@ -588,7 +588,7 @@ export default function ReplayPage() {
                     className={
                       telemetryPosition === "bottom"
                         ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
-                        : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                        : "flex min-h-0 min-w-0 flex-col overflow-hidden"
                     }
                   >
                     <div className="mb-1 flex flex-shrink-0 items-center gap-2">
@@ -616,26 +616,14 @@ export default function ReplayPage() {
                   className={`gap-1 ${
                     telemetryPosition === "bottom"
                       ? "flex flex-col overflow-y-auto flex-1 min-h-0 pr-1"
-                      : "flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 overflow-hidden pr-0"
+                      : "flex flex-col pr-1"
                   }`}
                 >
                   {selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
                     return (
-                      <div
-                        key={abbr}
-                        className={
-                          telemetryPosition === "left" ? "flex min-h-0 min-w-0 flex-1 basis-0 flex-col justify-center" : ""
-                        }
-                      >
-                        <TelemetryChart
-                          visible
-                          driver={drv}
-                          year={year}
-                          isQualifying={isQualifying}
-                          useImperial={settings.useImperial}
-                          dense={telemetryPosition === "left"}
-                        />
+                      <div key={abbr}>
+                        <TelemetryChart visible driver={drv} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />
                       </div>
                     );
                   })}
@@ -660,7 +648,7 @@ export default function ReplayPage() {
                   className={`glass-panel-heavy ${
                     telemetryPosition === "bottom"
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col min-h-0"
-                      : "mt-1.5 flex max-h-[min(28vh,17rem)] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-f1-border px-2 py-1.5"
+                      : "mt-2 flex max-h-[min(38vh,22rem)] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-f1-border px-3 py-2"
                   }`}
                 >
                   <div className="mb-1 flex flex-shrink-0 items-center justify-between">

@@ -9,8 +9,6 @@ interface Props {
   year?: number;
   isQualifying?: boolean;
   useImperial?: boolean;
-  /** Narrow sidebar (e.g. iPad telemetry column): fit width, keep RPM bars visible, no forced min-width */
-  dense?: boolean;
 }
 
 function BarPips({
@@ -18,40 +16,13 @@ function BarPips({
   max,
   color,
   pips = 5,
-  dense = false,
 }: {
   value: number;
   max: number;
   color: string;
   pips?: number;
-  dense?: boolean;
 }) {
   const fill = Math.max(0, Math.min(pips, (value / Math.max(max, 1)) * pips));
-  if (dense) {
-    return (
-      <div className="flex h-[14px] w-[22px] items-end justify-end gap-px overflow-visible rounded-[1px]">
-        {Array.from({ length: pips }, (_, i) => {
-          const h = 4 + i * 2;
-          const level = Math.max(0, Math.min(1, fill - i));
-          const opacity = 0.2 + level * 0.8;
-          const scaleY = 0.85 + level * 0.15;
-          return (
-            <div
-              key={i}
-              className="w-[3px] rounded-[1px] transition-all duration-150 ease-out"
-              style={{
-                height: `${h}px`,
-                backgroundColor: color,
-                opacity,
-                transform: `scaleY(${scaleY})`,
-                transformOrigin: "bottom",
-              }}
-            />
-          );
-        })}
-      </div>
-    );
-  }
   return (
     <div className="flex items-end justify-end gap-[2px] h-[18px] w-[28px] overflow-hidden rounded-[1px]">
       {Array.from({ length: pips }, (_, i) => {
@@ -109,7 +80,7 @@ function useSmoothedNumber(target: number, stiffness = 0.2) {
   return value;
 }
 
-export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial, dense = false }: Props) {
+export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial }: Props) {
   const hasDrs = !year || year < 2026;
   if (!visible) return null;
 
@@ -136,16 +107,10 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
 
   return (
-    <div
-      className={`glass-panel-heavy border-f1-border rounded-xl shadow-2xl relative ${
-        dense
-          ? "min-w-0 w-full max-w-full overflow-visible py-1.5 pl-2 pr-2"
-          : "min-w-[430px] overflow-hidden py-2 pl-3 pr-4 sm:pl-4 sm:pr-5"
-      }`}
-    >
-      <div className={`flex items-center relative z-10 min-w-0 ${dense ? "gap-1" : "gap-2 sm:gap-4"}`}>
+    <div className="glass-panel-heavy border-f1-border rounded-xl pl-3 pr-4 sm:pl-4 sm:pr-5 py-2 shadow-2xl overflow-hidden relative min-w-[430px]">
+      <div className="flex items-center gap-2 sm:gap-4 relative z-10 min-w-0">
         {/* Driver */}
-        <div className={`flex shrink-0 items-center gap-1 ${dense ? "w-[34px]" : "w-[38px] sm:w-[42px]"}`}>
+        <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
           <span
             className="w-1 h-4 rounded-sm shrink-0"
             style={{ backgroundColor: driver.color }}
@@ -172,74 +137,48 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         )}
 
         {/* Speed */}
-        <div className={`flex shrink-0 items-center ${dense ? "w-[44px]" : "w-[50px] sm:w-[85px]"}`}>
-          <span
-            className={`font-bold uppercase tracking-wider text-f1-muted ${dense ? "w-[14px] text-[7px]" : "w-[20px] text-[9px] sm:w-auto"}`}
-          >
-            Spd
-          </span>
-          <span
-            className={`font-extrabold text-white font-mono tabular-nums-fixed text-right drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] ${
-              dense ? "w-[22px] text-[11px]" : "w-[26px] text-[13px] sm:w-[28px]"
-            }`}
-          >
+        <div className="w-[50px] sm:w-[85px] flex items-center shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto tracking-wider">Spd</span>
+          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {speed}
           </span>
-          {!dense && <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>}
+          <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>
         </div>
 
         {/* Throttle */}
-        <div className={`flex shrink-0 items-center gap-px ${dense ? "w-[40px]" : "w-[52px] sm:w-[50px] gap-[3px]"}`}>
-          <span className={`font-bold uppercase text-f1-muted ${dense ? "w-[14px] text-[7px]" : "w-[20px] text-[9px] sm:w-auto"}`}>Thr</span>
-          <BarPips value={throttle} max={100} color="#22C55E" dense={dense} />
+        <div className="w-[52px] sm:w-[50px] flex items-center gap-[3px] shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto">Thr</span>
+          <BarPips value={throttle} max={100} color="#22C55E" />
         </div>
 
         {/* Brake */}
-        <div className={`flex shrink-0 items-center gap-px ${dense ? "w-[38px]" : "w-[52px] sm:w-[48px] gap-[3px]"}`}>
-          <span className={`font-bold uppercase text-f1-muted ${dense ? "w-[12px] text-[7px]" : "w-[20px] text-[9px] sm:w-auto"}`}>Brk</span>
-          <BarPips value={brake} max={100} color="#EF4444" dense={dense} />
+        <div className="w-[52px] sm:w-[48px] flex items-center gap-[3px] shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto">Brk</span>
+          <BarPips value={brake} max={100} color="#EF4444" />
         </div>
 
         {/* Gear */}
-        <div className={`flex shrink-0 items-center gap-px ${dense ? "w-[28px]" : "w-[26px] sm:w-[42px] gap-[3px]"}`}>
-          {dense ? (
-            <span className="w-[8px] text-[7px] font-bold uppercase tracking-wider text-f1-muted">G</span>
-          ) : (
-            <>
-              <span className="w-[10px] text-[9px] font-bold uppercase tracking-wider text-f1-muted sm:hidden">G</span>
-              <span className="hidden text-[9px] font-bold uppercase tracking-wider text-f1-muted sm:inline">Gear</span>
-            </>
-          )}
-          <span
-            className={`font-extrabold text-white font-mono tabular-nums-fixed text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] ${
-              dense ? "w-[10px] text-[11px]" : "w-[12px] text-[13px]"
-            }`}
-          >
+        <div className="w-[26px] sm:w-[42px] flex items-center gap-[3px] shrink-0">
+          <span className="text-[9px] font-bold text-f1-muted uppercase w-[10px] sm:hidden tracking-wider">G</span>
+          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">Gear</span>
+          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed w-[12px] text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {gear === 0 ? "N" : gear}
           </span>
         </div>
 
-        {/* RPM — always show label + animated pips in dense sidebar */}
-        <div className={`flex min-w-0 flex-shrink-0 items-center gap-px ${dense ? "mr-0 flex-1 justify-end" : "mr-0.5 w-[68px] gap-[4px] sm:w-[92px]"}`}>
-          <span className={`font-bold uppercase tracking-wider text-f1-muted ${dense ? "text-[7px]" : "hidden text-[9px] sm:inline"}`}>RPM</span>
-          <span
-            className={`font-extrabold text-white font-mono tabular-nums-fixed text-right drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] ${
-              dense ? "w-[30px] text-[10px]" : "w-[34px] text-[11px] sm:w-[40px]"
-            }`}
-          >
+        {/* RPM */}
+        <div className="w-[68px] sm:w-[92px] min-w-0 flex items-center gap-[4px] mr-0.5">
+          <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
+          <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {rpmDisplay}
           </span>
-          <BarPips value={rpm} max={15000} color="#F59E0B" dense={dense} />
+          <BarPips value={rpm} max={15000} color="#F59E0B" />
         </div>
 
         {/* DRS (not available from 2026) */}
         {hasDrs && (
           <span
-            className={`text-center font-extrabold rounded shrink-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-colors ${
-              dense
-                ? "w-[22px] py-0.5 text-[7px]"
-                : "w-[28px] py-0.5 text-[9px] sm:w-[32px]"
-            } ${
+            className={`w-[28px] sm:w-[32px] text-center text-[9px] font-extrabold py-0.5 rounded shrink-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-colors ${
               drs >= 10
                 ? "text-f1-green bg-f1-green/20 border border-f1-green/40 shadow-[0_0_10px_rgba(0,255,65,0.3)]"
                 : "text-f1-muted/40 border border-f1-border bg-f1-card/40"
