@@ -104,3 +104,118 @@ input, textarea, select {
   -ms-user-select: text;
   user-select: text;
 }
+
+/* ─── Replay session loading (SessionLoadingScreen) ─── */
+/* Emoji 🏎️ spesso punta a sinistra: scaleX(-1) quando va verso destra, 1 quando torna indietro */
+@keyframes session-loading-car {
+  0% {
+    left: 10%;
+    transform: translate(-50%, -50%) translateY(0) scaleX(-1);
+  }
+  24% {
+    transform: translate(-50%, -50%) translateY(-3px) scaleX(-1);
+  }
+  49.5% {
+    left: 90%;
+    transform: translate(-50%, -50%) translateY(0) scaleX(-1);
+  }
+  50% {
+    left: 90%;
+    transform: translate(-50%, -50%) translateY(0) scaleX(1);
+  }
+  74% {
+    transform: translate(-50%, -50%) translateY(-3px) scaleX(1);
+  }
+  99.5% {
+    left: 10%;
+    transform: translate(-50%, -50%) translateY(0) scaleX(1);
+  }
+  100% {
+    left: 10%;
+    transform: translate(-50%, -50%) translateY(0) scaleX(-1);
+  }
+}
+
+.session-loading-car {
+  animation: session-loading-car 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes session-loading-quote-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.session-loading-quote {
+  animation: session-loading-quote-in 0.55s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-loading-quote {
+    animation: none;
+  }
+
+  .session-loading-car {
+    animation: none;
+    left: 50% !important;
+    transform: translate(-50%, -50%) scaleX(-1) !important;
+  }
+}
+
+/* Session loading — handoff to replay UI */
+@keyframes session-loading-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(-14px);
+    filter: blur(6px);
+  }
+}
+
+.session-loading-exit-active {
+  animation: session-loading-exit 0.56s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+  pointer-events: none;
+}
+
+.session-loading-exit-active .session-loading-car {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-loading-exit-active {
+    animation: none;
+    opacity: 0;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes replay-page-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Replay UI: fade-in dopo la schermata di caricamento */
+.replay-page-enter {
+  animation: replay-page-enter 0.7s ease-out both;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .replay-page-enter {
+    animation: none;
+    opacity: 1;
+    will-change: auto;
+  }
+}

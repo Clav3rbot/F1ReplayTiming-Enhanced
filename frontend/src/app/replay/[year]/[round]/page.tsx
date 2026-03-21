@@ -9,6 +9,7 @@ import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PlaybackControls from "@/components/PlaybackControls";
+import SessionLoadingScreen from "@/components/SessionLoadingScreen";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
@@ -164,21 +165,28 @@ export default function ReplayPage() {
 
   const isLoading = sessionLoading || trackLoading;
   const dataError = sessionError || trackError;
+  const blockingLoad = isLoading || (!dataError && replay.loading);
 
-  // Show loading until session + track + replay frames are all ready
-  if (isLoading || (!dataError && replay.loading)) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block w-12 h-12 border-3 border-f1-muted border-t-f1-red rounded-full animate-spin mb-6" />
-          <p className="text-f1-muted text-lg">Loading session data...</p>
-          <p className="text-f1-muted text-sm mt-2">
-            First load may take up to 60 seconds while data is fetched
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const [loadPhase, setLoadPhase] = useState<"loading" | "exit" | "ready">("loading");
+
+  useEffect(() => {
+    if (dataError) return;
+    if (blockingLoad) {
+      setLoadPhase("loading");
+    } else {
+      setLoadPhase((p) => (p === "loading" ? "exit" : p));
+    }
+  }, [blockingLoad, dataError]);
+
+  useEffect(() => {
+    if (dataError || loadPhase !== "exit") return;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ms = reduced ? 0 : 560;
+    const id = window.setTimeout(() => setLoadPhase("ready"), ms);
+    return () => window.clearTimeout(id);
+  }, [dataError, loadPhase]);
 
   if (dataError) {
     return (
@@ -197,6 +205,10 @@ export default function ReplayPage() {
         </div>
       </div>
     );
+  }
+
+  if (loadPhase === "loading" || loadPhase === "exit") {
+    return <SessionLoadingScreen exiting={loadPhase === "exit"} />;
   }
 
   const trackPoints = trackData?.track_points || [];
@@ -251,7 +263,10 @@ export default function ReplayPage() {
   })();
 
   return (
-    <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+    <div
+      className="replay-page-enter h-dvh flex flex-col bg-f1-dark overflow-hidden"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
       {/* Banner */}
       {!fullscreen && sessionData && (
         <SessionBanner
