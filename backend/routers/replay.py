@@ -248,9 +248,9 @@ async def replay_websocket(
             await websocket.close()
             return
 
-        # Clear cache entry in case we just processed new data
-        _replay_cache.pop(f"{year}_{round_num}_{type}", None)
-
+        # Reload frames (clear cache first so _get_frames_sync reads fresh data)
+        cache_key_reload = f"{year}_{round_num}_{type}"
+        _replay_cache.pop(cache_key_reload, None)
         frames = await _get_frames(year, round_num, type)
         cache_key = f"{year}_{round_num}_{type}"
         _client_connect(cache_key)

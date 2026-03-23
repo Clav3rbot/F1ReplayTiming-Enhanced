@@ -16,6 +16,7 @@ router = APIRouter(tags=["live"])
 
 # Shared live session state
 _live_sessions: dict[str, "LiveSession"] = {}
+_session_cleanup_lock = asyncio.Lock()
 
 
 class LiveSession:
@@ -269,12 +270,11 @@ async def live_websocket(
 ):
     from auth import is_auth_enabled, verify_token
 
-    await websocket.accept()
-
     if is_auth_enabled() and not verify_token(token):
-        await websocket.send_json({"type": "error", "message": "Unauthorized"})
         await websocket.close(code=4401, reason="Unauthorized")
         return
+
+    await websocket.accept()
 
     session = None
     try:
@@ -357,8 +357,9 @@ async def live_websocket(
             # React Strict Mode remounts to reuse the session)
             if session.client_count == 0:
                 await asyncio.sleep(2)
-                if session.client_count == 0:
-                    key = f"{year}_{round_num}_{type}"
-                    if key in _live_sessions:
-                        await session.stop()
-                        del _live_sessions[key]
+                async with _session_cleanup_lock:
+                    if session.client_count == 0:
+                        key = f"{year}_{round_num}_{type}"
+                        if key in _live_sessions:
+                            await session.stop()
+                            del _live_sessions[key]

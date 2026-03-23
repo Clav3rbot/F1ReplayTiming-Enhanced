@@ -27,15 +27,14 @@ function BarPips({
   return (
     <div className="flex items-end justify-end gap-[2px] h-[18px] w-[28px] overflow-hidden rounded-[1px]">
       {Array.from({ length: pips }, (_, i) => {
-        const h = 6 + i * 3; // ascending heights: 6, 9, 12, 15, 18
-        // Per-pip fractional fill for smoother transitions (no hard on/off jump)
+        const h = 6 + i * 3;
         const level = Math.max(0, Math.min(1, fill - i));
         const opacity = 0.18 + level * 0.82;
         const scaleY = 0.82 + level * 0.18;
         return (
           <div
             key={i}
-            className="w-[4px] rounded-[1px] transition-all duration-150 ease-out"
+            className="w-[4px] rounded-[1px] transition-[opacity,transform] duration-200 ease-in-out"
             style={{
               height: `${h}px`,
               backgroundColor: color,
@@ -59,23 +58,29 @@ const SECTOR_COLORS: Record<string, string> = {
 function useSmoothedNumber(target: number, stiffness = 0.2) {
   const [value, setValue] = useState(target);
   const rafRef = useRef<number | null>(null);
+  const currentRef = useRef(target);
 
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    currentRef.current = value;
 
     const step = () => {
-      setValue((prev) => {
-        const next = prev + (target - prev) * stiffness;
-        if (Math.abs(next - target) < 0.2) return target;
-        rafRef.current = requestAnimationFrame(step);
-        return next;
-      });
+      const next = currentRef.current + (target - currentRef.current) * stiffness;
+      if (Math.abs(next - target) < 0.2) {
+        currentRef.current = target;
+        setValue(target);
+        return;
+      }
+      currentRef.current = next;
+      setValue(next);
+      rafRef.current = requestAnimationFrame(step);
     };
 
     rafRef.current = requestAnimationFrame(step);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, stiffness]);
 
   return value;
@@ -95,7 +100,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
 
   // Hooks must always be called in the same order — never after an early return
   const throttle = useSmoothedNumber(throttleRaw, 0.24);
-  const brake = useSmoothedNumber(brakeRaw, 0.24);
+  const brake = useSmoothedNumber(brakeRaw, 0.4);
   const rpm = useSmoothedNumber(rpmRaw, 0.2);
   const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
 

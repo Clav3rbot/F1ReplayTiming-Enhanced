@@ -95,6 +95,7 @@ class LiveSignalRClient:
         self._stop_event: asyncio.Event = asyncio.Event()
         self._ping_task: asyncio.Task[None] | None = None
         self._seen_targets: set[str] = set()
+        self._raw_msg_count: int = 0
 
     # ------------------------------------------------------------------
     # Public API
@@ -352,8 +353,6 @@ class LiveSignalRClient:
     # ------------------------------------------------------------------
     # Message handling
     # ------------------------------------------------------------------
-
-    _raw_msg_count = 0
 
     async def _handle_message(
         self,

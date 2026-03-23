@@ -163,11 +163,15 @@ export default function ReplayPage() {
   const replay = useReplaySocket(year, round, sessionType);
 
   const lastRcCountRef = useRef(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   useEffect(() => {
     const msgs = replay.frame?.rc_messages || [];
     if (msgs.length > lastRcCountRef.current && lastRcCountRef.current > 0 && settings.rcSound) {
       try {
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        }
+        const ctx = audioCtxRef.current;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);

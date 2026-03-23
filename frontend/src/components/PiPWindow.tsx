@@ -19,6 +19,8 @@ export default function PiPWindow({
   const [pipWindow, setPipWindow] = useState<Window | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const closedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     let pipWin: Window | null = null;
@@ -26,7 +28,7 @@ export default function PiPWindow({
 
     pipWin = window.open("", "_blank", `width=${width},height=${height},popup=yes`);
     if (!pipWin) {
-      onClose();
+      onCloseRef.current();
       return;
     }
 
@@ -89,7 +91,7 @@ export default function PiPWindow({
     pipWin.addEventListener("beforeunload", () => {
       if (!closedRef.current) {
         closedRef.current = true;
-        onClose();
+        onCloseRef.current();
       }
     });
 
