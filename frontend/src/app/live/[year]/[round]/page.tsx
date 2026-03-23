@@ -395,7 +395,7 @@ export default function LivePage() {
                         const isPenalty = rc.message.toUpperCase().includes("PENALTY") && !rc.message.toUpperCase().includes("NO FURTHER");
                         const isCleared = rc.message.toUpperCase().includes("NO FURTHER") || rc.message.toUpperCase().includes("NO INVESTIGATION");
                         return (
-                          <div key={i} className="px-3 py-2">
+                          <div key={i} className="px-3 py-2 rc-msg-enter">
                             <div className="flex items-start gap-2">
                               <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
                                 isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"

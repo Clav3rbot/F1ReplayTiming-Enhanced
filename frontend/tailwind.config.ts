@@ -15,7 +15,7 @@ const config: Config = {
           surface: "#13131C",
           card: "#1A1A24",
           border: "#2A2A3C",
-          muted: "#8A8D98",
+          muted: "#9EA1AC",
           text: "#F1F5F9",
           green: "#00FF41",
           magenta: "#FF00FF",

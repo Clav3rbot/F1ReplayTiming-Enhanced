@@ -21,6 +21,21 @@ body {
   box-sizing: border-box;
 }
 
+/* Global focus-visible indicator for keyboard navigation */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(225, 6, 0, 0.5);
+  border-radius: inherit;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(225, 6, 0, 0.4);
+}
+
 /* Glass panel utility */
 .glass-panel {
   background: rgba(26, 26, 36, 0.6);
@@ -236,5 +251,42 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .session-scrub-lap-bubble {
     animation: none;
+  }
+}
+
+/* Settings modal entrance */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* RC message slide-in */
+@keyframes rcMsgIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rc-msg-enter {
+  animation: rcMsgIn 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-msg-enter,
+  [class*="animate-[fadeIn"],
+  [class*="animate-[modalIn"] {
+    animation: none !important;
+  }
+
+  /* Reduce all non-essential transitions */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

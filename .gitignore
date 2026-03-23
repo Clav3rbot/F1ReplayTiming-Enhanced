@@ -23,3 +23,6 @@ backend/data/sessions/
 
 # Planning & internal docs
 /docs/
+
+# AI context
+CLAUDE.md

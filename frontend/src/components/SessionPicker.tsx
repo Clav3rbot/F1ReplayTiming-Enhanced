@@ -179,7 +179,7 @@ export default function SessionPicker() {
                 ? "border-f1-red/50 hover:border-f1-red hover:shadow-[0_4px_20px_rgba(225,6,0,0.2)]"
               : isFuture
                 ? "opacity-50 hover:opacity-70 border-white/5"
-                : "hover:border-white/20 hover:shadow-glass hover:bg-white/[0.02]"
+                : "hover:border-white/20 hover:shadow-[0_8px_30px_rgba(0,0,0,0.25)] hover:bg-white/[0.02]"
         } rounded-xl`}
       >
         {/* Compact header row */}
