@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useReplaySocket } from "@/hooks/useReplaySocket";
@@ -15,6 +15,25 @@ import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import type { SectorOverlay } from "@/lib/trackRenderer";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
+
+/** Classify a Race Control message for indicator coloring. */
+function classifyRcMessage(message: string) {
+  const upper = message.toUpperCase();
+  return {
+    isPenalty: upper.includes("PENALTY") && !upper.includes("NO FURTHER"),
+    isInvestigation: upper.includes("INVESTIGATION") || upper.includes("NOTED"),
+    isCleared: upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION"),
+  };
+}
+
+/** Reusable chevron arrow for collapsible sections. */
+function ChevronToggle({ open }: { open: boolean }) {
+  return (
+    <svg className={`w-4 h-4 text-f1-muted transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
 
 interface TrackData {
   track_points: { x: number; y: number }[];
@@ -123,14 +142,14 @@ export default function ReplayPage() {
     document.addEventListener("touchend", onUp);
   }, []);
 
-  function handleDriverClick(abbr: string) {
+  const handleDriverClick = useCallback((abbr: string) => {
     setSelectedDrivers((prev) => {
       if (prev.includes(abbr)) {
         return prev.filter((d) => d !== abbr);
       }
       return [...prev, abbr];
     });
-  }
+  }, []);
   const { settings, update: updateSetting } = useSettings();
 
   const { data: sessionData, loading: sessionLoading, error: sessionError } = useApi<SessionData>(
@@ -188,6 +207,17 @@ export default function ReplayPage() {
     return () => window.clearTimeout(id);
   }, [dataError, loadPhase]);
 
+  const drivers = replay.frame?.drivers || [];
+
+  // Filter & map drivers for the track canvas — single source of truth
+  // Must be declared before early returns to comply with Rules of Hooks
+  const visibleDriverMarkers = useMemo(() =>
+    drivers
+      .filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5)
+      .map((d) => ({ abbr: d.abbr, x: d.x, y: d.y, color: d.color, position: d.position })),
+    [drivers],
+  );
+
   if (dataError) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
@@ -213,7 +243,6 @@ export default function ReplayPage() {
 
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
-  const drivers = replay.frame?.drivers || [];
   const trackStatus = replay.frame?.status || "green";
   const redFlagEnd = replay.frame?.red_flag_end ?? null;
   const redFlagCountdown = redFlagEnd !== null && replay.frame
@@ -294,9 +323,7 @@ export default function ReplayPage() {
               className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
             >
               <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
-              <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTrackOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronToggle open={mobileTrackOpen} />
             </button>
             <div className={`flex-1 relative bg-black/40 overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
               {/* Mobile zoom controls */}
@@ -323,13 +350,7 @@ export default function ReplayPage() {
                 trackPoints={trackPoints}
                 rotation={rotation}
                 trackStatus={trackStatus}
-                drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
-                  abbr: d.abbr,
-                  x: d.x,
-                  y: d.y,
-                  color: d.color,
-                  position: d.position,
-                }))}
+                drivers={visibleDriverMarkers}
                 highlightedDrivers={selectedDrivers}
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
@@ -444,10 +465,7 @@ export default function ReplayPage() {
                         const msgs = rcPanelSize === "sm" ? allMsgs.slice(0, 1) : allMsgs;
                         if (allMsgs.length === 0) return <p className="text-f1-muted text-xs p-3 text-center">No race control messages yet</p>;
                         return msgs.map((rc, i) => {
-                          const upper = rc.message.toUpperCase();
-                          const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-                          const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-                          const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                          const { isPenalty, isInvestigation, isCleared } = classifyRcMessage(rc.message);
                           return (
                             <div key={i} className="px-3 py-2">
                               <div className="flex items-start gap-2">
@@ -471,13 +489,7 @@ export default function ReplayPage() {
                   trackPoints={trackPoints}
                   rotation={rotation}
                   trackStatus={trackStatus}
-                  drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
-                    abbr: d.abbr,
-                    x: d.x,
-                    y: d.y,
-                    color: d.color,
-                    position: d.position,
-                  }))}
+                  drivers={visibleDriverMarkers}
                   highlightedDrivers={selectedDrivers}
                   playbackSpeed={replay.speed}
                   showDriverNames={settings.showDriverNames}
@@ -672,10 +684,7 @@ export default function ReplayPage() {
                       const allMsgs = replay.frame?.rc_messages || [];
                       if (allMsgs.length === 0) return <p className="text-f1-muted text-xs py-2 text-center">No messages yet</p>;
                       return allMsgs.map((rc, i) => {
-                        const upper = rc.message.toUpperCase();
-                        const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-                        const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-                        const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                        const { isPenalty, isInvestigation, isCleared } = classifyRcMessage(rc.message);
                         return (
                           <div key={i} className="py-1.5">
                             <div className="flex items-start gap-2">
@@ -714,17 +723,12 @@ export default function ReplayPage() {
                   className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
                 >
                   <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
-                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <ChevronToggle open={mobileRcOpen} />
                 </button>
                 {mobileRcOpen && (() => {
                   const latest = (replay.frame?.rc_messages || [])[0];
                   if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
-                  const upper = latest.message.toUpperCase();
-                  const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-                  const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-                  const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                  const { isPenalty, isInvestigation, isCleared } = classifyRcMessage(latest.message);
                   return (
                     <div className="px-3 py-2 bg-f1-card/50">
                       <div className="flex items-start gap-2">
@@ -750,9 +754,7 @@ export default function ReplayPage() {
                   className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
                 >
                   <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
-                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <ChevronToggle open={mobileTelemetryOpen} />
                 </button>
                 {mobileTelemetryOpen && (
                   <div className="bg-f1-card px-3 py-2 space-y-1">
@@ -816,9 +818,7 @@ export default function ReplayPage() {
                   className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
                 >
                   <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
-                  <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <ChevronToggle open={mobileLeaderboardOpen} />
                 </button>
                 {mobileLeaderboardOpen && (
                   <div className="bg-f1-bg">
@@ -867,9 +867,7 @@ export default function ReplayPage() {
                 className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
               >
                 <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
-                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTrackOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+                <ChevronToggle open={pipTrackOpen} />
               </button>
               {pipTrackOpen && (
                 <div className="relative" style={{ height: "40vh" }}>
@@ -900,13 +898,7 @@ export default function ReplayPage() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
-                      abbr: d.abbr,
-                      x: d.x,
-                      y: d.y,
-                      color: d.color,
-                      position: d.position,
-                    }))}
+                    drivers={visibleDriverMarkers}
                     highlightedDrivers={selectedDrivers}
                     playbackSpeed={replay.speed}
                     showDriverNames={settings.showDriverNames}
@@ -927,17 +919,12 @@ export default function ReplayPage() {
                 className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
               >
                 <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Race Control</span>
-                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipRcOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+                <ChevronToggle open={pipRcOpen} />
               </button>
               {pipRcOpen && (() => {
                 const latest = (replay.frame?.rc_messages || [])[0];
                 if (!latest) return <p className="text-f1-muted text-xs px-3 py-2">No messages yet</p>;
-                const upper = latest.message.toUpperCase();
-                const isPenalty = upper.includes("PENALTY") && !upper.includes("NO FURTHER");
-                const isInvestigation = upper.includes("INVESTIGATION") || upper.includes("NOTED");
-                const isCleared = upper.includes("NO FURTHER") || upper.includes("NO INVESTIGATION");
+                const { isPenalty, isInvestigation, isCleared } = classifyRcMessage(latest.message);
                 return (
                   <div className="px-3 py-2">
                     <div className="flex items-start gap-2">
@@ -961,9 +948,7 @@ export default function ReplayPage() {
                 className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
               >
                 <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Telemetry</span>
-                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipTelemetryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+                <ChevronToggle open={pipTelemetryOpen} />
               </button>
               {pipTelemetryOpen && (
                 <div className="bg-f1-card px-3 py-2 space-y-1">
@@ -986,9 +971,7 @@ export default function ReplayPage() {
                 className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border flex-shrink-0"
               >
                 <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Leaderboard</span>
-                <svg className={`w-4 h-4 text-f1-muted transition-transform ${pipLeaderboardOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+                <ChevronToggle open={pipLeaderboardOpen} />
               </button>
               {pipLeaderboardOpen && (
                 <div className="flex-1 min-h-0 overflow-y-auto">

@@ -79,6 +79,9 @@ const EMPTY_FRAME_LAPS_RLE: FrameLapsRleSegment[] = [];
 const PLAYBAR_ICON_BTN =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
 
+const DESKTOP_TOOL_BTN =
+  "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
+
 type RaceExtrasMenuClusterProps = {
   onSyncPhoto?: () => void;
   onPiP?: () => void;
@@ -479,9 +482,6 @@ export default function PlaybackControls({
     return { compact: full, full };
   }
 
-  /** Desktop secondary row: clear “button” affordance (like earlier playbar). */
-  const desktopToolBtn =
-    "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
   const desktopToolIconBtn = PLAYBAR_ICON_BTN;
   const lapSelector = isRace && (
     <div
@@ -915,7 +915,7 @@ export default function PlaybackControls({
                   key={qp.phase}
                   type="button"
                   onClick={() => commitSeek(qp.timestamp)}
-                  className={desktopToolBtn + " px-3"}
+                  className={DESKTOP_TOOL_BTN + " px-3"}
                 >
                   {qp.phase}
                 </button>

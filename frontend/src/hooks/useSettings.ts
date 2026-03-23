@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 export interface ReplaySettings {
   showLeaderboard: boolean;
@@ -73,11 +73,7 @@ function loadSettings(): ReplaySettings {
 }
 
 export function useSettings() {
-  const [settings, setSettings] = useState<ReplaySettings>(DEFAULTS);
-
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+  const [settings, setSettings] = useState<ReplaySettings>(loadSettings);
 
   const update = useCallback((key: keyof ReplaySettings, value: boolean) => {
     setSettings((prev) => {

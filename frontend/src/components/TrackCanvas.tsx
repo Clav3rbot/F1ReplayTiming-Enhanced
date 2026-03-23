@@ -65,34 +65,33 @@ export default function TrackCanvas({
 
   const posRef = useRef<Map<string, PosEntry>>(new Map());
   const driversRef = useRef<DriverMarker[]>([]);
-  const trackStatusRef = useRef(trackStatus);
-  trackStatusRef.current = trackStatus;
-  const speedRef = useRef(playbackSpeed);
-  speedRef.current = playbackSpeed;
-  const showNamesRef = useRef(showDriverNames);
-  showNamesRef.current = showDriverNames;
-  const sectorOverlayRef = useRef(sectorOverlay);
-  sectorOverlayRef.current = sectorOverlay;
-  const compactRef = useRef(compact);
-  compactRef.current = compact;
   const wheelZoomFactorRef = useRef(1);
   const zoomRef = useRef(zoom);
+
+  /** Group all props that the rAF loop reads via ref (to avoid recreating the loop). */
+  const latestPropsRef = useRef({
+    trackStatus,
+    playbackSpeed,
+    showDriverNames,
+    sectorOverlay,
+    compact,
+    corners,
+    marshalSectors,
+    sectorFlags,
+  });
+  useEffect(() => {
+    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags };
+  });
   useEffect(() => {
     zoomRef.current = zoom * wheelZoomFactorRef.current;
   }, [zoom]);
-  const cornersRef = useRef(corners);
-  cornersRef.current = corners;
-  const marshalSectorsRef = useRef(marshalSectors);
-  marshalSectorsRef.current = marshalSectors;
-  const sectorFlagsRef = useRef(sectorFlags);
-  sectorFlagsRef.current = sectorFlags;
 
   // Update targets when drivers prop changes
   useEffect(() => {
     driversRef.current = drivers;
     const now = performance.now();
     // Scale interpolation duration with speed so dots keep up
-    const duration = BASE_INTERP_MS / Math.max(speedRef.current, 0.25);
+    const duration = BASE_INTERP_MS / Math.max(latestPropsRef.current.playbackSpeed, 0.25);
 
     for (const drv of drivers) {
       const entry = posRef.current.get(drv.abbr);
@@ -161,19 +160,20 @@ export default function TrackCanvas({
       ctx.save();
       ctx.translate(px, py);
 
+      const lp = latestPropsRef.current;
       drawTrack(
         ctx,
         trackPoints,
         w,
         h,
         rotation,
-        trackStatusRef.current,
-        sectorOverlayRef.current,
-        compactRef.current,
+        lp.trackStatus,
+        lp.sectorOverlay,
+        lp.compact,
         zoomRef.current,
-        cornersRef.current,
-        marshalSectorsRef.current,
-        sectorFlagsRef.current,
+        lp.corners,
+        lp.marshalSectors,
+        lp.sectorFlags,
         0,
         0,
       );
@@ -200,8 +200,8 @@ export default function TrackCanvas({
         h,
         rotation,
         highlightedDrivers,
-        showNamesRef.current,
-        compactRef.current,
+        lp.showDriverNames,
+        lp.compact,
         zoomRef.current,
         0,
         0,
@@ -371,6 +371,7 @@ export default function TrackCanvas({
   // Keep pan origin consistent when zoom buttons change; clear any stray CSS transform.
   useEffect(() => {
     panRef.current = { x: 0, y: 0 };
+    wheelZoomFactorRef.current = 1;
     const canvas = canvasRef.current;
     if (canvas) canvas.style.transform = "";
   }, [zoom]);

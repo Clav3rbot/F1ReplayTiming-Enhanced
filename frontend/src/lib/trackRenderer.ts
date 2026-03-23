@@ -44,6 +44,66 @@ const TRACK_STATUS_COLORS: Record<string, string> = {
   red: "#E10600",
 };
 
+/** Shared coordinate transform: rotation, bounds, scale, offset, toScreen. */
+function computeTrackTransform(
+  points: TrackPoint[],
+  width: number,
+  height: number,
+  rotation: number,
+  compact: boolean,
+  zoom: number,
+  panX: number = 0,
+  panY: number = 0,
+) {
+  const padX = compact ? 10 : 40;
+  const padTop = compact ? 10 : 60;
+  const padBottom = compact ? 10 : 90;
+  const w = width - padX * 2;
+  const h = height - padTop - padBottom;
+
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cx = 0.5;
+  const cy = 0.5;
+
+  const rotated = points.map((p) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    return { x: dx * cos - dy * sin + cx, y: dx * sin + dy * cos + cy };
+  });
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of rotated) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  const scale = Math.min(w / rangeX, h / rangeY) * Math.max(0.25, zoom);
+  const offsetX = padX + (w - rangeX * scale) / 2;
+  const offsetY = padTop + (h - rangeY * scale) / 2;
+
+  function toScreen(p: TrackPoint): [number, number] {
+    return [
+      offsetX + (p.x - minX) * scale + panX,
+      offsetY + (maxY - p.y) * scale + panY,
+    ];
+  }
+
+  /** Rotate a normalized point (e.g. driver position, corner). */
+  function rotate(x: number, y: number): { x: number; y: number } {
+    const dx = x - cx;
+    const dy = y - cy;
+    return { x: dx * cos - dy * sin + cx, y: dx * sin + dy * cos + cy };
+  }
+
+  return { rotated, scale, offsetX, offsetY, minX, maxX, minY, maxY, cos, sin, cx, cy, toScreen, rotate, padX, padTop, padBottom };
+}
+
 export function drawTrack(
   ctx: CanvasRenderingContext2D,
   points: TrackPoint[],
@@ -57,58 +117,14 @@ export function drawTrack(
   corners?: Corner[] | null,
   marshalSectors?: MarshalSector[] | null,
   sectorFlags?: SectorFlag[] | null,
-  /** Pixel pan (tablet); apply in draw space so overflow:hidden does not clip the map */
   panX: number = 0,
   panY: number = 0,
 ) {
   if (points.length === 0) return;
 
-  const padX = compact ? 10 : 40;
-  const padTop = compact ? 10 : 60;
-  const padBottom = compact ? 10 : 90;
-  const w = width - padX * 2;
-  const h = height - padTop - padBottom;
-
-  // Rotation is pre-applied in the backend; keep for any future manual override
-  const rad = (rotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-
-  // Center of the normalized track
-  const cx = 0.5;
-  const cy = 0.5;
-
-  const rotated = points.map((p) => {
-    const dx = p.x - cx;
-    const dy = p.y - cy;
-    return {
-      x: dx * cos - dy * sin + cx,
-      y: dx * sin + dy * cos + cy,
-    };
-  });
-
-  // Find bounds after rotation
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of rotated) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  }
-
-  const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 1;
-  const scale = Math.min(w / rangeX, h / rangeY) * Math.max(0.25, zoom);
-
-  const offsetX = padX + (w - rangeX * scale) / 2;
-  const offsetY = padTop + (h - rangeY * scale) / 2;
-
-  function toScreen(p: TrackPoint): [number, number] {
-    return [
-      offsetX + (p.x - minX) * scale + panX,
-      offsetY + (maxY - p.y) * scale + panY, // Flip Y: data Y-up → screen Y-down
-    ];
-  }
+  const { rotated, toScreen, rotate } = computeTrackTransform(
+    points, width, height, rotation, compact, zoom, panX, panY,
+  );
 
   // Draw track outline (optionally colored by sector)
   if (sectorOverlay) {
@@ -200,27 +216,16 @@ export function drawTrack(
     ctx.textBaseline = "middle";
 
     for (const c of corners) {
-      // Apply same rotation as track points
-      const dx = c.x - cx;
-      const dy = c.y - cy;
-      const rx = dx * cos - dy * sin + cx;
-      const ry = dx * sin + dy * cos + cy;
-      const [screenX, screenY] = toScreen({ x: rx, y: ry });
+      const rp = rotate(c.x, c.y);
+      const [screenX, screenY] = toScreen(rp);
 
-      // Offset label away from track using the angle.
-      // Clamp to canvas bounds so labels don't get clipped on smaller layouts.
       const labelRad = ((c.angle + rotation) * Math.PI) / 180;
-      // Keep labels further from the racing line for readability,
-      // matching the spacing used in main.
       const labelOffset = compact ? 18 : 16;
-      // Do not clamp to canvas edges: that pins labels to the viewport border when zoom/pan moves
-      // the track, so numbers appear to "slide" off the real corner. Use geometric position only.
       const lx = screenX + Math.cos(labelRad) * labelOffset;
       const ly = screenY - Math.sin(labelRad) * labelOffset;
 
       const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
 
-      // Strong contrast for dark map background (fill + stroke)
       ctx.lineWidth = compact ? 3 : 2;
       ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
       ctx.strokeText(label, lx, ly);
@@ -244,18 +249,13 @@ export function drawTrack(
       const sf = flagLookup.get(ms.number);
       if (!sf) continue;
 
-      const dx = ms.x - cx;
-      const dy = ms.y - cy;
-      const rx = dx * cos - dy * sin + cx;
-      const ry = dx * sin + dy * cos + cy;
-      const [screenX, screenY] = toScreen({ x: rx, y: ry });
+      const rp = rotate(ms.x, ms.y);
+      const [screenX, screenY] = toScreen(rp);
 
-      // Flag colour
       const isDouble = sf.flag === "DOUBLE YELLOW";
       const flagColor = sf.flag === "RED" ? "#FF0000" : "#FFD700";
       const radius = 8;
 
-      // Dark outline for contrast
       ctx.beginPath();
       ctx.arc(screenX, screenY, radius + 2, 0, Math.PI * 2);
       ctx.fillStyle = "#000000";
@@ -263,13 +263,11 @@ export function drawTrack(
       ctx.fill();
       ctx.globalAlpha = 1.0;
 
-      // Inner circle
       ctx.beginPath();
       ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
       ctx.fillStyle = flagColor;
       ctx.fill();
 
-      // Double yellow — outer ring
       if (isDouble) {
         ctx.beginPath();
         ctx.arc(screenX, screenY, radius + 4, 0, Math.PI * 2);
@@ -278,7 +276,6 @@ export function drawTrack(
         ctx.stroke();
       }
 
-      // Draw driver abbreviation if present
       if (sf.driver) {
         ctx.fillStyle = "#FFFFFF";
         ctx.fillText(sf.driver, screenX, screenY + radius + 10);
@@ -303,54 +300,19 @@ export function drawDrivers(
 ) {
   if (trackPoints.length === 0) return;
 
-  const padX = compact ? 10 : 40;
-  const padTop = compact ? 10 : 60;
-  const padBottom = compact ? 10 : 90;
-  const w = width - padX * 2;
-  const h = height - padTop - padBottom;
-
-  const rad = (rotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const cx = 0.5;
-  const cy = 0.5;
-
-  const rotatedTrack = trackPoints.map((p) => {
-    const dx = p.x - cx;
-    const dy = p.y - cy;
-    return { x: dx * cos - dy * sin + cx, y: dx * sin + dy * cos + cy };
-  });
-
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of rotatedTrack) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  }
-
-  const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 1;
-  const scale = Math.min(w / rangeX, h / rangeY) * Math.max(0.25, zoom);
-  const offsetX = padX + (w - rangeX * scale) / 2;
-  const offsetY = padTop + (h - rangeY * scale) / 2;
+  const { scale, toScreen, rotate } = computeTrackTransform(
+    trackPoints, width, height, rotation, compact, zoom, panX, panY,
+  );
 
   for (const drv of drivers) {
-    // Rotate driver position
-    const dx = drv.x - cx;
-    const dy = drv.y - cy;
-    const rx = dx * cos - dy * sin + cx;
-    const ry = dx * sin + dy * cos + cy;
-
-    const sx = offsetX + (rx - minX) * scale + panX;
-    const sy = offsetY + (maxY - ry) * scale + panY; // Flip Y: data Y-up → screen Y-down
+    const rp = rotate(drv.x, drv.y);
+    const [sx, sy] = toScreen(rp);
 
     const isHighlighted = highlightedDrivers.includes(drv.abbr);
     const radius = isHighlighted ? 8 : 5;
 
     ctx.save();
 
-    // Glow effect for highlighted
     if (isHighlighted) {
       ctx.beginPath();
       ctx.arc(sx, sy, 14, 0, Math.PI * 2);
@@ -358,7 +320,6 @@ export function drawDrivers(
       ctx.fill();
     }
 
-    // Driver dot
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, Math.PI * 2);
     ctx.fillStyle = drv.color;
@@ -369,7 +330,6 @@ export function drawDrivers(
 
     ctx.restore();
 
-    // Driver label
     if (showNames) {
       ctx.font = isHighlighted ? "800 12px system-ui, -apple-system, sans-serif" : "800 10px system-ui, -apple-system, sans-serif";
       ctx.fillStyle = "#FFFFFF";
@@ -378,3 +338,4 @@ export function drawDrivers(
     }
   }
 }
+

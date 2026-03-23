@@ -83,6 +83,22 @@ function useSmoothedNumber(target: number, stiffness = 0.2) {
 
 export default function TelemetryChart({ visible, driver, year, isQualifying, useImperial, sidebar = false }: Props) {
   const hasDrs = !year || year < 2026;
+
+  // Compute raw values (always, so hooks below have stable inputs even when driver is null)
+  const speedKmh = Math.round(driver?.speed ?? 0);
+  const speed = useImperial ? Math.round(speedKmh * 0.6214) : speedKmh;
+  const throttleRaw = driver?.throttle ?? 0;
+  const brakeRaw = driver?.brake ? 100 : 0;
+  const gear = driver?.gear ?? 0;
+  const rpmRaw = driver?.rpm ?? 0;
+  const drs = driver?.drs ?? 0;
+
+  // Hooks must always be called in the same order — never after an early return
+  const throttle = useSmoothedNumber(throttleRaw, 0.24);
+  const brake = useSmoothedNumber(brakeRaw, 0.24);
+  const rpm = useSmoothedNumber(rpmRaw, 0.2);
+  const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
+
   if (!visible) return null;
 
   if (!driver) {
@@ -94,18 +110,6 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
       </div>
     );
   }
-
-  const speedKmh = Math.round(driver.speed ?? 0);
-  const speed = useImperial ? Math.round(speedKmh * 0.6214) : speedKmh;
-  const throttleRaw = driver.throttle ?? 0;
-  const brakeRaw = driver.brake ? 100 : 0;
-  const gear = driver.gear ?? 0;
-  const rpmRaw = driver.rpm ?? 0;
-  const drs = driver.drs ?? 0;
-  const throttle = useSmoothedNumber(throttleRaw, 0.24);
-  const brake = useSmoothedNumber(brakeRaw, 0.24);
-  const rpm = useSmoothedNumber(rpmRaw, 0.2);
-  const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
 
   return (
     <div

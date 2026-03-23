@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
 import { ReplaySettings } from "@/hooks/useSettings";
 import { TYRE_COLORS, TYRE_SHORT, TEAM_ABBR } from "@/lib/constants";
@@ -107,11 +107,15 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     return () => window.removeEventListener("resize", updateScale);
   }, [drivers.length, settings.showGapToLeader, settings.showBestLapTime, isRace, compact, onScaleChange]);
 
-  const sorted = [...drivers].sort(
-    (a, b) => (a.position ?? 999) - (b.position ?? 999),
+  const sorted = useMemo(
+    () => [...drivers].sort((a, b) => (a.position ?? 999) - (b.position ?? 999)),
+    [drivers],
   );
 
-  const intervals = isRace && showInterval ? computeIntervals(sorted) : null;
+  const intervals = useMemo(
+    () => (isRace && showInterval ? computeIntervals(sorted) : null),
+    [isRace, showInterval, sorted],
+  );
 
   return (
     <div ref={containerRef} className={`glass-panel-heavy h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
