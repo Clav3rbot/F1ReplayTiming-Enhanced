@@ -579,9 +579,9 @@ def _get_driver_positions_by_time_sync(
     max_date = global_max_date
     total_seconds = (max_date - min_date).total_seconds()
 
-    # Sample every 1.0 second — halves frame count with negligible visual impact
-    # (frontend interpolation already handles smooth movement)
-    sample_interval = 1.0
+    # Sample every 0.5 seconds for smooth replay
+    # (1.0s drops too many frames causing jumping/stuttering cars)
+    sample_interval = 0.5
     num_samples = int(total_seconds / sample_interval)
 
     # Use the same normalization as the track outline (fastest lap)
