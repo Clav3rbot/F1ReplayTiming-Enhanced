@@ -164,13 +164,16 @@ export default function ReplayPage() {
   // retryKey: forces track/laps re-fetch after WebSocket finishes on-demand processing
   const [retryKey, setRetryKey] = useState(0);
 
+  // WebSocket for replay data (must be declared before useApp hooks that depend on it)
+  const replay = useReplaySocket(year, round, sessionType);
+
   const { data: trackData, loading: trackLoading } = useApi<TrackData>(
-    `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`,
+    replay.ready ? `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}` : null,
   );
 
   // Fetch lap data for last lap time column (race/sprint only)
   const { data: lapsResponse } = useApi<{ laps: LapEntry[] }>(
-    sessionType === "R" || sessionType === "S"
+    (sessionType === "R" || sessionType === "S") && replay.ready
       ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
       : null,
   );
@@ -190,8 +193,6 @@ export default function ReplayPage() {
     }
     return map;
   }, [lapsResponse]);
-
-  const replay = useReplaySocket(year, round, sessionType);
 
   // When WebSocket finishes on-demand processing and track data is still missing,
   // re-fetch track/laps (the WebSocket just created them in storage)
@@ -915,7 +916,7 @@ export default function ReplayPage() {
             )}
 
             {/* Lap Analysis section - mobile only */}
-            {isRace && lapsResponse?.laps && (
+            {isMobile && isRace && lapsResponse?.laps && (
               <div className="border-t border-f1-border" ref={(el) => {
                 if (el && mobileLapAnalysisOpen) {
                   setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
