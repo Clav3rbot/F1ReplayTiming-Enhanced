@@ -67,7 +67,7 @@ function DriverDropdown({ value, onChange, drivers, placeholder, getColor }: {
       >
         {selected ? (
           <>
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getColor(selected.abbr) }} />
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selected.color }} />
             <span className="text-xs font-bold text-white">{selected.abbr}</span>
             <span className="text-[10px] text-f1-muted truncate">{selected.team}</span>
           </>
@@ -504,7 +504,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                   <div key={abbr} className="flex-1 flex items-center gap-1">
                     <span
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: getDriverColor(abbr) }}
+                      style={{ backgroundColor: drivers.find((d) => d.abbr === abbr)?.color || "#888" }}
                     />
                     <span className="text-[9px] font-bold text-f1-muted">{abbr}</span>
                   </div>

@@ -109,11 +109,20 @@ interface ReplayState {
   replaySampleInterval: number;
   finished: boolean;
   error: string | null;
+  reconnecting: boolean;
 }
+
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 export function useReplaySocket(year: number, round: number, sessionType: string = "R") {
   const wsRef = useRef<WebSocket | null>(null);
   const pausedRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const wasReadyRef = useRef(false);
+  const lastTimestampRef = useRef(0);
+  const mountedRef = useRef(true);
+
   const [state, setState] = useState<ReplayState>({
     connected: false,
     ready: false,
@@ -130,95 +139,136 @@ export function useReplaySocket(year: number, round: number, sessionType: string
     replaySampleInterval: 0.5,
     finished: false,
     error: null,
+    reconnecting: false,
   });
 
   useEffect(() => {
-    const url = wsUrl(`/ws/replay/${year}/${round}?type=${sessionType}`);
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+    mountedRef.current = true;
+    reconnectAttemptsRef.current = 0;
+    wasReadyRef.current = false;
+    lastTimestampRef.current = 0;
 
-    ws.onopen = () => {
-      setState((s) => ({ ...s, connected: true }));
-    };
+    function connect() {
+      if (!mountedRef.current) return;
 
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+      const url = wsUrl(`/ws/replay/${year}/${round}?type=${sessionType}`);
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
 
-      switch (msg.type) {
-        case "status":
-          setState((s) => ({ ...s, loading: true }));
-          break;
-        case "ready": {
-          const rleRaw = Array.isArray(msg.frame_laps_rle) ? msg.frame_laps_rle : [];
-          const frameLapsRle: FrameLapsRleSegment[] = rleRaw
-            .map((row: { lap?: unknown; count?: unknown }) => ({
-              lap: Number(row.lap),
-              count: Number(row.count),
-            }))
-            .filter(
-              (row: FrameLapsRleSegment) =>
-                Number.isFinite(row.lap) && row.lap >= 1 && Number.isFinite(row.count) && row.count > 0,
-            );
-          setState((s) => ({
-            ...s,
-            ready: true,
-            loading: false,
-            totalTime: msg.total_time,
-            totalLaps: msg.total_laps,
-            qualiPhases: msg.quali_phases || [],
-            lapStarts: Array.isArray(msg.lap_starts) ? msg.lap_starts : [],
-            totalFrames: typeof msg.total_frames === "number" ? msg.total_frames : 0,
-            frameLapsRle,
-            replaySampleInterval:
-              typeof msg.replay_sample_interval === "number" && msg.replay_sample_interval > 0
-                ? msg.replay_sample_interval
-                : 0.5,
-          }));
-          // Request first frame so cars are visible before play
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send("seek:0");
+      ws.onopen = () => {
+        if (!mountedRef.current) return;
+        reconnectAttemptsRef.current = 0;
+        setState((s) => ({ ...s, connected: true, reconnecting: false, error: null }));
+      };
+
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
+        const msg = JSON.parse(event.data);
+
+        switch (msg.type) {
+          case "status":
+            setState((s) => ({ ...s, loading: true }));
+            break;
+          case "ready": {
+            const rleRaw = Array.isArray(msg.frame_laps_rle) ? msg.frame_laps_rle : [];
+            const frameLapsRle: FrameLapsRleSegment[] = rleRaw
+              .map((row: { lap?: unknown; count?: unknown }) => ({
+                lap: Number(row.lap),
+                count: Number(row.count),
+              }))
+              .filter(
+                (row: FrameLapsRleSegment) =>
+                  Number.isFinite(row.lap) && row.lap >= 1 && Number.isFinite(row.count) && row.count > 0,
+              );
+            setState((s) => ({
+              ...s,
+              ready: true,
+              loading: false,
+              reconnecting: false,
+              totalTime: msg.total_time,
+              totalLaps: msg.total_laps,
+              qualiPhases: msg.quali_phases || [],
+              lapStarts: Array.isArray(msg.lap_starts) ? msg.lap_starts : [],
+              totalFrames: typeof msg.total_frames === "number" ? msg.total_frames : 0,
+              frameLapsRle,
+              replaySampleInterval:
+                typeof msg.replay_sample_interval === "number" && msg.replay_sample_interval > 0
+                  ? msg.replay_sample_interval
+                  : 0.5,
+            }));
+            // On reconnect: seek to last known position; on initial load: seek to 0
+            if (ws.readyState === WebSocket.OPEN) {
+              const seekTo = wasReadyRef.current && lastTimestampRef.current > 0
+                ? lastTimestampRef.current
+                : 0;
+              ws.send(`seek:${seekTo}`);
+            }
+            wasReadyRef.current = true;
+            break;
           }
-          break;
+          case "frame":
+            // Drop frames that arrive after pause (in-flight from backend)
+            if (pausedRef.current) break;
+            lastTimestampRef.current = msg.timestamp;
+            setState((s) => ({
+              ...s,
+              frame: {
+                timestamp: msg.timestamp,
+                lap: msg.lap,
+                total_laps: msg.total_laps,
+                session_type: msg.session_type,
+                drivers: msg.drivers,
+                status: msg.status,
+                weather: msg.weather,
+                quali_phase: msg.quali_phase,
+                rc_messages: msg.rc_messages,
+                red_flag_end: msg.red_flag_end,
+                sector_flags: msg.sector_flags,
+              },
+            }));
+            break;
+          case "finished":
+            setState((s) => ({ ...s, playing: false, finished: true }));
+            break;
+          case "error":
+            setState((s) => ({ ...s, error: msg.message, loading: false }));
+            break;
         }
-        case "frame":
-          // Drop frames that arrive after pause (in-flight from backend)
-          if (pausedRef.current) break;
-          setState((s) => ({
-            ...s,
-            frame: {
-              timestamp: msg.timestamp,
-              lap: msg.lap,
-              total_laps: msg.total_laps,
-              session_type: msg.session_type,
-              drivers: msg.drivers,
-              status: msg.status,
-              weather: msg.weather,
-              quali_phase: msg.quali_phase,
-              rc_messages: msg.rc_messages,
-              red_flag_end: msg.red_flag_end,
-              sector_flags: msg.sector_flags,
-            },
-          }));
-          break;
-        case "finished":
-          setState((s) => ({ ...s, playing: false, finished: true }));
-          break;
-        case "error":
-          setState((s) => ({ ...s, error: msg.message, loading: false }));
-          break;
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
-    };
+      ws.onerror = () => {
+        if (!mountedRef.current) return;
+        // If we were never ready, mark the error immediately.
+        // If we were ready, onclose will fire next and handle reconnect.
+        if (!wasReadyRef.current) {
+          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+        }
+      };
 
-    ws.onclose = () => {
-      setState((s) => ({ ...s, connected: false }));
-    };
+      ws.onclose = () => {
+        if (!mountedRef.current) return;
+        setState((s) => ({ ...s, connected: false }));
+
+        if (wasReadyRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(1000 * reconnectAttemptsRef.current, 8000);
+          setState((s) => ({ ...s, reconnecting: true, error: null }));
+          reconnectTimerRef.current = setTimeout(connect, delay);
+        } else if (!wasReadyRef.current) {
+          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+        } else {
+          // Exceeded max reconnect attempts
+          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false, reconnecting: false }));
+        }
+      };
+    }
+
+    connect();
 
     return () => {
-      ws.close();
+      mountedRef.current = false;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      wsRef.current?.close();
     };
   }, [year, round, sessionType]);
 

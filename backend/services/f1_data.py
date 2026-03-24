@@ -1185,7 +1185,26 @@ def _get_driver_positions_by_time_sync(
             "drs": drs,
         }
 
-    logger.info(f"[perf] pre-processing: {_time.monotonic() - t_start:.1f}s — {len(driver_arrays)} drivers, {min(num_samples, 25000)} frames to build")
+    # Pre-vectorize frame index lookup for each driver.
+    # Instead of calling np.searchsorted once per driver per frame (25000 × 20 calls),
+    # compute all frame indices for each driver in a single vectorized call.
+    _actual_frames = min(num_samples, 25000)
+    _all_t = np.arange(_actual_frames, dtype=np.float64) * sample_interval
+    driver_frame_idx: dict[str, np.ndarray] = {}
+    driver_frame_valid: dict[str, np.ndarray] = {}
+    for drv, arrays in driver_arrays.items():
+        _times = arrays["times"]
+        _n = len(_times)
+        _idx = np.searchsorted(_times, _all_t, side="left")
+        _idx_clipped = np.clip(_idx, 0, _n - 1)
+        _prev = np.maximum(_idx_clipped - 1, 0)
+        # Nearest-neighbour: prefer previous index when closer
+        _use_prev = (_idx > 0) & (np.abs(_times[_prev] - _all_t) < np.abs(_times[_idx_clipped] - _all_t))
+        _final = np.where(_use_prev, _prev, _idx_clipped)
+        driver_frame_idx[drv] = _final
+        driver_frame_valid[drv] = np.abs(_times[_final] - _all_t) <= 10.0
+
+    logger.info(f"[perf] pre-processing: {_time.monotonic() - t_start:.1f}s — {len(driver_arrays)} drivers, {_actual_frames} frames to build")
 
     # Load real-time gap-to-leader data from F1 timing feed
     # abbr -> (times_array, gap_strings_array)
@@ -1268,24 +1287,16 @@ def _get_driver_positions_by_time_sync(
     ever_seen: set[str] = set()
 
     t_frame_start = _time.monotonic()
-    for i in range(min(num_samples, 25000)):  # cap to prevent excessive data
+    for i in range(_actual_frames):
         t_sec = i * sample_interval
         frame_drivers = []
         seen_drivers = set()
 
         # Collect each driver's track coordinates and gap data
         for drv, arrays in driver_arrays.items():
-            times = arrays["times"]
-            idx = np.searchsorted(times, t_sec, side="left")
-            if idx >= len(times):
-                idx = len(times) - 1
-            elif idx > 0:
-                if abs(times[idx - 1] - t_sec) < abs(times[idx] - t_sec):
-                    idx = idx - 1
-
-            time_diff = abs(times[idx] - t_sec)
-            if time_diff > 10:
+            if not driver_frame_valid[drv][i]:
                 continue
+            idx = int(driver_frame_idx[drv][i])
 
             seen_drivers.add(drv)
             ever_seen.add(drv)
