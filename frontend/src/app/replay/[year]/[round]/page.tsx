@@ -712,7 +712,7 @@ export default function ReplayPage() {
                 <div
                   className={`gap-1 ${
                     effectiveTelemetryPosition === "bottom"
-                      ? "relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain pr-1.5 pb-2"
+                      ? "relative z-10 flex flex-row flex-wrap min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1.5 pb-2"
                       : "flex max-h-[42vh] flex-col overflow-y-auto overscroll-y-contain pr-1.5"
                   }`}
                 >

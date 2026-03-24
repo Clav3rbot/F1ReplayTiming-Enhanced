@@ -343,14 +343,14 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         <DriverDropdown
           value={selectedDrivers[0]}
           onChange={(abbr) => setSelectedDrivers((prev) => [abbr, prev[1]])}
-          drivers={sortedDrivers}
+          drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[1])}
           placeholder="Select driver..."
           getColor={getDriverColor}
         />
         <DriverDropdown
           value={selectedDrivers[1]}
           onChange={(abbr) => setSelectedDrivers((prev) => [prev[0], abbr])}
-          drivers={sortedDrivers}
+          drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[0])}
           placeholder="Compare with..."
           getColor={getDriverColor}
         />
