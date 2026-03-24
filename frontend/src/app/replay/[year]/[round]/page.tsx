@@ -363,6 +363,7 @@ export default function ReplayPage() {
                 corners={settings.showCorners ? trackData?.corners : null}
                 marshalSectors={trackData?.marshal_sectors}
                 sectorFlags={replay.frame?.sector_flags}
+                playing={replay.playing}
               />
             </div>
           </div>
@@ -502,8 +503,9 @@ export default function ReplayPage() {
                   corners={settings.showCorners ? trackData?.corners : null}
                   marshalSectors={trackData?.marshal_sectors}
                   sectorFlags={replay.frame?.sector_flags}
+                  playing={replay.playing}
                 />
-                
+
                 {/* iPad zoom controls (same UI as iPhone) */}
                 {enableTrackZoom && (
                   <div className="absolute right-3 bottom-14 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
@@ -911,6 +913,7 @@ export default function ReplayPage() {
                     corners={settings.showCorners ? trackData?.corners : null}
                     marshalSectors={trackData?.marshal_sectors}
                     sectorFlags={replay.frame?.sector_flags}
+                    playing={replay.playing}
                   />
                 </div>
               )}

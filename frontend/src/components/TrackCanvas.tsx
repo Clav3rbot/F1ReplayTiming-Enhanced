@@ -17,6 +17,7 @@ interface Props {
   corners?: Corner[] | null;
   marshalSectors?: MarshalSector[] | null;
   sectorFlags?: SectorFlag[] | null;
+  playing?: boolean;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -51,6 +52,7 @@ export default function TrackCanvas({
   corners = null,
   marshalSectors = null,
   sectorFlags = null,
+  playing = true,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +87,23 @@ export default function TrackCanvas({
   useEffect(() => {
     zoomRef.current = zoom * wheelZoomFactorRef.current;
   }, [zoom]);
+
+  // Snap drivers to current position when paused (stop interpolation glide)
+  useEffect(() => {
+    if (!playing) {
+      const now = performance.now();
+      posRef.current.forEach((entry) => {
+        const t = Math.min((now - entry.startTime) / entry.duration, 1);
+        const x = entry.prevX + (entry.targetX - entry.prevX) * t;
+        const y = entry.prevY + (entry.targetY - entry.prevY) * t;
+        entry.prevX = x;
+        entry.prevY = y;
+        entry.targetX = x;
+        entry.targetY = y;
+        entry.startTime = now;
+      });
+    }
+  }, [playing]);
 
   // Update targets when drivers prop changes
   useEffect(() => {

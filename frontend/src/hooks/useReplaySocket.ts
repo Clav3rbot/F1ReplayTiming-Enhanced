@@ -113,6 +113,7 @@ interface ReplayState {
 
 export function useReplaySocket(year: number, round: number, sessionType: string = "R") {
   const wsRef = useRef<WebSocket | null>(null);
+  const pausedRef = useRef(false);
   const [state, setState] = useState<ReplayState>({
     connected: false,
     ready: false,
@@ -180,6 +181,8 @@ export function useReplaySocket(year: number, round: number, sessionType: string
           break;
         }
         case "frame":
+          // Drop frames that arrive after pause (in-flight from backend)
+          if (pausedRef.current) break;
           setState((s) => ({
             ...s,
             frame: {
@@ -226,11 +229,13 @@ export function useReplaySocket(year: number, round: number, sessionType: string
   }, []);
 
   const play = useCallback(() => {
+    pausedRef.current = false;
     send("play");
     setState((s) => ({ ...s, playing: true, finished: false }));
   }, [send]);
 
   const pause = useCallback(() => {
+    pausedRef.current = true;
     send("pause");
     setState((s) => ({ ...s, playing: false }));
   }, [send]);
@@ -241,16 +246,19 @@ export function useReplaySocket(year: number, round: number, sessionType: string
   }, [send]);
 
   const seek = useCallback((time: number) => {
+    pausedRef.current = false;
     send(`seek:${time}`);
     setState((s) => ({ ...s, finished: false }));
   }, [send]);
 
   const seekToLap = useCallback((lap: number) => {
+    pausedRef.current = false;
     send(`seeklap:${lap}`);
     setState((s) => ({ ...s, finished: false }));
   }, [send]);
 
   const reset = useCallback(() => {
+    pausedRef.current = false;
     send("reset");
     setState((s) => ({ ...s, playing: false, finished: false }));
   }, [send]);

@@ -119,7 +119,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   return (
     <div
       className={`glass-panel-heavy border-f1-border rounded-xl py-2 shadow-2xl overflow-hidden relative ${
-        sidebar ? "min-w-0 w-full pl-2.5 pr-3" : "min-w-[430px] pl-3 pr-4 sm:pl-4 sm:pr-5"
+        sidebar ? `min-w-0 w-fit pl-2.5 ${hasDrs ? "pr-3" : "pr-1.5"}` : `w-fit pl-3 sm:pl-4 ${hasDrs ? "pr-3 sm:pr-4" : "pr-1.5 sm:pr-2"}`
       }`}
     >
       <div className={`flex items-center relative z-10 min-w-0 ${sidebar ? "gap-2" : "gap-2 sm:gap-4"}`}>
@@ -181,7 +181,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         </div>
 
         {/* RPM */}
-        <div className="w-[68px] sm:w-[92px] min-w-0 flex items-center gap-[4px] mr-0.5">
+        <div className={`min-w-0 flex items-center gap-[4px] ${hasDrs ? "w-[68px] sm:w-[92px]" : ""}`}>
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
           <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {rpmDisplay}
@@ -195,7 +195,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
             className={`w-[28px] sm:w-[32px] text-center text-[9px] font-extrabold py-0.5 rounded shrink-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-colors ${
               drs >= 10
                 ? "text-f1-green bg-f1-green/20 border border-f1-green/40 shadow-[0_0_10px_rgba(0,255,65,0.3)]"
-                : "text-f1-muted/40 border border-f1-border bg-f1-card/40"
+                : "text-f1-muted/50 border border-f1-border bg-f1-card/40"
             }`}
           >
             DRS
