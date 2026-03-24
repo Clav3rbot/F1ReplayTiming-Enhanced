@@ -668,19 +668,22 @@ export default function ReplayPage() {
               </div>
 
               {/* Expanded telemetry panel for 3+ drivers */}
-              {showTelemetry && selectedDrivers.length > 2 && (
+              {showTelemetry && selectedDrivers.length > 2 && (() => {
+                const telRowsPerCol = Math.max(Math.min(4, Math.ceil(drivers.length / 4)), Math.ceil(selectedDrivers.length / 4));
+                const telNumCols = Math.ceil(selectedDrivers.length / telRowsPerCol);
+                return (
                 <div
                 className={`flex-shrink-0 relative min-h-0 ${
                   effectiveTelemetryPosition === "left"
                     ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-fit max-w-[100vw]"
-                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
+                    : "glass-panel-heavy border-t border-f1-border py-1 flex flex-row overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
                   <div
                     ref={telemetryPanelRef}
                     className={
                       effectiveTelemetryPosition === "bottom"
-                        ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
+                        ? "flex-1 min-w-0 glass-panel-heavy px-3 pt-1 flex flex-col min-h-0 overflow-auto"
                         : "flex min-h-0 min-w-0 flex-col overflow-hidden"
                     }
                   >
@@ -712,11 +715,37 @@ export default function ReplayPage() {
                 <div
                   className={`gap-1 ${
                     effectiveTelemetryPosition === "bottom"
-                      ? "relative z-10 flex flex-row flex-wrap min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1.5 pb-2"
+                      ? "relative z-10 flex flex-row min-h-0 overflow-auto overscroll-contain pr-1.5 pb-2"
                       : "flex max-h-[42vh] flex-col overflow-y-auto overscroll-y-contain pr-1.5"
                   }`}
                 >
-                  {selectedDrivers.map((abbr) => {
+                  {effectiveTelemetryPosition === "bottom" ? (() => {
+                    const columns = [
+                      selectedDrivers.slice(0, telRowsPerCol),
+                      selectedDrivers.slice(telRowsPerCol, telRowsPerCol * 2),
+                      selectedDrivers.slice(telRowsPerCol * 2, telRowsPerCol * 3),
+                      selectedDrivers.slice(telRowsPerCol * 3),
+                    ].filter(c => c.length > 0);
+                    return columns.map((col, colIdx) => (
+                      <div key={colIdx} className="flex flex-col gap-1">
+                        {col.map((abbr) => {
+                          const drv = drivers.find((d) => d.abbr === abbr) || null;
+                          return (
+                            <div key={abbr}>
+                              <TelemetryChart
+                                visible
+                                driver={drv}
+                                year={year}
+                                isQualifying={isQualifying}
+                                useImperial={settings.useImperial}
+                                sidebar
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })() : selectedDrivers.map((abbr) => {
                     const drv = drivers.find((d) => d.abbr === abbr) || null;
                     return (
                       <div key={abbr}>
@@ -736,7 +765,7 @@ export default function ReplayPage() {
               {!rcPinned && (
                 <div className={`flex flex-shrink-0 items-center justify-center ${
                   effectiveTelemetryPosition === "bottom"
-                    ? "border-l border-f1-border px-4"
+                    ? `border-l border-f1-border px-4 ${telNumCols >= 4 ? "w-48" : telNumCols >= 3 ? "w-[30%]" : "w-[50%]"}`
                     : "border-t border-f1-border py-2 mt-2"
                 }`}>
                   <button
@@ -751,7 +780,7 @@ export default function ReplayPage() {
                 <div
                   className={`glass-panel-heavy ${
                     effectiveTelemetryPosition === "bottom"
-                      ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col min-h-0"
+                      ? `border-l border-f1-border px-3 pt-1 ${telNumCols >= 4 ? "w-48" : telNumCols >= 3 ? "w-[30%]" : "w-[50%]"} flex-shrink-0 overflow-hidden flex flex-col min-h-0`
                       : "mt-2 flex max-h-[min(38vh,22rem)] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-f1-border px-3 py-2"
                   }`}
                 >
@@ -789,7 +818,8 @@ export default function ReplayPage() {
                 </div>
               )}
                 </div>
-              )}
+              );
+              })()}
             </div>
             </div>
           )}
