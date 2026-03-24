@@ -672,7 +672,7 @@ export default function ReplayPage() {
                 <div
                 className={`flex-shrink-0 relative min-h-0 ${
                   effectiveTelemetryPosition === "left"
-                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,28rem)] max-w-[100vw] md:w-[min(100%,30rem)]"
+                    ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-fit max-w-[100vw]"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
                 >
@@ -684,7 +684,7 @@ export default function ReplayPage() {
                         : "flex min-h-0 min-w-0 flex-col overflow-hidden"
                     }
                   >
-                    <div className="mb-1 flex flex-shrink-0 items-center gap-2">
+                    <div className="mb-1 flex flex-shrink-0 items-center gap-2 pr-1.5">
                   <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
                   {lapAnalysisOpen ? (
                     <span className="text-[9px] text-f1-muted italic">Shown at bottom while Lap Analysis is open</span>
