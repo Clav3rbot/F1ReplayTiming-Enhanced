@@ -7,7 +7,8 @@ import { useReplaySocket } from "@/hooks/useReplaySocket";
 import { useSettings } from "@/hooks/useSettings";
 import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
-import Leaderboard from "@/components/Leaderboard";
+import Leaderboard, { type LapEntry } from "@/components/Leaderboard";
+import LapAnalysisPanel from "@/components/LapAnalysisPanel";
 import PlaybackControls from "@/components/PlaybackControls";
 import SessionLoadingScreen from "@/components/SessionLoadingScreen";
 import TelemetryChart from "@/components/TelemetryChart";
@@ -78,6 +79,10 @@ export default function ReplayPage() {
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(true);
   const [mobileTelemetryOpen, setMobileTelemetryOpen] = useState(false);
   const [mobileRcOpen, setMobileRcOpen] = useState(true);
+  const [lapAnalysisOpen, setLapAnalysisOpen] = useState(false);
+  const [mobileLapAnalysisOpen, setMobileLapAnalysisOpen] = useState(false);
+  // Force telemetry to bottom when lap analysis panel is open to avoid squashing the track map
+  const effectiveTelemetryPosition = lapAnalysisOpen && telemetryPosition === "left" ? "bottom" : telemetryPosition;
   const [leaderboardScale, setLeaderboardScale] = useState(1);
   const [pipTrackOpen, setPipTrackOpen] = useState(true);
   const [pipTelemetryOpen, setPipTelemetryOpen] = useState(false);
@@ -156,11 +161,45 @@ export default function ReplayPage() {
     `/api/sessions/${year}/${round}?type=${sessionType}`,
   );
 
-  const { data: trackData, loading: trackLoading, error: trackError } = useApi<TrackData>(
-    `/api/sessions/${year}/${round}/track?type=${sessionType}`,
+  // retryKey: forces track/laps re-fetch after WebSocket finishes on-demand processing
+  const [retryKey, setRetryKey] = useState(0);
+
+  const { data: trackData, loading: trackLoading } = useApi<TrackData>(
+    `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`,
   );
 
+  // Fetch lap data for last lap time column (race/sprint only)
+  const { data: lapsResponse } = useApi<{ laps: LapEntry[] }>(
+    sessionType === "R" || sessionType === "S"
+      ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
+      : null,
+  );
+
+  // Build lookup: driver -> lap_number -> lap_time
+  const lapData = useMemo(() => {
+    if (!lapsResponse?.laps) return undefined;
+    const map = new Map<string, Map<number, string>>();
+    for (const lap of lapsResponse.laps) {
+      if (!lap.lap_time) continue;
+      let driverMap = map.get(lap.driver);
+      if (!driverMap) {
+        driverMap = new Map();
+        map.set(lap.driver, driverMap);
+      }
+      driverMap.set(lap.lap_number, lap.lap_time);
+    }
+    return map;
+  }, [lapsResponse]);
+
   const replay = useReplaySocket(year, round, sessionType);
+
+  // When WebSocket finishes on-demand processing and becomes ready,
+  // re-fetch track/laps data that was just created during processing
+  useEffect(() => {
+    if (replay.ready && !trackData) {
+      setRetryKey((k) => k + 1);
+    }
+  }, [replay.ready, trackData]);
 
   const lastRcCountRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -186,8 +225,8 @@ export default function ReplayPage() {
     lastRcCountRef.current = msgs.length;
   }, [replay.frame?.rc_messages?.length, settings.rcSound]);
 
-  const isLoading = sessionLoading || trackLoading;
-  const dataError = sessionError || trackError;
+  const isLoading = sessionLoading || (trackLoading && !trackData);
+  const dataError = sessionError || replay.error;
   const blockingLoad = isLoading || (!dataError && replay.loading);
 
   const [loadPhase, setLoadPhase] = useState<"loading" | "exit" | "ready">("loading");
@@ -278,12 +317,13 @@ export default function ReplayPage() {
   })();
 
   // Calculate leaderboard width based on active columns
-  const leaderboardWidth = (() => {
+  const leaderboardWidthFull = (() => {
     let w = 106; // base: position(24) + team bar(12) + driver(30) + flags(16) + padding(16) + right padding(8)
     if (settings.showTeamAbbr) w += 28;
     if (!isRace) w += 18; // pit indicator (P box + margin)
     if (isRace && settings.showGridChange) w += 24;
     if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
+    if (isRace && settings.showLastLapTime) w += 60; // last lap time column
     if (settings.showGapToLeader) w += 56;
     if (isQualifying && settings.showSectors) w += 36; // sector indicators (28 + 8 margin)
     if (isRace && settings.showPitStops) w += 24;
@@ -294,6 +334,10 @@ export default function ReplayPage() {
     if (isRace && settings.showPitPrediction && settings.showPitFreeAir) w += 36; // pit gaps (ahead/behind)
     return w;
   })();
+
+  // On mobile, auto-hide team abbreviation if columns overflow the screen
+  const mobileTeamAbbrHidden = isMobile && settings.showTeamAbbr && leaderboardWidthFull > (typeof window !== "undefined" ? window.innerWidth : 400);
+  const leaderboardWidth = mobileTeamAbbrHidden ? leaderboardWidthFull - 28 : leaderboardWidthFull;
 
   return (
     <div
@@ -311,6 +355,7 @@ export default function ReplayPage() {
           settings={settings}
           onSettingChange={updateSetting}
           weather={weather}
+          mobileTeamAbbrHidden={mobileTeamAbbrHidden}
         />
       )}
       {/* Main content grid */}
@@ -376,7 +421,7 @@ export default function ReplayPage() {
             <div
               className={`min-w-0 flex min-h-0 flex-1 overflow-hidden ${
                 showTelemetry && selectedDrivers.length > 2
-                  ? telemetryPosition === "left"
+                  ? effectiveTelemetryPosition === "left"
                     ? "flex-row"
                     : "flex-col"
                   : "flex-col"
@@ -578,7 +623,7 @@ export default function ReplayPage() {
                   </div>
                 )}
 
-                {/* Desktop telemetry toggle */}
+                {/* Desktop telemetry toggle + lap analysis */}
                 <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
                   <button
                     onClick={() => setShowTelemetry(!showTelemetry)}
@@ -588,6 +633,21 @@ export default function ReplayPage() {
                   >
                     {showTelemetry ? "Hide" : "Show"} Telemetry
                   </button>
+                  {isRace && lapsResponse?.laps && (
+                    <button
+                      onClick={() => setLapAnalysisOpen(!lapAnalysisOpen)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                        lapAnalysisOpen
+                          ? "bg-f1-red text-white"
+                          : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Laps
+                    </button>
+                  )}
                 </div>
                 </div>
               </div>
@@ -596,7 +656,7 @@ export default function ReplayPage() {
               {showTelemetry && selectedDrivers.length > 2 && (
                 <div
                 className={`flex-shrink-0 relative min-h-0 ${
-                  telemetryPosition === "left"
+                  effectiveTelemetryPosition === "left"
                     ? "flex h-full max-h-full min-w-0 flex-col overflow-hidden glass-panel-heavy border-r border-f1-border order-first px-3 py-2 w-[min(100%,28rem)] max-w-[100vw] md:w-[min(100%,30rem)]"
                     : "glass-panel-heavy border-t border-f1-border py-1 flex flex-col overflow-hidden h-56 max-h-[40vh]"
                 }`}
@@ -604,25 +664,29 @@ export default function ReplayPage() {
                   <div
                     ref={telemetryPanelRef}
                     className={
-                      telemetryPosition === "bottom"
+                      effectiveTelemetryPosition === "bottom"
                         ? "inline-block glass-panel-heavy px-3 pt-1 flex flex-col flex-1 min-h-0"
                         : "flex min-h-0 min-w-0 flex-col overflow-hidden"
                     }
                   >
                     <div className="mb-1 flex flex-shrink-0 items-center gap-2">
                   <span className="text-[10px] font-bold text-f1-muted uppercase">Telemetry</span>
-                  <button
-                    onClick={() => {
-                      if (telemetryPosition === "left") {
-                        setTelemetryPosition("bottom");
-                      } else {
-                        setTelemetryPosition("left");
-                      }
-                    }}
-                    className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
-                  >
-                    {telemetryPosition === "left" ? "Move to bottom" : "Move to left"}
-                  </button>
+                  {lapAnalysisOpen ? (
+                    <span className="text-[9px] text-f1-muted italic">Shown at bottom while Lap Analysis is open</span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (telemetryPosition === "left") {
+                          setTelemetryPosition("bottom");
+                        } else {
+                          setTelemetryPosition("left");
+                        }
+                      }}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    >
+                      {telemetryPosition === "left" ? "Move to bottom" : "Move to left"}
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowTelemetry(false)}
                     className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors ml-auto"
@@ -632,7 +696,7 @@ export default function ReplayPage() {
                 </div>
                 <div
                   className={`gap-1 ${
-                    telemetryPosition === "bottom"
+                    effectiveTelemetryPosition === "bottom"
                       ? "relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain pr-1.5 pb-2"
                       : "flex max-h-[42vh] flex-col overflow-y-auto overscroll-y-contain pr-1.5"
                   }`}
@@ -647,7 +711,7 @@ export default function ReplayPage() {
                           year={year}
                           isQualifying={isQualifying}
                           useImperial={settings.useImperial}
-                          sidebar={telemetryPosition === "left" || telemetryPosition === "bottom"}
+                          sidebar={effectiveTelemetryPosition === "left" || effectiveTelemetryPosition === "bottom"}
                         />
                       </div>
                     );
@@ -656,7 +720,7 @@ export default function ReplayPage() {
               </div>
               {!rcPinned && (
                 <div className={`flex flex-shrink-0 items-center justify-center ${
-                  telemetryPosition === "bottom"
+                  effectiveTelemetryPosition === "bottom"
                     ? "border-l border-f1-border px-4"
                     : "border-t border-f1-border py-2 mt-2"
                 }`}>
@@ -671,7 +735,7 @@ export default function ReplayPage() {
               {rcPinned && (
                 <div
                   className={`glass-panel-heavy ${
-                    telemetryPosition === "bottom"
+                    effectiveTelemetryPosition === "bottom"
                       ? "border-l border-f1-border px-3 pt-1 flex-1 overflow-hidden flex flex-col min-h-0"
                       : "mt-2 flex max-h-[min(38vh,22rem)] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-f1-border px-3 py-2"
                   }`}
@@ -837,7 +901,32 @@ export default function ReplayPage() {
                       isRace={isRace}
                       isQualifying={isQualifying}
                       onScaleChange={setLeaderboardScale}
+                      lapData={lapData}
+                      currentLap={replay.frame?.lap || 0}
+                      mobileTeamAbbrHidden={mobileTeamAbbrHidden}
                     />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lap Analysis section - mobile only */}
+            {isRace && lapsResponse?.laps && (
+              <div className="border-t border-f1-border" ref={(el) => {
+                if (el && mobileLapAnalysisOpen) {
+                  setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                }
+              }}>
+                <button
+                  onClick={() => setMobileLapAnalysisOpen(!mobileLapAnalysisOpen)}
+                  className="w-full flex items-center justify-between px-3 py-3 bg-f1-card border-b border-f1-border min-h-[44px]"
+                >
+                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Lap Analysis</span>
+                  <ChevronToggle open={mobileLapAnalysisOpen} />
+                </button>
+                {mobileLapAnalysisOpen && (
+                  <div className="bg-f1-card">
+                    <LapAnalysisPanel laps={lapsResponse.laps} drivers={drivers} currentLap={replay.frame?.lap || 0} />
                   </div>
                 )}
               </div>
@@ -845,19 +934,30 @@ export default function ReplayPage() {
           </div>
         </div>
 
-        {/* Desktop Leaderboard Column */}
+        {/* Desktop Leaderboard Column (with optional lap analysis panel) */}
         {!isMobile && settings.showLeaderboard && (
-          <div className="border-l border-f1-border flex-shrink-0" style={{ width: Math.ceil(leaderboardWidth * leaderboardScale) }}>
-            <Leaderboard
-              drivers={drivers}
-              highlightedDrivers={selectedDrivers}
-              onDriverClick={handleDriverClick}
-              settings={settings}
-              currentTime={replay.frame?.timestamp || 0}
-              isRace={isRace}
-              isQualifying={isQualifying}
-              onScaleChange={setLeaderboardScale}
-            />
+          <div className="border-l border-f1-border flex-shrink-0 flex">
+            {/* Lap Analysis Panel - desktop only, left of leaderboard */}
+            {isRace && lapAnalysisOpen && lapsResponse?.laps && (
+              <div className="w-[300px] h-full border-r border-f1-border overflow-hidden flex-shrink-0">
+                <LapAnalysisPanel laps={lapsResponse.laps} drivers={drivers} currentLap={replay.frame?.lap || 0} onClose={() => setLapAnalysisOpen(false)} />
+              </div>
+            )}
+            <div style={{ width: Math.ceil(leaderboardWidth * leaderboardScale) }}>
+              <Leaderboard
+                drivers={drivers}
+                highlightedDrivers={selectedDrivers}
+                onDriverClick={handleDriverClick}
+                settings={settings}
+                currentTime={replay.frame?.timestamp || 0}
+                isRace={isRace}
+                isQualifying={isQualifying}
+                onScaleChange={setLeaderboardScale}
+                lapData={lapData}
+                currentLap={replay.frame?.lap || 0}
+                mobileTeamAbbrHidden={mobileTeamAbbrHidden}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -991,6 +1091,8 @@ export default function ReplayPage() {
                     isRace={isRace}
                     isQualifying={isQualifying}
                     compact
+                    lapData={lapData}
+                    currentLap={replay.frame?.lap || 0}
                   />
                 </div>
               )}
