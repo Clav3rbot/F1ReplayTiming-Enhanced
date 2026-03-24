@@ -150,7 +150,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
     const maxLap = Math.max(...active.map((d) => {
       const dl = driverLaps.get(d);
       if (!dl) return 0;
-      const filtered = dl.filter((l) => l.lap_number <= currentLap);
+      const filtered = dl.filter((l) => l.lap_number < currentLap);
       return filtered.length > 0 ? filtered[filtered.length - 1].lap_number : 0;
     }));
 
@@ -170,7 +170,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
       for (const d of active) {
         const dl = driverLaps.get(d);
         const entry = dl?.find((l) => l.lap_number === lap);
-        if (entry?.lap_time && lap <= currentLap) {
+        if (entry?.lap_time && lap < currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) allCleanTimes.push(secs);
         }
@@ -199,7 +199,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         for (const d of active) {
           const dl = driverLaps.get(d);
           const entry = dl?.find((l) => l.lap_number === lap);
-          if (entry?.lap_time && lap <= currentLap) {
+          if (entry?.lap_time && lap < currentLap) {
             const secs = parseLapTime(entry.lap_time);
             if (secs !== null && secs > slowThreshold) { isSlow = true; break; }
           }
@@ -219,13 +219,13 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         const dl = driverLaps.get(d);
         const entry = dl?.find((l) => l.lap_number === lap);
         // Always store the actual time for tooltip display
-        if (entry?.lap_time && lap <= currentLap) {
+        if (entry?.lap_time && lap < currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) {
             point[`_time_${d}`] = secs;
           }
         }
-        if (entry?.lap_time && !excludeFromLine && lap <= currentLap) {
+        if (entry?.lap_time && !excludeFromLine && lap < currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) {
             point[d] = secs;
@@ -519,7 +519,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                 const maxLap = Math.max(
                   ...activeDrivers.map((d) => {
                     const dl = driverLaps.get(d) || [];
-                    const filtered = dl.filter((l) => l.lap_number <= currentLap);
+                    const filtered = dl.filter((l) => l.lap_number < currentLap);
                     return filtered.length > 0 ? filtered[filtered.length - 1].lap_number : 0;
                   }),
                 );
