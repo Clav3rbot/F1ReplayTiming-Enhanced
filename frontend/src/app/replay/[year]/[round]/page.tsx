@@ -230,7 +230,7 @@ export default function ReplayPage() {
   }, [replay.frame?.rc_messages?.length, settings.rcSound]);
 
   const isLoading = sessionLoading;
-  const dataError = sessionError;
+  const dataError = sessionError || replay.error;
   const blockingLoad = isLoading || (!dataError && replay.loading);
 
   const [loadPhase, setLoadPhase] = useState<"loading" | "exit" | "ready">("loading");
@@ -271,7 +271,7 @@ export default function ReplayPage() {
         <div className="text-center max-w-md">
           <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
           <p className="text-f1-muted mb-1">
-            Data for this session is not available yet.
+            {typeof dataError === 'string' ? dataError : "Data for this session is not available yet."}
           </p>
           <p className="text-f1-muted text-sm mb-6">
             If the session just finished, data typically becomes available 1–2 hours after the chequered flag.

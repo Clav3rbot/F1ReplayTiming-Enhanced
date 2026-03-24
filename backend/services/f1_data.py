@@ -698,9 +698,13 @@ def _get_driver_positions_by_time_sync(
         return drivers
 
     # Only parse race control messages if session was loaded with messages=True
-    _has_rcm = hasattr(session, 'race_control_messages')
+    rcm = None
     try:
-        rcm = session.race_control_messages if _has_rcm else None
+        rcm = session.race_control_messages
+    except Exception as e:
+        pass
+    
+    try:
         if rcm is not None and len(rcm) > 0:
             logger.info(f"Race control messages: {len(rcm)} entries, columns: {list(rcm.columns)}")
             for _, msg_row in rcm.iterrows():
