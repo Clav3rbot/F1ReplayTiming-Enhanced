@@ -26,3 +26,6 @@ backend/data/sessions/
 
 # AI context
 CLAUDE.md
+
+# Docker configs
+*docker-compose*.y*ml
