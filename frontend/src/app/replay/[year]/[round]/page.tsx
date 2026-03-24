@@ -193,11 +193,15 @@ export default function ReplayPage() {
 
   const replay = useReplaySocket(year, round, sessionType);
 
-  // When WebSocket finishes on-demand processing and becomes ready,
-  // re-fetch track/laps data that was just created during processing
+  // When WebSocket finishes on-demand processing and track data is still missing,
+  // re-fetch track/laps (the WebSocket just created them in storage)
+  const prevReady = useRef(false);
   useEffect(() => {
-    if (replay.ready && !trackData) {
-      setRetryKey((k) => k + 1);
+    if (replay.ready && !prevReady.current) {
+      prevReady.current = true;
+      if (!trackData) {
+        setRetryKey((k) => k + 1);
+      }
     }
   }, [replay.ready, trackData]);
 
@@ -225,8 +229,8 @@ export default function ReplayPage() {
     lastRcCountRef.current = msgs.length;
   }, [replay.frame?.rc_messages?.length, settings.rcSound]);
 
-  const isLoading = sessionLoading || (trackLoading && !trackData);
-  const dataError = sessionError || replay.error;
+  const isLoading = sessionLoading;
+  const dataError = sessionError;
   const blockingLoad = isLoading || (!dataError && replay.loading);
 
   const [loadPhase, setLoadPhase] = useState<"loading" | "exit" | "ready">("loading");

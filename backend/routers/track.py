@@ -2,7 +2,6 @@ import logging
 
 from fastapi import APIRouter, Query, HTTPException
 from services.storage import get_json, put_json
-from services.process import ensure_session_data
 from services.f1_data import _get_track_data_sync
 
 logger = logging.getLogger(__name__)
@@ -74,13 +73,6 @@ async def track_geometry(
                     except Exception as e:
                         logger.warning(f"Could not regenerate corners for fallback {prev_path}: {e}")
                 return data
-
-    # On-demand: try to process the session via FastF1 (last resort)
-    available = await ensure_session_data(year, round_num, type)
-    if available:
-        data = get_json(f"sessions/{year}/{round_num}/{type}/track.json")
-        if data is not None:
-            return data
 
     raise HTTPException(
         status_code=404,
