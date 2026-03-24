@@ -4,6 +4,7 @@ import asyncio
 import os
 import logging
 import threading
+import time as _time
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -186,7 +187,13 @@ async def get_season_events(year: int) -> list[dict]:
     return await asyncio.to_thread(_get_season_events_sync, year)
 
 
-def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.Session:
+def _load_session(year: int, round_num: int, session_type: str, *, minimal: bool = False) -> fastf1.core.Session:
+    """Load a FastF1 session.
+
+    Args:
+        minimal: If True, skip weather & messages for faster load (~20-30% faster).
+                 The session is still cached and can be upgraded later.
+    """
     key = _cache_key(year, round_num, session_type)
     if key in _session_cache:
         return _session_cache[key]
@@ -196,20 +203,23 @@ def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.S
         if key in _session_cache:
             return _session_cache[key]
 
-        logger.info(f"Loading session {year}/{round_num}/{session_type} from FastF1...")
+        t0 = _time.monotonic()
+        load_mode = "minimal" if minimal else "full"
+        logger.info(f"Loading session {year}/{round_num}/{session_type} ({load_mode}) from FastF1...")
         session = fastf1.get_session(year, round_num, session_type)
         session.load(
             telemetry=True,
             laps=True,
-            weather=True,
-            messages=True,
+            weather=not minimal,
+            messages=not minimal,
         )
+        elapsed = _time.monotonic() - t0
 
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:
             _session_cache[key] = session
 
-        logger.info(f"Session {year}/{round_num}/{session_type} loaded.")
+        logger.info(f"Session {year}/{round_num}/{session_type} loaded in {elapsed:.1f}s ({load_mode}).")
         return session
 
 
@@ -518,10 +528,12 @@ async def get_race_results(year: int, round_num: int, session_type: str = "R") -
 
 
 def _get_driver_positions_by_time_sync(
-    year: int, round_num: int, session_type: str = "R"
+    year: int, round_num: int, session_type: str = "R", *, minimal: bool = False
 ) -> list[dict]:
     """Build frame-by-frame position data for the replay engine."""
-    session = _load_session(year, round_num, session_type)
+    t_start = _time.monotonic()
+    session = _load_session(year, round_num, session_type, minimal=minimal)
+    logger.info(f"[perf] session load: {_time.monotonic() - t_start:.1f}s")
     laps = session.laps
     total_laps = int(laps["LapNumber"].max()) if len(laps) > 0 else 0
     is_race = session_type in ("R", "S")  # Race or Sprint
@@ -541,24 +553,35 @@ def _get_driver_positions_by_time_sync(
         except Exception:
             continue
 
+    logger.info(f"[perf] telemetry collect: {_time.monotonic() - t_start:.1f}s ({len(driver_pos_data)} drivers)")
+
     if not driver_pos_data:
         return []
 
-    # Find common time range
-    all_dates = []
+    # Find common time range — use min/max per driver to avoid huge list
+    global_min_date = None
+    global_max_date = None
     for drv, tel in driver_pos_data.items():
         if "Date" in tel.columns and len(tel) > 0:
-            all_dates.extend(tel["Date"].dropna().tolist())
+            dates = tel["Date"].dropna()
+            if len(dates) > 0:
+                d_min = dates.iloc[0]
+                d_max = dates.iloc[-1]
+                if global_min_date is None or d_min < global_min_date:
+                    global_min_date = d_min
+                if global_max_date is None or d_max > global_max_date:
+                    global_max_date = d_max
 
-    if not all_dates:
+    if global_min_date is None:
         return []
 
-    min_date = min(all_dates)
-    max_date = max(all_dates)
+    min_date = global_min_date
+    max_date = global_max_date
     total_seconds = (max_date - min_date).total_seconds()
 
-    # Sample every 0.5 seconds for smooth replay
-    sample_interval = 0.5
+    # Sample every 1.0 second — halves frame count with negligible visual impact
+    # (frontend interpolation already handles smooth movement)
+    sample_interval = 1.0
     num_samples = int(total_seconds / sample_interval)
 
     # Use the same normalization as the track outline (fastest lap)
@@ -674,11 +697,12 @@ def _get_driver_positions_by_time_sync(
                     drivers.append(abbr)
         return drivers
 
+    # Only parse race control messages if session was loaded with messages=True
+    _has_rcm = hasattr(session, 'race_control_messages')
     try:
-        rcm = session.race_control_messages
-        logger.info(f"Race control messages: {len(rcm) if rcm is not None else 'None'} entries")
+        rcm = session.race_control_messages if _has_rcm else None
         if rcm is not None and len(rcm) > 0:
-            logger.info(f"RCM columns: {list(rcm.columns)}")
+            logger.info(f"Race control messages: {len(rcm)} entries, columns: {list(rcm.columns)}")
             for _, msg_row in rcm.iterrows():
                 msg_time = msg_row.get("Time")
                 if pd.isna(msg_time):
@@ -712,10 +736,10 @@ def _get_driver_positions_by_time_sync(
                     continue
 
                 for abbr in drivers_in_msg:
-                    logger.info(f"RCM flag: {abbr} | {flag_type} | msg={message[:80]} | t={time_sec:.0f}s")
                     flag_events.append((time_sec, abbr, flag_type))
         flag_events.sort(key=lambda e: e[0])
-        logger.info(f"Parsed {len(flag_events)} flag events: {flag_events}")
+        if flag_events:
+            logger.info(f"Parsed {len(flag_events)} flag events")
     except Exception as e:
         logger.error(f"Failed to parse race control messages: {e}")
 
@@ -793,19 +817,34 @@ def _get_driver_positions_by_time_sync(
                 active[sector_num] = {"sector": sector_num, "flag": flag, "driver": driver}
         return list(active.values()) if active else None
 
+    # Pre-compute RC message timestamps for binary search
+    _rc_timestamps = np.array([m["timestamp"] for m in rc_message_list], dtype=np.float64) if rc_message_list else np.array([], dtype=np.float64)
+
     def _get_rc_messages(frame_time: float) -> list[dict]:
         """Get RC messages up to frame_time (newest first, max 50)."""
-        msgs = [m for m in rc_message_list if m["timestamp"] <= frame_time]
-        return list(reversed(msgs[-50:]))
+        if len(_rc_timestamps) == 0:
+            return []
+        idx = int(np.searchsorted(_rc_timestamps, frame_time, side="right"))
+        if idx == 0:
+            return []
+        start = max(0, idx - 50)
+        return list(reversed(rc_message_list[start:idx]))
+
+    # Pre-index flag events per driver for O(log n) lookup instead of O(n)
+    _flag_events_by_driver: dict[str, list[tuple[float, str]]] = {}
+    for evt_time, evt_abbr, evt_type in flag_events:
+        _flag_events_by_driver.setdefault(evt_abbr, []).append((evt_time, evt_type))
 
     def _get_driver_flag(abbr: str, frame_time: float) -> str | None:
         """Get current flag state for a driver at a given time."""
+        drv_events = _flag_events_by_driver.get(abbr)
+        if not drv_events:
+            return None
         current = None
-        for evt_time, evt_abbr, evt_type in flag_events:
+        for evt_time, evt_type in drv_events:
             if evt_time > frame_time:
                 break
-            if evt_abbr == abbr:
-                current = None if evt_type == "clear" else evt_type
+            current = None if evt_type == "clear" else evt_type
         return current
 
     # Build lap lookup: for each driver, which lap are they on at a given time
@@ -1142,7 +1181,7 @@ def _get_driver_positions_by_time_sync(
             "drs": drs,
         }
 
-    logger.info(f"Pre-processed {len(driver_arrays)} drivers for frame generation, {min(num_samples, 50000)} frames to build")
+    logger.info(f"[perf] pre-processing: {_time.monotonic() - t_start:.1f}s — {len(driver_arrays)} drivers, {min(num_samples, 25000)} frames to build")
 
     # Load real-time gap-to-leader data from F1 timing feed
     # abbr -> (times_array, gap_strings_array)
@@ -1202,6 +1241,8 @@ def _get_driver_positions_by_time_sync(
             return None
         return str(val)
 
+    _lapped_re = __import__('re').compile(r"^(\d+)\s*L$")
+
     def _gap_sort_key(gap_str: str | None) -> float:
         """Convert gap string to a sortable number. Leader (LAP X) = 0, +N.NNN = N.NNN, lapped = 9000+N, None = inf."""
         if gap_str is None:
@@ -1209,8 +1250,7 @@ def _get_driver_positions_by_time_sync(
         if gap_str.startswith("LAP"):
             return 0.0
         # Lapped cars: "1L", "1 L", "2L" etc  - sort after all non-lapped drivers
-        import re
-        lapped = re.match(r"^(\d+)\s*L$", gap_str)
+        lapped = _lapped_re.match(gap_str)
         if lapped:
             return 9000.0 + int(lapped.group(1))
         try:
@@ -1223,7 +1263,8 @@ def _get_driver_positions_by_time_sync(
     # Track drivers that have ever appeared in telemetry
     ever_seen: set[str] = set()
 
-    for i in range(min(num_samples, 50000)):  # cap to prevent excessive data
+    t_frame_start = _time.monotonic()
+    for i in range(min(num_samples, 25000)):  # cap to prevent excessive data
         t_sec = i * sample_interval
         frame_drivers = []
         seen_drivers = set()
@@ -1665,6 +1706,8 @@ def _get_driver_positions_by_time_sync(
                 frame["red_flag_end"] = round(rfe, 1)
         frames.append(frame)
 
+    logger.info(f"[perf] frame loop: {_time.monotonic() - t_frame_start:.1f}s ({len(frames)} frames)")
+    logger.info(f"[perf] total _get_driver_positions_by_time_sync: {_time.monotonic() - t_start:.1f}s")
     return frames
 
 

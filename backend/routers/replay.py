@@ -360,7 +360,7 @@ async def replay_websocket(
         playing = False
         speed = 1.0
         frame_index = 0
-        base_interval = 0.5
+        base_interval = replay_sample_interval  # matches frame generation interval
 
         async def send_seek_frame(target_time: float):
             nonlocal frame_index
