@@ -775,7 +775,12 @@ export default function ReplayPage() {
                   </button>
                   {effectiveTelemetryPosition === "bottom" && (
                     <button
-                      onClick={() => { setRcPanelOpen(true); setRcPosition(null); }}
+                      onClick={(e) => {
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        const approxH = window.innerHeight * (rcPanelSize === "sm" ? 0.25 : rcPanelSize === "md" ? 0.5 : 0.85);
+                        setRcPosition({ x: Math.max(0, rect.right - 320), y: Math.max(8, rect.top - approxH - 4) });
+                        setRcPanelOpen(true);
+                      }}
                       className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
                     >
                       Open Popup
