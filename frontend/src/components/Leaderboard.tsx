@@ -161,7 +161,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
             <button
               key={drv.abbr}
               onClick={() => onDriverClick(drv.abbr)}
-              className={`w-full flex items-center px-2 py-1 hover:bg-white/10 transition-all duration-200 text-left relative ${
+              className={`w-full flex items-center px-2 py-1 hover:bg-white/10 transition-colors duration-200 text-left relative ${
                 isHighlighted ? "bg-white/10 shadow-[inset_3px_0_0_rgba(255,255,255,0.8)]" : "border-l-[3px] border-transparent"
               } ${drv.no_timing ? "opacity-40" : ""}`}
             >

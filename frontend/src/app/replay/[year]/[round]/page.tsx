@@ -734,8 +734,8 @@ export default function ReplayPage() {
                   })}
                 </div>
               </div>
-              {!rcPinned && (
-                <div className={`flex flex-shrink-0 items-center justify-center ${
+              {!rcPinned && !(rcPanelOpen && effectiveTelemetryPosition === "bottom") && (
+                <div className={`flex flex-shrink-0 flex-col items-center justify-center gap-1 ${
                   effectiveTelemetryPosition === "bottom"
                     ? `border-l border-f1-border px-4 ${telNumCols >= 4 ? "w-48" : telNumCols >= 3 ? "w-[30%]" : "w-[50%]"}`
                     : "border-t border-f1-border py-2 mt-2"
@@ -746,6 +746,14 @@ export default function ReplayPage() {
                   >
                     Show Race Control
                   </button>
+                  {effectiveTelemetryPosition === "bottom" && (
+                    <button
+                      onClick={() => { setRcPanelOpen(true); setRcPosition(null); }}
+                      className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    >
+                      Open Popup
+                    </button>
+                  )}
                 </div>
               )}
               {rcPinned && (
