@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
 
 interface Props {
@@ -59,9 +59,9 @@ export default function TrackCanvas({
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  /** Two-finger touch or mouse drag (PC) */
+  /** Two-finger touch (pan + pinch-zoom) or mouse drag (PC) */
   type PanSession =
-    | { mode: "twofinger"; originX: number; originY: number; baseX: number; baseY: number }
+    | { mode: "twofinger"; lastX: number; lastY: number; lastDist: number }
     | { mode: "mouse"; pointerId: number; originX: number; originY: number; baseX: number; baseY: number };
   const panSessionRef = useRef<PanSession | null>(null);
 
@@ -69,8 +69,7 @@ export default function TrackCanvas({
   const driversRef = useRef<DriverMarker[]>([]);
   const wheelZoomFactorRef = useRef(1);
   const zoomRef = useRef(zoom);
-
-  const [showPanHint, setShowPanHint] = useState(false);
+  const panHintRef = useRef<HTMLDivElement>(null);
   const panHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Group all props that the rAF loop reads via ref (to avoid recreating the loop). */
@@ -83,13 +82,9 @@ export default function TrackCanvas({
     corners,
     marshalSectors,
     sectorFlags,
-    playing,
   });
-  /** True whenever something changed that requires a canvas redraw. Used to skip drawing when paused and idle. */
-  const dirtyRef = useRef(true);
   useEffect(() => {
-    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags, playing };
-    dirtyRef.current = true;
+    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags };
   });
   useEffect(() => {
     zoomRef.current = zoom * wheelZoomFactorRef.current;
@@ -109,14 +104,12 @@ export default function TrackCanvas({
         entry.targetY = y;
         entry.startTime = now;
       });
-      dirtyRef.current = true;
     }
   }, [playing]);
 
   // Update targets when drivers prop changes
   useEffect(() => {
     driversRef.current = drivers;
-    dirtyRef.current = true;
     const now = performance.now();
     // Scale interpolation duration with speed so dots keep up
     const duration = BASE_INTERP_MS / Math.max(latestPropsRef.current.playbackSpeed, 0.25);
@@ -172,13 +165,6 @@ export default function TrackCanvas({
         hostWindow.requestAnimationFrame(animate);
         return;
       }
-
-      // Skip redraw when paused and nothing has changed (saves CPU/GPU while idle)
-      if (!latestPropsRef.current.playing && !dirtyRef.current) {
-        hostWindow.requestAnimationFrame(animate);
-        return;
-      }
-      dirtyRef.current = false;
 
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
         canvas.width = Math.round(w * dpr);
@@ -295,21 +281,32 @@ export default function TrackCanvas({
       y: (t0.clientY + t1.clientY) / 2,
     });
 
+    const touchDistance = (t0: Touch, t1: Touch) => {
+      const dx = t0.clientX - t1.clientX;
+      const dy = t0.clientY - t1.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const showHint = () => {
+      const el = panHintRef.current;
+      if (!el) return;
+      if (panHintTimeoutRef.current) clearTimeout(panHintTimeoutRef.current);
+      el.style.opacity = "1";
+      panHintTimeoutRef.current = setTimeout(() => {
+        if (panHintRef.current) panHintRef.current.style.opacity = "0";
+      }, 2000);
+    };
+
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        if (panHintTimeoutRef.current) clearTimeout(panHintTimeoutRef.current);
-        setShowPanHint(true);
-        panHintTimeoutRef.current = setTimeout(() => setShowPanHint(false), 2000);
-        return;
-      }
+      if (e.touches.length === 1) { showHint(); return; }
       if (e.touches.length !== 2) return;
       const mid = midpoint(e.touches[0], e.touches[1]);
+      const dist = touchDistance(e.touches[0], e.touches[1]);
       panSessionRef.current = {
         mode: "twofinger",
-        originX: mid.x,
-        originY: mid.y,
-        baseX: panRef.current.x,
-        baseY: panRef.current.y,
+        lastX: mid.x,
+        lastY: mid.y,
+        lastDist: dist,
       };
       e.preventDefault();
     };
@@ -317,10 +314,27 @@ export default function TrackCanvas({
     const onTouchMove = (e: TouchEvent) => {
       const s = panSessionRef.current;
       if (e.touches.length !== 2 || !s || s.mode !== "twofinger") return;
+
       const mid = midpoint(e.touches[0], e.touches[1]);
-      const dx = mid.x - s.originX;
-      const dy = mid.y - s.originY;
-      panRef.current = clampPan(s.baseX + dx, s.baseY + dy);
+      const dist = touchDistance(e.touches[0], e.touches[1]);
+
+      // Incremental pan delta — avoids dead zones at clamp boundaries
+      const dx = mid.x - s.lastX;
+      const dy = mid.y - s.lastY;
+      panRef.current = clampPan(panRef.current.x + dx, panRef.current.y + dy);
+
+      // Pinch-to-zoom: scale by ratio of current vs previous finger distance
+      if (s.lastDist > 0) {
+        const base = zoom > 0 ? zoom : 1;
+        const scaleDelta = dist / s.lastDist;
+        wheelZoomFactorRef.current = Math.max(0.8 / base, Math.min(2.2 / base, wheelZoomFactorRef.current * scaleDelta));
+        zoomRef.current = base * wheelZoomFactorRef.current;
+      }
+
+      s.lastX = mid.x;
+      s.lastY = mid.y;
+      s.lastDist = dist;
+
       e.preventDefault();
     };
 
@@ -424,16 +438,19 @@ export default function TrackCanvas({
       className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing relative"
     >
       <canvas ref={canvasRef} className="h-full w-full" />
-      {showPanHint && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg animate-[fadeIn_150ms_ease-out]">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-            </svg>
-            Use 2 fingers to pan
-          </div>
+      {/* Pan hint: shown via DOM ref to avoid React re-render causing canvas glitch */}
+      <div
+        ref={panHintRef}
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        style={{ opacity: 0, transition: "opacity 300ms" }}
+      >
+        <div className="flex items-center gap-2 bg-black/70 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+          </svg>
+          Use 2 fingers to pan and zoom
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -100,7 +100,7 @@ export default function ReplayPage() {
   const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
   const [isIOS, setIsIOS] = useState(false);
 
-  const enableTrackZoom = isIOS && !fullscreen && !isMobile;
+  const enableTrackZoom = false; // iPad uses pinch-to-zoom gesture directly on the canvas
 
   useEffect(() => {
     function check() { setIsMobile(window.innerWidth < 640); }
@@ -114,6 +114,22 @@ export default function ReplayPage() {
     const onFsChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // Prevent screen from sleeping while the replay page is open
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const request = async () => {
+      try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") request(); };
+    request();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      lock?.release().catch(() => {});
+    };
   }, []);
 
   const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {

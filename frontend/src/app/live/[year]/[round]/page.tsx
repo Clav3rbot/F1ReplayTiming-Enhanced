@@ -90,6 +90,22 @@ export default function LivePage() {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
+  // Prevent screen from sleeping while the live page is open
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const request = async () => {
+      try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") request(); };
+    request();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      lock?.release().catch(() => {});
+    };
+  }, []);
+
   const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
