@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
 
 interface Props {
@@ -70,6 +70,9 @@ export default function TrackCanvas({
   const wheelZoomFactorRef = useRef(1);
   const zoomRef = useRef(zoom);
 
+  const [showPanHint, setShowPanHint] = useState(false);
+  const panHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /** Group all props that the rAF loop reads via ref (to avoid recreating the loop). */
   const latestPropsRef = useRef({
     trackStatus,
@@ -80,9 +83,13 @@ export default function TrackCanvas({
     corners,
     marshalSectors,
     sectorFlags,
+    playing,
   });
+  /** True whenever something changed that requires a canvas redraw. Used to skip drawing when paused and idle. */
+  const dirtyRef = useRef(true);
   useEffect(() => {
-    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags };
+    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags, playing };
+    dirtyRef.current = true;
   });
   useEffect(() => {
     zoomRef.current = zoom * wheelZoomFactorRef.current;
@@ -102,12 +109,14 @@ export default function TrackCanvas({
         entry.targetY = y;
         entry.startTime = now;
       });
+      dirtyRef.current = true;
     }
   }, [playing]);
 
   // Update targets when drivers prop changes
   useEffect(() => {
     driversRef.current = drivers;
+    dirtyRef.current = true;
     const now = performance.now();
     // Scale interpolation duration with speed so dots keep up
     const duration = BASE_INTERP_MS / Math.max(latestPropsRef.current.playbackSpeed, 0.25);
@@ -163,6 +172,13 @@ export default function TrackCanvas({
         hostWindow.requestAnimationFrame(animate);
         return;
       }
+
+      // Skip redraw when paused and nothing has changed (saves CPU/GPU while idle)
+      if (!latestPropsRef.current.playing && !dirtyRef.current) {
+        hostWindow.requestAnimationFrame(animate);
+        return;
+      }
+      dirtyRef.current = false;
 
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
         canvas.width = Math.round(w * dpr);
@@ -280,6 +296,12 @@ export default function TrackCanvas({
     });
 
     const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        if (panHintTimeoutRef.current) clearTimeout(panHintTimeoutRef.current);
+        setShowPanHint(true);
+        panHintTimeoutRef.current = setTimeout(() => setShowPanHint(false), 2000);
+        return;
+      }
       if (e.touches.length !== 2) return;
       const mid = midpoint(e.touches[0], e.touches[1]);
       panSessionRef.current = {
@@ -384,6 +406,7 @@ export default function TrackCanvas({
       canvas.removeEventListener("lostpointercapture", endMousePan);
       canvas.removeEventListener("wheel", onWheel);
       canvas.style.cursor = "";
+      if (panHintTimeoutRef.current) clearTimeout(panHintTimeoutRef.current);
     };
   }, [zoom]);
 
@@ -398,9 +421,19 @@ export default function TrackCanvas({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing"
+      className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing relative"
     >
       <canvas ref={canvasRef} className="h-full w-full" />
+      {showPanHint && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg animate-[fadeIn_150ms_ease-out]">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+            </svg>
+            Use 2 fingers to pan
+          </div>
+        </div>
+      )}
     </div>
   );
 }

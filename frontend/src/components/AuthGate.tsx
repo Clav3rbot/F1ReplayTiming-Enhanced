@@ -19,18 +19,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setConnectionError(false);
 
     const url = apiUrl("/api/auth/status");
-    console.log(`[AuthGate] Checking auth status at ${url}`);
 
     fetch(url)
       .then((res) => {
         if (!res.ok) {
-          console.error(`[AuthGate] Auth status returned ${res.status}`);
           throw new Error(`Backend returned ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
-        console.log(`[AuthGate] Auth enabled: ${data.auth_enabled}`);
         if (!data.auth_enabled) {
           setAuthenticated(true);
           setChecking(false);
@@ -43,15 +40,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               headers: { Authorization: `Bearer ${token}` },
             }).then((res) => {
               if (res.ok) {
-                console.log("[AuthGate] Cached token is valid");
                 setAuthenticated(true);
               } else {
-                console.log("[AuthGate] Cached token is invalid, clearing");
                 clearToken();
               }
               setChecking(false);
             }).catch(() => {
-              console.error("[AuthGate] Failed to validate cached token");
               setChecking(false);
             });
           } else {
@@ -59,8 +53,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           }
         }
       })
-      .catch((err) => {
-        console.error(`[AuthGate] Cannot connect to backend at ${API_URL}:`, err.message);
+      .catch(() => {
         setConnectionError(true);
         setChecking(false);
       });

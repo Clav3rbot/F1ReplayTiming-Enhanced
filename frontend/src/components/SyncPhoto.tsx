@@ -33,6 +33,7 @@ export default function SyncPhoto({
   onSync,
   onClose,
 }: Props) {
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
   const [tab, setTab] = useState<"photo" | "manual">("photo");
   const [step, setStep] = useState<"instructions" | "capture" | "processing" | "result">("instructions");
   const [error, setError] = useState<string | null>(null);
@@ -226,6 +227,7 @@ export default function SyncPhoto({
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            title="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -343,7 +345,7 @@ export default function SyncPhoto({
                   </div>
 
                   <p className="text-center text-sm text-f1-muted">
-                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">Ctrl</kbd>{" "}
+                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">{isMac ? "⌘" : "Ctrl"}</kbd>{" "}
                     +{" "}
                     <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">V</kbd>{" "}
                     to paste from clipboard

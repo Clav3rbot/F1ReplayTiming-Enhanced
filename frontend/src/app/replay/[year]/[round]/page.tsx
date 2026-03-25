@@ -827,7 +827,7 @@ export default function ReplayPage() {
           {/* Widgets that scroll below map on mobile */}
           <div
             className={
-              isMobile ? "flex min-w-0 flex-1 flex-col overflow-y-auto pb-24" : "flex min-w-0 flex-shrink-0 flex-col overflow-x-visible"
+              isMobile ? "flex min-w-0 flex-1 flex-col overflow-y-auto pb-24 [overflow-anchor:none]" : "flex min-w-0 flex-shrink-0 flex-col overflow-x-visible"
             }
           >
             {/* Race Control - Mobile with colored indicators */}
@@ -887,7 +887,7 @@ export default function ReplayPage() {
             )}
 
             {/* Playback Controls */}
-            <div className="sticky bottom-0 z-50 overflow-visible bg-f1-dark sm:relative sm:z-10">
+            <div className="fixed bottom-0 inset-x-0 z-50 overflow-visible bg-f1-dark sm:relative sm:inset-auto sm:z-10">
               <PlaybackControls
                 playing={replay.playing}
                 speed={replay.speed}
