@@ -96,6 +96,7 @@ export default function ReplayPage() {
   const [rcPosition, setRcPosition] = useState<{ x: number; y: number } | null>(null);
   const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const rcPanelRef = useRef<HTMLDivElement>(null);
+  const rcButtonRef = useRef<HTMLButtonElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
   const [isIOS, setIsIOS] = useState(false);
 
@@ -217,6 +218,25 @@ export default function ReplayPage() {
       lock?.release().catch(() => {});
     };
   }, [replay.playing]);
+
+  // Spacebar toggles play/pause
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      e.preventDefault();
+      if (replay.finished) {
+        replay.reset();
+      } else if (replay.playing) {
+        replay.pause();
+      } else {
+        replay.play();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [replay.playing, replay.finished, replay.play, replay.pause, replay.reset]);
 
   // When WebSocket finishes on-demand processing and track data is still missing,
   // re-fetch track/laps (the WebSocket just created them in storage)
@@ -452,10 +472,15 @@ export default function ReplayPage() {
                 {/* RC toggle */}
                 <div className="absolute top-3 right-3 z-10">
                   <button
+                    ref={rcButtonRef}
                     onClick={() => {
                       if (rcPinned) {
                         setRcPinned(false);
                       } else {
+                        if (!rcPanelOpen && rcButtonRef.current) {
+                          const rect = rcButtonRef.current.getBoundingClientRect();
+                          setRcPosition({ x: rect.right - 320, y: rect.bottom + 4 });
+                        }
                         setRcPanelOpen(!rcPanelOpen);
                       }
                     }}
@@ -509,22 +534,15 @@ export default function ReplayPage() {
                             )}
                           </button>
                         ))}
-                        {rcPosition && (
-                          <button onClick={() => setRcPosition(null)} className="text-f1-muted hover:text-white ml-1" title="Reset position">
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                         <button
                           onClick={() => {
                             setRcPanelOpen(false);
                             setRcPosition(null);
                           }}
                           className="text-f1-muted hover:text-white ml-1"
-                          title="Close"
+                          title="Collapse to button"
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
