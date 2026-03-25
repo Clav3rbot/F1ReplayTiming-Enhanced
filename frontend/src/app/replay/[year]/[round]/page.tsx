@@ -97,7 +97,6 @@ export default function ReplayPage() {
   const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const rcPanelRef = useRef<HTMLDivElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
-  const [mobileTrackZoom, setMobileTrackZoom] = useState(1);
   const [isIOS, setIsIOS] = useState(false);
 
   const enableTrackZoom = false; // iPad uses pinch-to-zoom gesture directly on the canvas
@@ -406,26 +405,6 @@ export default function ReplayPage() {
               <ChevronToggle open={mobileTrackOpen} />
             </button>
             <div className={`flex-1 relative bg-black/40 overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
-              {/* Mobile zoom controls */}
-              <div className="absolute right-3 bottom-3 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => setMobileTrackZoom((z) => Math.min(2.2, Math.round((z + 0.15) * 100) / 100))}
-                  className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-                  aria-label="Zoom in"
-                >
-                  <span className="text-lg font-extrabold leading-none">+</span>
-                </button>
-                <div className="h-px bg-white/10" />
-                <button
-                  type="button"
-                  onClick={() => setMobileTrackZoom((z) => Math.max(0.8, Math.round((z - 0.15) * 100) / 100))}
-                  className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-                  aria-label="Zoom out"
-                >
-                  <span className="text-lg font-extrabold leading-none">−</span>
-                </button>
-              </div>
               <TrackCanvas
                 trackPoints={trackPoints}
                 rotation={rotation}
@@ -435,7 +414,7 @@ export default function ReplayPage() {
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
                 sectorOverlay={sectorOverlay}
-                zoom={mobileTrackZoom}
+                zoom={1}
                 corners={settings.showCorners ? trackData?.corners : null}
                 marshalSectors={trackData?.marshal_sectors}
                 sectorFlags={replay.frame?.sector_flags}
@@ -575,35 +554,12 @@ export default function ReplayPage() {
                   playbackSpeed={replay.speed}
                   showDriverNames={settings.showDriverNames}
                   sectorOverlay={sectorOverlay}
-                  zoom={enableTrackZoom ? mobileTrackZoom : 1}
+                  zoom={1}
                   corners={settings.showCorners ? trackData?.corners : null}
                   marshalSectors={trackData?.marshal_sectors}
                   sectorFlags={replay.frame?.sector_flags}
                   playing={replay.playing}
                 />
-
-                {/* iPad zoom controls (same UI as iPhone) */}
-                {enableTrackZoom && (
-                  <div className="absolute right-3 bottom-14 z-20 flex flex-col overflow-hidden rounded-xl border border-white/10 bg-f1-card/90 backdrop-blur-sm shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => setMobileTrackZoom((z) => Math.min(2.2, Math.round((z + 0.15) * 100) / 100))}
-                      className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-                      aria-label="Zoom in"
-                    >
-                      <span className="text-lg font-extrabold leading-none">+</span>
-                    </button>
-                    <div className="h-px bg-white/10" />
-                    <button
-                      type="button"
-                      onClick={() => setMobileTrackZoom((z) => Math.max(0.8, Math.round((z - 0.15) * 100) / 100))}
-                      className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-                      aria-label="Zoom out"
-                    >
-                      <span className="text-lg font-extrabold leading-none">−</span>
-                    </button>
-                  </div>
-                )}
                 
                 {showTelemetry && selectedDrivers.length <= 2 && (
                   <div className="absolute bottom-2 left-8 z-10">
