@@ -195,19 +195,26 @@ export default function ReplayPage() {
 
   // Prevent screen from sleeping only while the replay is actively playing
   useEffect(() => {
-    if (!("wakeLock" in navigator)) return;
+    if (!("wakeLock" in navigator) || !replay.playing) return;
     let lock: WakeLockSentinel | null = null;
-    const acquire = async () => {
-      if (lock) return;
-      try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
+    let released = false;
+    navigator.wakeLock.request("screen").then((l) => {
+      if (released) { l.release().catch(() => {}); return; }
+      lock = l;
+    }).catch(() => {});
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !lock && !released) {
+        navigator.wakeLock.request("screen").then((l) => {
+          if (released) { l.release().catch(() => {}); return; }
+          lock = l;
+        }).catch(() => {});
+      }
     };
-    const release = () => { lock?.release().catch(() => {}); lock = null; };
-    const onVisible = () => { if (document.visibilityState === "visible" && replay.playing) acquire(); };
-    if (replay.playing) acquire(); else release();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      released = true;
       document.removeEventListener("visibilitychange", onVisible);
-      release();
+      lock?.release().catch(() => {});
     };
   }, [replay.playing]);
 
