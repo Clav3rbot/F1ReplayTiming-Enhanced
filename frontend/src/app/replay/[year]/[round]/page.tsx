@@ -471,7 +471,7 @@ export default function ReplayPage() {
                     }`}
                     style={rcPosition
                       ? { position: "fixed", left: rcPosition.x, top: rcPosition.y }
-                      : { position: "absolute", top: 48, right: 12 }
+                      : { position: "fixed", top: 72, right: 12 }
                     }
                   >
                     <div
