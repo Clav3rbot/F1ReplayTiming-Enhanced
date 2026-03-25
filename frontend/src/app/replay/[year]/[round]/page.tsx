@@ -115,24 +115,6 @@ export default function ReplayPage() {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Prevent screen from sleeping only while the replay is actively playing
-  useEffect(() => {
-    if (!("wakeLock" in navigator)) return;
-    let lock: WakeLockSentinel | null = null;
-    const acquire = async () => {
-      if (lock) return;
-      try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
-    };
-    const release = () => { lock?.release().catch(() => {}); lock = null; };
-    const onVisible = () => { if (document.visibilityState === "visible" && replay.playing) acquire(); };
-    if (replay.playing) acquire(); else release();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      release();
-    };
-  }, [replay.playing]);
-
   const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
@@ -210,6 +192,24 @@ export default function ReplayPage() {
     }
     return map;
   }, [lapsResponse]);
+
+  // Prevent screen from sleeping only while the replay is actively playing
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = async () => {
+      if (lock) return;
+      try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
+    };
+    const release = () => { lock?.release().catch(() => {}); lock = null; };
+    const onVisible = () => { if (document.visibilityState === "visible" && replay.playing) acquire(); };
+    if (replay.playing) acquire(); else release();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      release();
+    };
+  }, [replay.playing]);
 
   // When WebSocket finishes on-demand processing and track data is still missing,
   // re-fetch track/laps (the WebSocket just created them in storage)
