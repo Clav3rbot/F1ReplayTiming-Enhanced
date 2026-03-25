@@ -115,21 +115,23 @@ export default function ReplayPage() {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Prevent screen from sleeping while the replay page is open
+  // Prevent screen from sleeping only while the replay is actively playing
   useEffect(() => {
     if (!("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
-    const request = async () => {
+    const acquire = async () => {
+      if (lock) return;
       try { lock = await navigator.wakeLock.request("screen"); } catch { /* not available */ }
     };
-    const onVisible = () => { if (document.visibilityState === "visible") request(); };
-    request();
+    const release = () => { lock?.release().catch(() => {}); lock = null; };
+    const onVisible = () => { if (document.visibilityState === "visible" && replay.playing) acquire(); };
+    if (replay.playing) acquire(); else release();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      lock?.release().catch(() => {});
+      release();
     };
-  }, []);
+  }, [replay.playing]);
 
   const onRcDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
