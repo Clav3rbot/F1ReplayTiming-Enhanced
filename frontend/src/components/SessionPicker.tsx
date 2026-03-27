@@ -135,7 +135,7 @@ export default function SessionPicker() {
     `/api/seasons/${year}/events`,
   );
   const { data: liveData } = useApi<{ live: LiveSessionInfo | null }>("/api/live/status");
-  const liveSession = liveData?.live || null;
+  const liveSession = liveData?.live ?? null;
 
   const seasons = (seasonsData?.seasons || []).filter((s) => s <= currentYear);
   const events = eventsData?.events || [];
@@ -380,44 +380,59 @@ export default function SessionPicker() {
           <>
             {/* Live session banner — only show on the year that has the live session */}
             {liveSession && liveSession.year === year && (
-              <div className="mb-8">
+              <div className="mb-4 max-w-3xl mx-auto">
                 <Link
                   href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
-                  className="block glass-panel border border-f1-red/50 rounded-xl overflow-hidden hover:border-f1-red hover:shadow-[0_4px_30_px_rgba(225,6,0,0.2)] transition-all duration-300 group hover:-translate-y-1"
+                  className="block glass-panel rounded-xl overflow-hidden border border-f1-red/25 hover:border-f1-red/60 hover:shadow-[0_0_24px_rgba(225,6,0,0.12)] transition-all duration-300 group hover:-translate-y-0.5"
                 >
-                  <div className="px-4 py-4 flex items-center gap-4">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/90 shadow-[0_0_10px_rgba(225,6,0,0.5)] rounded-md text-sm font-extrabold text-white uppercase flex-shrink-0">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                      </span>
-                      LIVE
+                  <div className="flex items-stretch">
+                    {/* Animated red accent bar */}
+                    <div className="w-[3px] bg-f1-red flex-shrink-0 animate-pulse-slow" />
+                    <div className="flex-1 min-w-0 px-4 sm:px-5 py-4 flex items-center gap-4 bg-gradient-to-r from-red-950/20 to-transparent">
+                      <span className="text-xs font-bold text-red-500/70 w-8 flex-shrink-0 tabular-nums">R{liveSession.round_number}</span>
+                      <div className="flex-1 min-w-0 flex items-center gap-3 overflow-hidden">
+                        <span className="text-white font-bold truncate">
+                          {COUNTRY_CODES[liveSession.country] && (
+                            <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[liveSession.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[liveSession.country]}.png 2x`} width="16" alt={liveSession.country} className="mr-2 inline-block rounded-sm shadow-sm" />
+                          )}
+                          {liveSession.event_name}
+                        </span>
+                        <span className="text-f1-muted text-sm flex-shrink-0 hidden sm:block">{liveSession.session_name}</span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-f1-red/90 rounded text-xs font-bold text-white uppercase flex-shrink-0 shadow-[0_0_10px_rgba(225,6,0,0.5)]">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                          </span>
+                          LIVE
+                        </span>
+                      </div>
+                      <svg className="w-5 h-5 text-f1-muted/50 group-hover:text-f1-red transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-bold group-hover:text-red-400 transition-colors">
-                        {COUNTRY_CODES[liveSession.country] && (
-                          <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[liveSession.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[liveSession.country]}.png 2x`} width="16" alt={liveSession.country} className="mr-1.5 inline-block rounded-sm shadow-sm" />
-                        )}
-                        {liveSession.event_name} — {liveSession.session_name}
-                      </h3>
-                      <p className="text-f1-muted text-sm">
-                        {liveSession.pre_session ? "Starting soon — click to open live timing" : "Session in progress — click to open live timing"}
-                      </p>
-                    </div>
-                    <svg className="w-5 h-5 text-f1-muted group-hover:text-white transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
                   </div>
                 </Link>
               </div>
             )}
 
-
-
-            {/* Season list */}
-            <h2 className="text-sm font-bold text-f1-muted uppercase tracking-wider mb-4 max-w-3xl mx-auto">
-              {year} Season
-            </h2>
+            {/* Section divider */}
+            {liveSession && liveSession.year === year ? (
+              <div style={{ position: "relative", zIndex: 1, maxWidth: "48rem", margin: "28px auto 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ flex: 1, height: "1px", background: "linear-gradient(to right, transparent, rgba(225,6,0,0.5))" }} />
+                <span style={{ color: "#9EA1AC", fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {year} Season
+                </span>
+                <div style={{ flex: 1, height: "1px", background: "linear-gradient(to left, transparent, rgba(225,6,0,0.5))" }} />
+              </div>
+            ) : (
+              <div style={{ position: "relative", zIndex: 1, maxWidth: "48rem", margin: "0 auto 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
+                <span style={{ color: "#9EA1AC", fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {year} Season
+                </span>
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
+              </div>
+            )}
             <div className="flex flex-col gap-2 max-w-3xl mx-auto">
               {displayEvents.map((evt) => (
                 <EventRow key={evt.round_number} evt={evt} />
