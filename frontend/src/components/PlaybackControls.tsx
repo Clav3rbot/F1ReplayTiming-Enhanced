@@ -935,8 +935,8 @@ export default function PlaybackControls({
       <div className="mb-3 overflow-visible pt-1">{progressBarSection}</div>
 
       {/* <lg: tutto centrato. lg+: griglia — centro comprimibile + skip scrollabili, destra `auto` così 1x/LAP/⋯/FS restano sempre visibili. */}
-      <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-x-4">
-        <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:justify-start">
+      <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-4">
+        <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:w-auto lg:justify-start">
           <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
             {formatTime(displayedSeconds)}
             {showSessionTime && (
@@ -957,7 +957,7 @@ export default function PlaybackControls({
 
         <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-2 sm:gap-3 lg:min-w-0">
           {/* rtl: scroll come a destra — i salti verso il play restano visibili, il resto è trascinabile */}
-          <div className="min-w-0 w-24 lg:w-32 xl:w-40 shrink-0 overflow-hidden" dir="rtl">
+          <div className="min-w-0 flex-1 basis-0 overflow-x-auto overflow-y-visible" dir="rtl">
             <div className="inline-flex flex-nowrap items-center gap-0.5" dir="ltr">
               {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => {
                 const t = skipButtonText(label, true);
@@ -977,7 +977,7 @@ export default function PlaybackControls({
             </div>
           </div>
           {playPauseBtn}
-          <div className="flex min-w-0 w-24 lg:w-32 xl:w-40 shrink-0 flex-nowrap items-center justify-start gap-0.5 overflow-hidden">
+          <div className="flex min-w-0 flex-1 basis-0 flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overflow-y-visible">
             {SKIP_OPTIONS.map(({ label, seconds }) => {
               const t = skipButtonText(label, false);
               return (
