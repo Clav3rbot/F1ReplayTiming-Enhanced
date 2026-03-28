@@ -389,7 +389,8 @@ export default function PlaybackControls({
   const [phaseJumping, setPhaseJumping] = useState(false);
   const phaseJumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speedMenuRef = useRef<HTMLDivElement>(null);
-  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const speedBtnMobileRef = useRef<HTMLButtonElement>(null);
+  const speedBtnDesktopRef = useRef<HTMLButtonElement>(null);
   const speedPopupRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
   const scrubStateRef = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
@@ -457,8 +458,13 @@ export default function PlaybackControls({
   }
 
   const updateSpeedMenuPosition = useCallback(() => {
-    if (!speedBtnRef.current) return;
-    const r = speedBtnRef.current.getBoundingClientRect();
+    // Use whichever button is currently visible (non-zero size)
+    const mobileBtn = speedBtnMobileRef.current;
+    const btn = (mobileBtn && mobileBtn.getBoundingClientRect().width > 0)
+      ? mobileBtn
+      : speedBtnDesktopRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
     setSpeedMenuCoords({ left: r.left + r.width / 2, top: r.top });
   }, []);
 
@@ -774,10 +780,10 @@ export default function PlaybackControls({
       document.body,
     );
 
-  const speedSelector = (
+  const makeSpeedSelector = (btnRef: React.RefObject<HTMLButtonElement | null>) => (
     <div className="relative shrink-0" ref={speedMenuRef}>
       <button
-        ref={speedBtnRef}
+        ref={btnRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation();
@@ -822,7 +828,7 @@ export default function PlaybackControls({
             onJump={jumpToPhase}
           />
         )}
-        {speedSelector}
+        {makeSpeedSelector(speedBtnMobileRef)}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -1001,7 +1007,7 @@ export default function PlaybackControls({
 
             {isRace && (
             <>
-              <div className="shrink-0">{speedSelector}</div>
+              <div className="shrink-0">{makeSpeedSelector(speedBtnDesktopRef)}</div>
               {lapSelector}
               <RaceExtrasMenuCluster onSyncPhoto={onSyncPhoto} onPiP={onPiP} pipActive={pipActive} />
               {onFullscreen && (
@@ -1025,7 +1031,7 @@ export default function PlaybackControls({
               )}
 
               {/* Speed after phases */}
-              <div className="shrink-0">{speedSelector}</div>
+              <div className="shrink-0">{makeSpeedSelector(speedBtnDesktopRef)}</div>
 
               <RaceExtrasMenuCluster onPiP={onPiP} pipActive={pipActive} />
               {onFullscreen && (

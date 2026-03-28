@@ -31,3 +31,4 @@ CLAUDE.md
 *docker-compose*.y*ml
 frontend/tsconfig.tsbuildinfo
 .claude/settings.local.json
+frontend/tsconfig.tsbuildinfo
