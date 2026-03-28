@@ -598,14 +598,14 @@ export default function ReplayPage() {
                   </div>
                 )}
 
-                {/* Sector overlay controls - desktop qualifying only */}
-                {!isMobile && isQualifying && trackData?.sector_boundaries && (
-                  <div className="absolute bottom-2 right-36 z-20 flex items-center gap-1">
-                    {showSectorOverlay && selectedDrivers.length === 0 && (
-                      <span className="text-[10px] text-f1-muted mr-1">Select a driver to view sectors</span>
-                    )}
-                    {showSectorOverlay && selectedDrivers.length > 0 && (
-                      selectedDrivers.map((abbr) => {
+                {/* Desktop bottom controls: sectors (qualifying) + telemetry + lap analysis */}
+                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
+                  {!isMobile && isQualifying && trackData?.sector_boundaries && (
+                    <>
+                      {showSectorOverlay && selectedDrivers.length === 0 && (
+                        <span className="text-[10px] text-f1-muted mr-1">Select a driver to view sectors</span>
+                      )}
+                      {showSectorOverlay && selectedDrivers.length > 0 && selectedDrivers.map((abbr) => {
                         const drv = drivers.find((d) => d.abbr === abbr);
                         const isActive = sectorFocusDriver === abbr;
                         return (
@@ -622,23 +622,19 @@ export default function ReplayPage() {
                             {abbr}
                           </button>
                         );
-                      })
-                    )}
-                    <button
-                      onClick={() => setShowSectorOverlay(!showSectorOverlay)}
-                      className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
-                        showSectorOverlay
-                          ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
-                          : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
-                      }`}
-                    >
-                      {showSectorOverlay ? "Hide" : "Show"} Sectors
-                    </button>
-                  </div>
-                )}
-
-                {/* Desktop telemetry toggle + lap analysis */}
-                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
+                      })}
+                      <button
+                        onClick={() => setShowSectorOverlay(!showSectorOverlay)}
+                        className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                          showSectorOverlay
+                            ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
+                            : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                        }`}
+                      >
+                        {showSectorOverlay ? "Hide" : "Show"} Sectors
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => setShowTelemetry(!showTelemetry)}
                     className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${

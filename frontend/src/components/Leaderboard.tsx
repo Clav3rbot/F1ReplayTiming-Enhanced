@@ -258,7 +258,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               {settings.showGapToLeader && (
                 isRace && isLeader && !drv.retired ? (
                   <span
-                    className="w-14 flex-shrink-0 flex justify-start"
+                    className="w-14 flex-shrink-0 flex justify-start sm:ml-0 ml-3"
                     onClick={(e) => { e.stopPropagation(); setShowInterval(!showInterval); }}
                   >
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white cursor-pointer hover:bg-white/20 transition-colors">
@@ -312,7 +312,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Live sector indicators - fixed width (qualifying only) */}
               {isQualifying && settings.showSectors && (
-                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1 relative z-10">
+                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1 relative z-10" title="S1 · S2 · S3 sector times&#10;Purple: personal best · Green: fastest · Yellow: normal · Grey: no data">
                   {[1, 2, 3].map((sn) => {
                     const sec = drv.sectors?.find((s) => s.num === sn);
                     const bg = sec

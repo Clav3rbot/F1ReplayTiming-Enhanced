@@ -593,17 +593,36 @@ export default function LivePage() {
           )}
 
           {/* Qualifying phase */}
-          {isQualifying && live.frame?.quali_phase && (
-            <div className="text-sm">
-              <span className="text-white font-bold">{live.frame.quali_phase.phase}</span>
-              {live.frame.quali_phase.remaining > 0 && (
-                <span className="text-f1-muted ml-2">
-                  {Math.floor(live.frame.quali_phase.remaining / 60)}:
-                  {String(Math.floor(live.frame.quali_phase.remaining % 60)).padStart(2, "0")}
-                </span>
-              )}
-            </div>
-          )}
+          {isQualifying && (() => {
+            const qPhase = live.frame?.quali_phase;
+            const phases = sessionTypeUpper === "SQ" ? ["SQ1", "SQ2", "SQ3"] : ["Q1", "Q2", "Q3"];
+            const currentIdx = qPhase ? phases.indexOf(qPhase.phase) : -1;
+            return (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
+                  {phases.map((phase, i) => (
+                    <span
+                      key={phase}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        i === currentIdx
+                          ? "bg-white text-black"
+                          : i < currentIdx
+                          ? "bg-white/20 text-white/50"
+                          : "bg-white/5 text-white/25"
+                      }`}
+                    >
+                      {phase}
+                    </span>
+                  ))}
+                </div>
+                {qPhase && qPhase.remaining > 0 && (
+                  <span className="text-[11px] font-mono tabular-nums text-f1-muted">
+                    {Math.floor(qPhase.remaining / 60)}:{String(Math.floor(qPhase.remaining % 60)).padStart(2, "0")}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="flex items-center gap-3">

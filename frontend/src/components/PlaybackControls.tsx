@@ -279,6 +279,8 @@ export default function PlaybackControls({
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   /** Keeps bar + clock on the chosen time until the server frame updates `currentTime` (avoids snap-back after scrub/click). */
   const [committedTime, setCommittedTime] = useState<number | null>(null);
+  const [phaseJumping, setPhaseJumping] = useState(false);
+  const phaseJumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speedMenuRef = useRef<HTMLDivElement>(null);
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const speedPopupRef = useRef<HTMLDivElement>(null);
@@ -338,6 +340,13 @@ export default function PlaybackControls({
     const t = Math.max(0, Math.min(totalTime, time));
     setCommittedTime(t);
     onSeek(t);
+  }
+
+  function jumpToPhase(timestamp: number) {
+    if (phaseJumpTimerRef.current) clearTimeout(phaseJumpTimerRef.current);
+    setPhaseJumping(true);
+    commitSeek(timestamp);
+    phaseJumpTimerRef.current = setTimeout(() => setPhaseJumping(false), 600);
   }
 
   const updateSpeedMenuPosition = useCallback(() => {
@@ -581,7 +590,7 @@ export default function PlaybackControls({
       >
         <div
           className="relative h-full rounded-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.3)]"
-          style={{ width: `${fillPct}%`, transition: "none" }}
+          style={{ width: `${fillPct}%`, transition: phaseJumping && !isScrubbing ? "width 0.5s ease-out" : "none" }}
         >
           {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
           <div className="pointer-events-none absolute right-0 top-1/2 z-[60] -translate-y-1/2">
@@ -738,22 +747,39 @@ export default function PlaybackControls({
               </button>
             ))}
           </div>
-          {qualiPhases && qualiPhases.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-1">
-              {qualiPhases.map((qp) => (
-                <button
-                  key={qp.phase}
-                  type="button"
-                  onClick={() => commitSeek(qp.timestamp)}
-                  className={`rounded px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                    qualiPhase?.phase === qp.phase ? "bg-f1-red text-white" : "bg-white/5 text-f1-muted hover:text-white"
-                  }`}
-                >
-                  {qp.phase}
-                </button>
-              ))}
-            </div>
-          )}
+          {qualiPhases && qualiPhases.length > 0 && (() => {
+            const activeIdx = qualiPhases.findIndex(qp => qp.phase === qualiPhase?.phase);
+            const N = qualiPhases.length;
+            return (
+              <div className="flex items-center justify-center gap-2">
+                <div className="relative flex h-8 shrink-0 rounded-xl bg-white/[0.06] p-1">
+                  {activeIdx >= 0 && (
+                    <div
+                      className="pointer-events-none absolute top-1 bottom-1 rounded-lg bg-f1-red/25 shadow-sm transition-transform duration-300 ease-out"
+                      style={{ width: `calc((100% - 8px) / ${N})`, left: "4px", transform: `translateX(calc(${activeIdx} * 100%))` }}
+                    />
+                  )}
+                  {qualiPhases.map((qp, i) => (
+                    <button
+                      key={qp.phase}
+                      type="button"
+                      onClick={() => jumpToPhase(qp.timestamp)}
+                      className={`relative z-10 h-full min-w-[36px] flex-1 px-3 text-xs font-bold transition-colors ${
+                        i === activeIdx ? "text-f1-red" : "text-f1-muted hover:text-white"
+                      }`}
+                    >
+                      {qp.phase}
+                    </button>
+                  ))}
+                </div>
+                {qualiPhase && qualiPhase.remaining > 0 && (
+                  <span className="font-mono text-xs font-bold text-f1-muted tabular-nums">
+                    {formatTime(qualiPhase.remaining)}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           {isRace && (
             <div className="flex flex-wrap items-center justify-center gap-3">
               {onSyncPhoto && (
@@ -784,15 +810,6 @@ export default function PlaybackControls({
               )}
             </div>
           )}
-          {!isRace && qualiPhase && (
-            <div className="flex items-center justify-center gap-4">
-              <span className="text-xs font-extrabold text-white">{qualiPhase.phase}</span>
-              <div className="text-center">
-                <span className="block text-[9px] font-bold uppercase text-f1-muted">Remaining</span>
-                <span className="text-xs font-extrabold tabular-nums text-white">{formatTime(qualiPhase.remaining)}</span>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -804,21 +821,15 @@ export default function PlaybackControls({
       <div className="mb-3 overflow-visible pt-1">{progressBarSection}</div>
 
       {/* <lg: tutto centrato. lg+: griglia — centro comprimibile + skip scrollabili, destra `auto` così 1x/LAP/⋯/FS restano sempre visibili. */}
-      <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-4">
-        <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:w-auto lg:justify-start">
+      <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-x-4">
+        <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:justify-start">
           <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
             {formatTime(displayedSeconds)}
             {showSessionTime && (
               <span className="ml-1 hidden font-normal text-f1-muted opacity-80 md:inline">/ {formatTime(totalTime)}</span>
             )}
           </span>
-          {!isRace && qualiPhase && (
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate rounded bg-white/10 px-2 py-0.5 text-xs font-extrabold text-white">{qualiPhase.phase}</span>
-              <span className="hidden font-mono text-xs font-bold text-f1-muted lg:inline">{formatTime(qualiPhase.remaining)}</span>
-            </div>
-          )}
-          {!isRace && !qualiPhase && (
+          {!isRace && !qualiPhases?.length && (
             <span className="hidden font-mono text-xs font-bold text-f1-muted lg:inline">
               {formatTime(Math.max(0, totalTime - currentTime))}
             </span>
@@ -827,7 +838,7 @@ export default function PlaybackControls({
 
         <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-2 sm:gap-3 lg:min-w-0">
           {/* rtl: scroll come a destra — i salti verso il play restano visibili, il resto è trascinabile */}
-          <div className="min-w-0 flex-1 basis-0 overflow-x-auto overflow-y-visible" dir="rtl">
+          <div className="min-w-0 w-24 lg:w-40 shrink-0 overflow-hidden" dir="rtl">
             <div className="inline-flex flex-nowrap items-center gap-0.5" dir="ltr">
               {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => {
                 const t = skipButtonText(label, true);
@@ -847,7 +858,7 @@ export default function PlaybackControls({
             </div>
           </div>
           {playPauseBtn}
-          <div className="flex min-w-0 flex-1 basis-0 flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overflow-y-visible">
+          <div className="flex min-w-0 w-24 lg:w-40 shrink-0 flex-nowrap items-center justify-start gap-0.5 overflow-hidden">
             {SKIP_OPTIONS.map(({ label, seconds }) => {
               const t = skipButtonText(label, false);
               return (
@@ -865,62 +876,74 @@ export default function PlaybackControls({
           </div>
         </div>
 
-        {/* <lg: centrato; lg+: colonna a larghezza contenuto — non competere con gli skip scrollabili */}
-        <div className="flex w-full min-w-0 max-w-full justify-center py-0.5 lg:w-max lg:shrink-0 lg:justify-self-end">
-          <div className="flex shrink-0 flex-nowrap items-center justify-center gap-1 overflow-x-auto overflow-y-visible py-0.5 sm:gap-1.5 lg:justify-end">
-            <div className="shrink-0">{speedSelector}</div>
+        {/* right column */}
+        <div className="flex w-full min-w-0 max-w-full justify-center py-0.5 lg:justify-end">
+          <div className="flex flex-nowrap items-center justify-center gap-1 py-0.5 sm:gap-1.5 lg:justify-end">
 
             {isRace && (
             <>
+              <div className="shrink-0">{speedSelector}</div>
               {lapSelector}
               <RaceExtrasMenuCluster onSyncPhoto={onSyncPhoto} onPiP={onPiP} pipActive={pipActive} />
               {onFullscreen && (
-                <button
-                  type="button"
-                  onClick={onFullscreen}
-                  className={desktopToolIconBtn}
-                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-                >
+                <button type="button" onClick={onFullscreen} className={desktopToolIconBtn}
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
                   {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                 </button>
               )}
             </>
             )}
 
-            {!isRace && qualiPhase && (
-            <div className="flex min-w-0 flex-nowrap items-end justify-end gap-3 overflow-x-auto overflow-y-visible sm:gap-4">
-              <span className="text-sm font-extrabold text-white">{qualiPhase.phase}</span>
-              <div className="text-center">
-                <span className="block text-[10px] font-bold uppercase text-f1-muted">Remaining</span>
-                <span className="text-sm font-extrabold tabular-nums text-white">{formatTime(qualiPhase.remaining)}</span>
-              </div>
-              <div className="text-center">
-                <span className="block text-[10px] font-bold uppercase text-f1-muted">Elapsed</span>
-                <span className="text-sm font-extrabold tabular-nums text-f1-muted">{formatTime(currentTime)}</span>
-              </div>
-              {showSessionTime && (
-                <div className="text-center">
-                  <span className="block text-[10px] font-bold uppercase text-f1-muted">Total</span>
-                  <span className="text-sm font-extrabold tabular-nums text-f1-muted">{formatTime(Math.max(0, totalTime - currentTime))}</span>
-                </div>
-              )}
-            </div>
-            )}
+            {!isRace && (
+            <>
+              {/* Phase selector + remaining time — same h-9 container */}
+              {qualiPhases && qualiPhases.length > 0 && (() => {
+                const activeIdx = qualiPhases.findIndex(qp => qp.phase === qualiPhase?.phase);
+                const N = qualiPhases.length;
+                return (
+                  <div className="relative flex h-9 shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1">
+                    {/* Inner div for pill + buttons */}
+                    <div className="relative flex h-full mr-1">
+                      {activeIdx >= 0 && (
+                        <div
+                          className="pointer-events-none absolute top-0 bottom-0 rounded-lg bg-f1-red/25 shadow-sm transition-transform duration-300 ease-out"
+                          style={{ width: `calc(100% / ${N})`, left: 0, transform: `translateX(calc(${activeIdx} * 100%))` }}
+                        />
+                      )}
+                      {qualiPhases.map((qp, i) => (
+                        <button
+                          key={qp.phase}
+                          type="button"
+                          onClick={() => jumpToPhase(qp.timestamp)}
+                          className={`relative z-10 h-full flex-1 min-w-[36px] px-3 text-[11px] font-bold transition-colors ${
+                            i === activeIdx ? "text-f1-red" : "text-f1-muted hover:text-white"
+                          }`}
+                        >
+                          {qp.phase}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Remaining time inside the same pill */}
+                    {qualiPhase && qualiPhase.remaining > 0 && (
+                      <span className="flex h-full items-center border-l border-white/10 pl-2.5 pr-1.5 font-mono text-[11px] font-bold tabular-nums text-f1-muted">
+                        {formatTime(qualiPhase.remaining)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
-            {!isRace && !qualiPhase && qualiPhases && qualiPhases.length > 0 && (
-            <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto overflow-y-visible">
-              {qualiPhases.map((qp) => (
-                <button
-                  key={qp.phase}
-                  type="button"
-                  onClick={() => commitSeek(qp.timestamp)}
-                  className={DESKTOP_TOOL_BTN + " px-3"}
-                >
-                  {qp.phase}
+              {/* Speed after phases */}
+              <div className="shrink-0">{speedSelector}</div>
+
+              <RaceExtrasMenuCluster onPiP={onPiP} pipActive={pipActive} />
+              {onFullscreen && (
+                <button type="button" onClick={onFullscreen} className={desktopToolIconBtn}
+                  title={fullscreen ? "Exit fullscreen" : "Fullscreen"} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                  {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                 </button>
-              ))}
-            </div>
+              )}
+            </>
             )}
           </div>
         </div>
