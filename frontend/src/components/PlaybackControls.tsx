@@ -82,6 +82,113 @@ const PLAYBAR_ICON_BTN =
 const DESKTOP_TOOL_BTN =
   "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
 
+type QualiPhaseDropdownProps = {
+  qualiPhases: QualiPhaseInfo[];
+  qualiPhase?: QualiPhase | null;
+  onJump: (timestamp: number) => void;
+};
+
+function QualiPhaseDropdown({ qualiPhases, qualiPhase, onJump }: QualiPhaseDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ left: r.left + r.width / 2, top: r.top });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) { setCoords(null); return; }
+    updatePosition();
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (popupRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [open]);
+
+  const activePhase = qualiPhase?.phase ?? null;
+
+  const portal =
+    open &&
+    coords &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={popupRef}
+        className="fixed z-[300] w-max overflow-hidden rounded-xl border border-white/10 bg-[#1a1a26] py-1 shadow-2xl backdrop-blur-xl"
+        style={{ left: coords.left, top: coords.top, transform: "translate(-50%, calc(-100% - 8px))" }}
+        onClick={(e) => e.stopPropagation()}
+        role="menu"
+      >
+        {qualiPhases.map((qp) => {
+          const isActive = qp.phase === activePhase;
+          return (
+            <button
+              key={qp.phase}
+              type="button"
+              role="menuitem"
+              className={`flex w-full items-center px-4 py-2.5 text-left text-sm font-bold transition-colors hover:bg-white/10 ${
+                isActive ? "text-f1-red" : "text-f1-muted hover:text-white"
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onJump(qp.timestamp);
+                setOpen(false);
+              }}
+            >
+              {qp.phase}
+            </button>
+          );
+        })}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div className="relative shrink-0" ref={wrapRef}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12] ${
+          open ? "border-white/20 bg-white/10 text-white" : activePhase ? "text-f1-red" : "text-f1-muted"
+        }`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title="Select qualifying phase"
+      >
+        {activePhase ?? "Phase"}
+        <svg className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {portal}
+    </div>
+  );
+}
+
 type RaceExtrasMenuClusterProps = {
   onSyncPhoto?: () => void;
   onPiP?: () => void;
@@ -480,6 +587,7 @@ export default function PlaybackControls({
   /** Desktop: < lg solo ±1m ±5m; da lg anche ±5s ±30s; etichette corte sotto lg. */
   function skipVisibility(label: string): string {
     if (label === "5s" || label === "30s") return "hidden lg:inline-flex";
+    if (label === "5m") return "hidden xl:inline-flex";
     return "";
   }
 
@@ -706,8 +814,14 @@ export default function PlaybackControls({
         <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-white font-mono tabular-nums-fixed">
           {formatTime(displayedSeconds)}
           {isRace && displayLap > 0 && <span className="ml-2 font-mono tabular-nums-fixed text-f1-muted">Lap {displayLap}</span>}
-          {!isRace && qualiPhase && <span className="ml-2 font-sans text-f1-muted">{qualiPhase.phase}</span>}
         </span>
+        {!isRace && qualiPhases && qualiPhases.length > 0 && (
+          <QualiPhaseDropdown
+            qualiPhases={qualiPhases}
+            qualiPhase={qualiPhase}
+            onJump={jumpToPhase}
+          />
+        )}
         {speedSelector}
         <button
           type="button"
@@ -834,11 +948,16 @@ export default function PlaybackControls({
               {formatTime(Math.max(0, totalTime - currentTime))}
             </span>
           )}
+          {!isRace && qualiPhase && qualiPhase.remaining > 0 && (
+            <span className="hidden font-sans text-xs font-bold text-f1-muted lg:inline">
+              {qualiPhase.phase} {formatTime(qualiPhase.remaining)}
+            </span>
+          )}
         </div>
 
         <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-2 sm:gap-3 lg:min-w-0">
           {/* rtl: scroll come a destra — i salti verso il play restano visibili, il resto è trascinabile */}
-          <div className="min-w-0 w-24 lg:w-40 shrink-0 overflow-hidden" dir="rtl">
+          <div className="min-w-0 w-24 lg:w-32 xl:w-40 shrink-0 overflow-hidden" dir="rtl">
             <div className="inline-flex flex-nowrap items-center gap-0.5" dir="ltr">
               {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => {
                 const t = skipButtonText(label, true);
@@ -858,7 +977,7 @@ export default function PlaybackControls({
             </div>
           </div>
           {playPauseBtn}
-          <div className="flex min-w-0 w-24 lg:w-40 shrink-0 flex-nowrap items-center justify-start gap-0.5 overflow-hidden">
+          <div className="flex min-w-0 w-24 lg:w-32 xl:w-40 shrink-0 flex-nowrap items-center justify-start gap-0.5 overflow-hidden">
             {SKIP_OPTIONS.map(({ label, seconds }) => {
               const t = skipButtonText(label, false);
               return (
@@ -896,42 +1015,14 @@ export default function PlaybackControls({
 
             {!isRace && (
             <>
-              {/* Phase selector + remaining time — same h-9 container */}
-              {qualiPhases && qualiPhases.length > 0 && (() => {
-                const activeIdx = qualiPhases.findIndex(qp => qp.phase === qualiPhase?.phase);
-                const N = qualiPhases.length;
-                return (
-                  <div className="relative flex h-9 shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1">
-                    {/* Inner div for pill + buttons */}
-                    <div className="relative flex h-full mr-1">
-                      {activeIdx >= 0 && (
-                        <div
-                          className="pointer-events-none absolute top-0 bottom-0 rounded-lg bg-f1-red/25 shadow-sm transition-transform duration-300 ease-out"
-                          style={{ width: `calc(100% / ${N})`, left: 0, transform: `translateX(calc(${activeIdx} * 100%))` }}
-                        />
-                      )}
-                      {qualiPhases.map((qp, i) => (
-                        <button
-                          key={qp.phase}
-                          type="button"
-                          onClick={() => jumpToPhase(qp.timestamp)}
-                          className={`relative z-10 h-full flex-1 min-w-[36px] px-3 text-[11px] font-bold transition-colors ${
-                            i === activeIdx ? "text-f1-red" : "text-f1-muted hover:text-white"
-                          }`}
-                        >
-                          {qp.phase}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Remaining time inside the same pill */}
-                    {qualiPhase && qualiPhase.remaining > 0 && (
-                      <span className="flex h-full items-center border-l border-white/10 pl-2.5 pr-1.5 font-mono text-[11px] font-bold tabular-nums text-f1-muted">
-                        {formatTime(qualiPhase.remaining)}
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* Phase selector — dropdown */}
+              {qualiPhases && qualiPhases.length > 0 && (
+                <QualiPhaseDropdown
+                  qualiPhases={qualiPhases}
+                  qualiPhase={qualiPhase}
+                  onJump={jumpToPhase}
+                />
+              )}
 
               {/* Speed after phases */}
               <div className="shrink-0">{speedSelector}</div>
