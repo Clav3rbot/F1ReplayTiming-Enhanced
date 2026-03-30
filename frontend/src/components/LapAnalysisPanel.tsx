@@ -118,6 +118,12 @@ const LAP_RANGES = [
 export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }: Props) {
   const [selectedDrivers, setSelectedDrivers] = useState<[string | null, string | null]>([null, null]);
   const [lapRange, setLapRange] = useState<number>(0); // 0 = all
+  const [lapOrder, setLapOrder] = useState<"asc" | "desc">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("f1replay_lap_order") as "asc" | "desc") || "asc";
+    }
+    return "asc";
+  });
 
   const sortedDrivers = useMemo(
     () => [...drivers].sort((a, b) => (a.position ?? 999) - (b.position ?? 999)),
@@ -150,7 +156,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
     const maxLap = Math.max(...active.map((d) => {
       const dl = driverLaps.get(d);
       if (!dl) return 0;
-      const filtered = dl.filter((l) => l.lap_number < currentLap);
+      const filtered = dl.filter((l) => l.lap_number <= currentLap);
       return filtered.length > 0 ? filtered[filtered.length - 1].lap_number : 0;
     }));
 
@@ -170,7 +176,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
       for (const d of active) {
         const dl = driverLaps.get(d);
         const entry = dl?.find((l) => l.lap_number === lap);
-        if (entry?.lap_time && lap < currentLap) {
+        if (entry?.lap_time && lap <= currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) allCleanTimes.push(secs);
         }
@@ -199,7 +205,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         for (const d of active) {
           const dl = driverLaps.get(d);
           const entry = dl?.find((l) => l.lap_number === lap);
-          if (entry?.lap_time && lap < currentLap) {
+          if (entry?.lap_time && lap <= currentLap) {
             const secs = parseLapTime(entry.lap_time);
             if (secs !== null && secs > slowThreshold) { isSlow = true; break; }
           }
@@ -219,13 +225,13 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         const dl = driverLaps.get(d);
         const entry = dl?.find((l) => l.lap_number === lap);
         // Always store the actual time for tooltip display
-        if (entry?.lap_time && lap < currentLap) {
+        if (entry?.lap_time && lap <= currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) {
             point[`_time_${d}`] = secs;
           }
         }
-        if (entry?.lap_time && !excludeFromLine && lap < currentLap) {
+        if (entry?.lap_time && !excludeFromLine && lap <= currentLap) {
           const secs = parseLapTime(entry.lap_time);
           if (secs !== null) {
             point[d] = secs;
@@ -499,7 +505,20 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
             <div className="px-3 pb-2">
               {/* Header row */}
               <div className="flex items-center gap-1 py-1 border-b border-f1-border">
-                <span className="w-8 text-[9px] font-bold text-f1-muted">LAP</span>
+                <button
+                  onClick={() => {
+                    const next = lapOrder === "asc" ? "desc" : "asc";
+                    setLapOrder(next);
+                    try { localStorage.setItem("f1replay_lap_order", next); } catch {}
+                  }}
+                  className="w-8 text-[9px] font-bold text-f1-muted hover:text-white transition-colors flex items-center gap-0.5"
+                  title={lapOrder === "asc" ? "Show latest first" : "Show earliest first"}
+                >
+                  LAP
+                  <svg className={`w-2.5 h-2.5 transition-transform ${lapOrder === "desc" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
                 {activeDrivers.map((abbr) => (
                   <div key={abbr} className="flex-1 flex items-center gap-1">
                     <span
@@ -519,12 +538,15 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                 const maxLap = Math.max(
                   ...activeDrivers.map((d) => {
                     const dl = driverLaps.get(d) || [];
-                    const filtered = dl.filter((l) => l.lap_number < currentLap);
+                    const filtered = dl.filter((l) => l.lap_number <= currentLap);
                     return filtered.length > 0 ? filtered[filtered.length - 1].lap_number : 0;
                   }),
                 );
                 const rows = [];
-                for (let lap = 1; lap <= maxLap; lap++) {
+                const startLap = lapOrder === "desc" ? maxLap : 1;
+                const endLap = lapOrder === "desc" ? 1 : maxLap;
+                const step = lapOrder === "desc" ? -1 : 1;
+                for (let lap = startLap; lapOrder === "desc" ? lap >= endLap : lap <= endLap; lap += step) {
                   rows.push(
                     <div
                       key={lap}

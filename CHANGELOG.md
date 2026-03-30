@@ -2,6 +2,25 @@
 
 All notable changes to F1 Timing Replay will be documented in this file.
 
+## 1.2.4 — Replay timing accuracy, practice sessions, and lap analysis improvements
+
+### New Features
+- **Last lap time colour coding** — purple for fastest lap overall, green for personal best, in the race leaderboard
+- **Practice sector indicators** — live S1/S2/S3 sector colour indicators now shown in FP1/FP2/FP3, matching qualifying behaviour
+- **Lap order toggle** — click the LAP column header in the Lap Analysis panel to switch between oldest-first and newest-first, persisted across sessions
+
+### Improvements
+- **Replay timing accuracy** — replay frame pacing now uses wall-clock anchoring instead of fixed intervals, eliminating timing drift over long sessions
+- **Lap analysis** — current lap now included in analysis charts and statistics (was previously excluded)
+- **Practice session timing** — fixed timestamp alignment for FP1/FP2/FP3 sessions, lap completion times now correctly relative to replay start
+
+### Fixes
+- **Lap data timeline** — lap completion times now correctly aligned to replay start offset, matching actual frame timestamps
+- **Settings hydration** — fixed SSR/client mismatch when loading settings from localStorage in Next.js
+- **Status messages** — loading screen now shows server-side status messages (e.g. "Preparing replay...")
+
+---
+
 ## 1.2.3 — Track detail, telemetry expansion, and race finish improvements
 
 ### New Features

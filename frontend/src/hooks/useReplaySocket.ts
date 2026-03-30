@@ -109,6 +109,7 @@ interface ReplayState {
   replaySampleInterval: number;
   finished: boolean;
   error: string | null;
+  statusMessage: string | null;
   reconnecting: boolean;
 }
 
@@ -139,6 +140,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
     replaySampleInterval: 0.5,
     finished: false,
     error: null,
+    statusMessage: null,
     reconnecting: false,
   });
 
@@ -167,7 +169,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
 
         switch (msg.type) {
           case "status":
-            setState((s) => ({ ...s, loading: true }));
+            setState((s) => ({ ...s, loading: true, statusMessage: msg.message || null }));
             break;
           case "ready": {
             const rleRaw = Array.isArray(msg.frame_laps_rle) ? msg.frame_laps_rle : [];
@@ -184,6 +186,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
               ...s,
               ready: true,
               loading: false,
+              statusMessage: null,
               reconnecting: false,
               totalTime: msg.total_time,
               totalLaps: msg.total_laps,

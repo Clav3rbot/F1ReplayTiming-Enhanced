@@ -299,13 +299,37 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                   <span className="w-[52px] sm:w-[60px] flex-shrink-0" />
                 );
                 let lastLapTime: string | null = null;
+                let lastLapNum = 0;
                 for (let l = currentLap; l >= 1; l--) {
                   const t = driverLaps.get(l);
-                  if (t) { lastLapTime = t; break; }
+                  if (t) { lastLapTime = t; lastLapNum = l; break; }
                 }
+                if (!lastLapTime || lastLapNum < 2 || drv.retired) return (
+                  <span className="w-[52px] sm:w-[60px] flex-shrink-0" />
+                );
+
+                const toSecs = (t: string): number => {
+                  const p = t.split(":");
+                  return p.length === 2 ? parseInt(p[0]) * 60 + parseFloat(p[1]) : parseFloat(p[0]) || Infinity;
+                };
+                const lastSecs = toSecs(lastLapTime);
+
+                // Personal best: this driver's fastest lap up to current
+                let personalBest = Infinity;
+                for (let l = 2; l <= currentLap; l++) {
+                  const t = driverLaps.get(l);
+                  if (t) { const s = toSecs(t); if (s < personalBest) personalBest = s; }
+                }
+                const isPersonalBest = lastSecs <= personalBest + 0.0005;
+
+                // Fastest lap: use backend flag (has_fastest_lap) + personal best check
+                const isFastest = drv.has_fastest_lap && isPersonalBest;
+
+                const color = isFastest ? "text-purple-400" : isPersonalBest ? "text-green-400" : "text-f1-muted";
+
                 return (
-                  <span className="w-[52px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums text-f1-muted" title="Last lap time">
-                    {drv.retired ? "" : (lastLapTime || "")}
+                  <span className={`w-[52px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums ${color}`} title="Last lap time">
+                    {lastLapTime}
                   </span>
                 );
               })()}
