@@ -564,6 +564,7 @@ export default function PlaybackControls({
         window.cancelAnimationFrame(scrubRafRef.current);
         scrubRafRef.current = null;
       }
+      const lastKnownX = pendingScrubClientXRef.current ?? ev.clientX;
       pendingScrubClientXRef.current = null;
       if (bar) {
         try {
@@ -572,7 +573,7 @@ export default function PlaybackControls({
           /* ignore */
         }
       }
-      const finalTime = getSeekTimeFromClientX(ev.clientX);
+      const finalTime = getSeekTimeFromClientX(lastKnownX);
       commitSeek(finalTime);
       // Prevent synthetic click after pointer interaction from re-seeking.
       ignoreNextClickRef.current = true;
