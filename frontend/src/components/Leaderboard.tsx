@@ -258,7 +258,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               {settings.showGapToLeader && (
                 isRace && isLeader && !drv.retired ? (
                   <span
-                    className="w-14 flex-shrink-0 flex justify-start sm:ml-0 ml-3"
+                    className="w-14 flex-shrink-0 flex justify-start"
                     onClick={(e) => { e.stopPropagation(); setShowInterval(!showInterval); }}
                   >
                     <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white cursor-pointer hover:bg-white/20 transition-colors">
@@ -286,7 +286,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     </span>
                   )
                 ) : (
-                  <span className={`w-14 flex-shrink-0 text-[11px] font-bold text-right text-f1-muted font-mono tabular-nums-fixed relative z-10 sm:ml-0 ml-3`} title="Gap to leader">
+                  <span className={`w-14 flex-shrink-0 text-[11px] font-bold text-right text-f1-muted font-mono tabular-nums-fixed relative z-10`} title="Gap to leader">
                     {displayGap}
                   </span>
                 )
