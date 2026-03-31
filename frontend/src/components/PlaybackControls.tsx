@@ -690,51 +690,49 @@ export default function PlaybackControls({
 
   const progressBarSection = (
     <div className="w-full overflow-visible">
+      {/* Outer wrapper: enlarged touch/hit area via py-2 -my-2, group for hover state */}
       <div
         ref={progressBarRef}
-        className="w-full h-1.5 cursor-pointer rounded-full bg-white/10 relative z-10 select-none group transition-[height] duration-150 ease-out hover:h-2.5"
+        className="relative w-full cursor-pointer select-none group py-2 -my-2"
         style={{ touchAction: "none" }}
         onPointerDown={startScrub}
-        onClick={(e) => {
-          if (ignoreNextClickRef.current) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const pct = (e.clientX - rect.left) / rect.width;
-          commitSeek(pct * totalTime);
-        }}
       >
-        <div
-          className="relative h-full rounded-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.3)]"
-          style={{ width: `${fillPct}%`, transition: phaseJumping && !isScrubbing ? "width 0.5s ease-out" : "none" }}
-        >
-          {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
-          <div className="pointer-events-none absolute right-0 top-1/2 z-[60] -translate-y-1/2">
-            <div className="relative flex items-center justify-center">
-              {scrubLapDisplay != null && isScrubbing && (
-                <div
-                  className="absolute bottom-full left-1/2 z-[61] mb-1.5 flex -translate-x-1/2 justify-center"
-                  role="status"
-                  aria-live="polite"
-                >
-                  <div className="session-scrub-lap-bubble rounded-lg border border-white/10 bg-[#1a1a26] bg-glass-gradient px-2.5 py-1 shadow-2xl shadow-black/45 backdrop-blur-xl ring-1 ring-inset ring-white/[0.05]">
-                    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                      <span className="text-[9px] font-semibold uppercase tracking-wider text-f1-muted sm:text-[10px]">
-                        Lap
-                      </span>
-                      <div className="flex items-baseline gap-px font-mono tabular-nums">
-                        <span className="text-[11px] font-bold leading-none text-white sm:text-xs">{scrubLapDisplay}</span>
-                        <span className="text-[10px] font-semibold leading-none text-f1-muted/75 sm:text-[11px]">
-                          /{totalLaps}
+        {/* Visual track bar */}
+        <div className="relative w-full h-1.5 rounded-full bg-white/10 overflow-visible z-10 transition-[height] duration-150 ease-out group-hover:h-2.5">
+          <div
+            className="relative h-full rounded-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.3)]"
+            style={{ width: `${fillPct}%`, transition: phaseJumping && !isScrubbing ? "width 0.5s ease-out" : "none" }}
+          >
+            {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
+            <div className="pointer-events-none absolute right-0 top-1/2 z-[60] -translate-y-1/2">
+              <div className="relative flex items-center justify-center">
+                {scrubLapDisplay != null && isScrubbing && (
+                  <div
+                    className="absolute bottom-full left-1/2 z-[61] mb-1.5 flex -translate-x-1/2 justify-center"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <div className="session-scrub-lap-bubble rounded-lg border border-white/10 bg-[#1a1a26] bg-glass-gradient px-2.5 py-1 shadow-2xl shadow-black/45 backdrop-blur-xl ring-1 ring-inset ring-white/[0.05]">
+                      <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-f1-muted sm:text-[10px]">
+                          Lap
                         </span>
+                        <div className="flex items-baseline gap-px font-mono tabular-nums">
+                          <span className="text-[11px] font-bold leading-none text-white sm:text-xs">{scrubLapDisplay}</span>
+                          <span className="text-[10px] font-semibold leading-none text-f1-muted/75 sm:text-[11px]">
+                            /{totalLaps}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-              <div
-                className={`h-3 w-3 shrink-0 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-opacity ${
-                  isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                }`}
-              />
+                )}
+                <div
+                  className={`h-3 w-3 shrink-0 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-opacity ${
+                    isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  }`}
+                />
+              </div>
             </div>
           </div>
         </div>
