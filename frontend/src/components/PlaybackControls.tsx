@@ -392,7 +392,11 @@ export default function PlaybackControls({
   const speedBtnMobileRef = useRef<HTMLButtonElement>(null);
   const speedBtnDesktopRef = useRef<HTMLButtonElement>(null);
   const speedPopupRef = useRef<HTMLDivElement>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
+  /** Tracks whichever bar element (mobile or desktop) is currently being interacted with.
+   *  Needed because progressBarSection is reused in two CSS-toggled layouts, so a
+   *  single ref only ever points to one of them (the last rendered = desktop, which is
+   *  display:none on mobile → zero-width getBoundingClientRect). */
+  const activeBarRef = useRef<HTMLDivElement | null>(null);
   const scrubStateRef = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
   const scrubRafRef = useRef<number | null>(null);
   const pendingScrubClientXRef = useRef<number | null>(null);
@@ -513,23 +517,31 @@ export default function PlaybackControls({
   }
 
   function getSeekTimeFromClientX(clientX: number): number {
-    const el = progressBarRef.current;
+    const el = activeBarRef.current;
     if (!el || totalTime <= 0) return 0;
     const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return 0;
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     return pct * totalTime;
   }
 
   const startScrub = (e: React.PointerEvent<HTMLDivElement>) => {
     if (totalTime <= 0) return;
+    // Prevent default to stop iOS Safari from scrolling/bouncing while scrubbing
+    e.preventDefault();
     setCommittedTime(null);
-    const bar = progressBarRef.current;
-    if (bar) {
-      try {
-        bar.setPointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+    // Use currentTarget (the element with onPointerDown) to get the correct bar element.
+    // This is crucial because progressBarSection is reused for mobile and desktop layouts;
+    // the two are CSS-toggled (display:none), so a single useRef only catches the last one.
+    const bar = e.currentTarget as HTMLDivElement;
+    activeBarRef.current = bar;
+
+    let capturedOnElement = false;
+    try {
+      bar.setPointerCapture(e.pointerId);
+      capturedOnElement = bar.hasPointerCapture(e.pointerId);
+    } catch {
+      /* iOS Safari may fail silently */
     }
 
     const target = getSeekTimeFromClientX(e.clientX);
@@ -548,12 +560,26 @@ export default function PlaybackControls({
     };
 
     const onMove = (ev: PointerEvent) => {
+      ev.preventDefault();
       const st = scrubStateRef.current;
       if (!st || st.pointerId !== ev.pointerId) return;
       if (!st.moved && Math.abs(ev.clientX - st.startX) > 3) st.moved = true;
       pendingScrubClientXRef.current = ev.clientX;
       if (scrubRafRef.current == null) {
         scrubRafRef.current = window.requestAnimationFrame(flushScrubFromPending);
+      }
+    };
+
+    const cleanup = () => {
+      if (capturedOnElement) {
+        bar.removeEventListener("pointermove", onMove);
+        bar.removeEventListener("pointerup", finishScrub);
+        bar.removeEventListener("pointercancel", finishScrub);
+        bar.removeEventListener("lostpointercapture", finishScrub);
+      } else {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", finishScrub);
+        window.removeEventListener("pointercancel", finishScrub);
       }
     };
 
@@ -566,7 +592,11 @@ export default function PlaybackControls({
       }
       const lastKnownX = pendingScrubClientXRef.current ?? ev.clientX;
       pendingScrubClientXRef.current = null;
-      if (bar) {
+      // Clean up listeners BEFORE releasing capture to prevent
+      // lostpointercapture from re-firing finishScrub.
+      scrubStateRef.current = null;
+      cleanup();
+      if (capturedOnElement) {
         try {
           bar.releasePointerCapture(ev.pointerId);
         } catch {
@@ -579,16 +609,23 @@ export default function PlaybackControls({
       ignoreNextClickRef.current = true;
       window.setTimeout(() => { ignoreNextClickRef.current = false; }, 0);
       setScrubTime(null);
-      scrubStateRef.current = null;
       document.body.style.userSelect = prevUserSelect;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", finishScrub);
-      window.removeEventListener("pointercancel", finishScrub);
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", finishScrub);
-    window.addEventListener("pointercancel", finishScrub);
+    // When pointer capture is active, move/up events are re-targeted to the capturing
+    // element — NOT dispatched on window. iOS Safari relies on this exclusively.
+    // Fallback to window listeners when capture wasn't acquired (shouldn't happen, but safe).
+    if (capturedOnElement) {
+      bar.addEventListener("pointermove", onMove);
+      bar.addEventListener("pointerup", finishScrub);
+      bar.addEventListener("pointercancel", finishScrub);
+      // Safety net: if capture is lost unexpectedly, finish the scrub
+      bar.addEventListener("lostpointercapture", finishScrub);
+    } else {
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", finishScrub);
+      window.addEventListener("pointercancel", finishScrub);
+    }
   };
 
   /** Desktop: < lg solo ±1m ±5m; da lg anche ±5s ±30s; etichette corte sotto lg. */
@@ -693,7 +730,6 @@ export default function PlaybackControls({
     <div className="w-full overflow-visible">
       {/* Outer wrapper: enlarged touch/hit area via py-2 -my-2, group for hover state */}
       <div
-        ref={progressBarRef}
         className="relative w-full cursor-pointer select-none group py-2 -my-2"
         style={{ touchAction: "none" }}
         onPointerDown={startScrub}
