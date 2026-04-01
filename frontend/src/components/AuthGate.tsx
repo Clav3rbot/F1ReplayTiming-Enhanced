@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
-import { apiUrl, API_URL } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 import { getToken, setToken, clearToken } from "@/lib/auth";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -115,21 +115,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               The frontend failed to reach the API server at:
             </p>
             <code className="block text-xs text-white bg-f1-dark border border-f1-border rounded px-3 py-2 mb-4 break-all">
-              {API_URL}
+              {typeof window !== "undefined" ? window.location.origin : ""}
             </code>
             <div className="text-xs text-f1-muted space-y-2">
               <p>Common causes:</p>
               <ul className="list-disc list-inside space-y-1 ml-1">
-                <li>The backend container is still starting up</li>
-                <li>
-                  <code className="text-white">NEXT_PUBLIC_API_URL</code> in your
-                  docker-compose.yml is set to a URL that isn&apos;t reachable from
-                  your browser
-                </li>
-                <li>
-                  If behind a reverse proxy, this URL must be the address your browser
-                  uses to reach the backend, not an internal Docker address
-                </li>
+                <li>The server is still starting up</li>
+                <li>The API is not responding at this address</li>
+                <li>If behind a reverse proxy, ensure it forwards to the correct port</li>
               </ul>
             </div>
             <button

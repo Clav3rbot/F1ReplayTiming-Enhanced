@@ -234,7 +234,7 @@ export default function SessionPicker() {
                       </span>
                     )}
                     <Link
-                      href={`/live/${year}/${evt.round_number}?type=${code}`}
+                      href={`/live?year=${year}&round=${evt.round_number}&type=${code}`}
                       className="px-3 py-1.5 bg-red-600/90 text-white text-xs font-bold rounded-md hover:bg-f1-red hover:shadow-[0_0_15px_rgba(225,6,0,0.6)] transition-all duration-300 flex items-center gap-1.5 border border-red-500/50"
                     >
                       <span className="relative flex h-1.5 w-1.5">
@@ -255,7 +255,7 @@ export default function SessionPicker() {
                       </span>
                     )}
                     <Link
-                      href={`/replay/${year}/${evt.round_number}?type=${code}`}
+                      href={`/replay?year=${year}&round=${evt.round_number}&type=${code}`}
                       className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300"
                     >
                       {session.name}
@@ -382,7 +382,7 @@ export default function SessionPicker() {
             {liveSession && liveSession.year === year && (
               <div className="mb-4 max-w-3xl mx-auto">
                 <Link
-                  href={`/live/${liveSession.year}/${liveSession.round_number}?type=${liveSession.session_type}`}
+                  href={`/live?year=${liveSession.year}&round=${liveSession.round_number}&type=${liveSession.session_type}`}
                   className="block glass-panel rounded-xl overflow-hidden border border-f1-red/25 hover:border-f1-red/60 hover:shadow-[0_0_24px_rgba(225,6,0,0.12)] transition-all duration-300 group hover:-translate-y-0.5"
                 >
                   <div className="flex items-stretch">

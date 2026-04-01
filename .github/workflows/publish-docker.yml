@@ -1,11 +1,11 @@
-name: Publish Docker Images
+name: Publish Docker Image
 
 on:
   push:
     tags:
       - "v*"
     branches:
-      - dev  # TEMPORARY: remove before release
+      - dev
 
 env:
   REGISTRY: ghcr.io
@@ -16,14 +16,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-    strategy:
-      matrix:
-        include:
-          - image: f1replaytiming-backend
-            context: ./backend
-          - image: f1replaytiming-frontend
-            context: ./frontend
 
     steps:
       - name: Checkout
@@ -40,7 +32,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/f1replaytiming
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -52,11 +44,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
+          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: ${{ matrix.build-args || '' }}
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max

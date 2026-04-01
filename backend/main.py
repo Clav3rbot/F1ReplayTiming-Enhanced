@@ -2,11 +2,12 @@ import asyncio
 import os
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from auth import is_auth_enabled, verify_token
 from routers import sessions, track, laps, results, replay, telemetry, sync, live, live_status
@@ -36,31 +37,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="F1 Replay Timing API",
     description="Formula 1 race replay and telemetry data API",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# CORS
-frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-extra_origins = [o.strip() for o in os.environ.get("EXTRA_ORIGINS", "").split(",") if o.strip()]
-allowed_origins = [frontend_url, "http://localhost:3000", "http://localhost:3001"] + extra_origins
-# Ensure https variants are included for Railway/production URLs
-for origin in list(allowed_origins):
-    if origin.startswith("https://"):
-        http_variant = "http://" + origin[8:]
-        if http_variant not in allowed_origins:
-            allowed_origins.append(http_variant)
-    elif origin.startswith("http://") and "localhost" not in origin:
-        https_variant = "https://" + origin[7:]
-        if https_variant not in allowed_origins:
-            allowed_origins.append(https_variant)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Optional CORS — only needed when running frontend dev server separately
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url:
+    from fastapi.middleware.cors import CORSMiddleware
+    extra_origins = [o.strip() for o in os.environ.get("EXTRA_ORIGINS", "").split(",") if o.strip()]
+    allowed_origins = [frontend_url, "http://localhost:3000"] + extra_origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Auth middleware (skip auth endpoints, health, and WebSocket upgrades)
 AUTH_SKIP_PATHS = {"/api/auth/status", "/api/auth/login", "/api/health"}
@@ -69,6 +62,9 @@ AUTH_SKIP_PATHS = {"/api/auth/status", "/api/auth/login", "/api/health"}
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     if not is_auth_enabled():
+        return await call_next(request)
+    # Only protect API routes (frontend pages/assets are public)
+    if not request.url.path.startswith("/api/"):
         return await call_next(request)
     if request.url.path in AUTH_SKIP_PATHS:
         return await call_next(request)
@@ -100,3 +96,47 @@ app.include_router(live_status.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ─── Old URL redirects (backward compatibility) ───
+
+@app.get("/replay/{year}/{round_num}")
+async def redirect_replay(year: int, round_num: int, type: str = "R"):
+    return RedirectResponse(f"/replay?year={year}&round={round_num}&type={type}", status_code=301)
+
+
+@app.get("/live/{year}/{round_num}")
+async def redirect_live(year: int, round_num: int, type: str = "R"):
+    return RedirectResponse(f"/live?year={year}&round={round_num}&type={type}", status_code=301)
+
+
+@app.get("/results/{year}/{round_num}")
+async def redirect_results(year: int, round_num: int, type: str = "R"):
+    return RedirectResponse(f"/results?year={year}&round={round_num}&type={type}", status_code=301)
+
+
+# ─── Frontend static files ───
+
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
+
+if STATIC_DIR.exists():
+    next_static = STATIC_DIR / "_next"
+    if next_static.exists():
+        app.mount("/_next", StaticFiles(directory=str(next_static)), name="next-static")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend static files with SPA fallback."""
+        file_path = STATIC_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        html_path = STATIC_DIR / f"{full_path}.html"
+        if html_path.is_file():
+            return FileResponse(str(html_path))
+        index_path = STATIC_DIR / full_path / "index.html"
+        if index_path.is_file():
+            return FileResponse(str(index_path))
+        root_index = STATIC_DIR / "index.html"
+        if root_index.is_file():
+            return FileResponse(str(root_index))
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
