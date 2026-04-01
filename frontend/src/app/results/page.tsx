@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import SessionBanner from "@/components/SessionBanner";
 
@@ -31,11 +32,10 @@ interface SessionData {
   drivers: unknown[];
 }
 
-export default function ResultsPage() {
-  const params = useParams();
+function ResultsPageInner() {
   const searchParams = useSearchParams();
-  const year = Number(params.year);
-  const round = Number(params.round);
+  const year = Number(searchParams.get("year") || "0");
+  const round = Number(searchParams.get("round") || "0");
   const sessionType = searchParams.get("type") || "R";
 
   const { data: sessionData } = useApi<SessionData>(
@@ -64,7 +64,7 @@ export default function ResultsPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">Race Results</h2>
           <a
-            href={`/replay/${year}/${round}?type=${sessionType}`}
+            href={`/replay?year=${year}&round=${round}&type=${sessionType}`}
             className="px-4 py-2 bg-f1-red text-white text-sm font-bold rounded hover:bg-red-700 transition-colors"
           >
             Watch Replay
@@ -150,5 +150,13 @@ export default function ResultsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-f1-dark" />}>
+      <ResultsPageInner />
+    </Suspense>
   );
 }

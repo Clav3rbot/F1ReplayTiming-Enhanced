@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useReplaySocket } from "@/hooks/useReplaySocket";
 import { useSettings } from "@/hooks/useSettings";
@@ -61,11 +61,10 @@ interface SessionData {
   }>;
 }
 
-export default function ReplayPage() {
-  const params = useParams();
+function ReplayPageInner() {
   const searchParams = useSearchParams();
-  const year = Number(params.year);
-  const round = Number(params.round);
+  const year = Number(searchParams.get("year") || "0");
+  const round = Number(searchParams.get("round") || "0");
   const sessionType = searchParams.get("type") || "R";
 
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
@@ -1192,5 +1191,13 @@ export default function ReplayPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ReplayPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-f1-dark" />}>
+      <ReplayPageInner />
+    </Suspense>
   );
 }

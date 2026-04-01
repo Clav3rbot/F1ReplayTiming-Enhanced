@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useLiveSocket } from "@/hooks/useLiveSocket";
 import { useSettings } from "@/hooks/useSettings";
@@ -36,11 +36,10 @@ interface SessionData {
   }>;
 }
 
-export default function LivePage() {
-  const params = useParams();
+function LivePageInner() {
   const searchParams = useSearchParams();
-  const year = Number(params.year);
-  const round = Number(params.round);
+  const year = Number(searchParams.get("year") || "0");
+  const round = Number(searchParams.get("round") || "0");
   const sessionType = searchParams.get("type") || "R";
   const speed = Number(searchParams.get("speed") || "10");
   const devMode = searchParams.get("dev") === "1";
@@ -836,5 +835,13 @@ export default function LivePage() {
         </PiPWindow>
       )}
     </div>
+  );
+}
+
+export default function LivePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-f1-dark" />}>
+      <LivePageInner />
+    </Suspense>
   );
 }
