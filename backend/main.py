@@ -119,6 +119,23 @@ async def redirect_results(year: int, round_num: int, type: str = "R"):
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
 
+_STATIC_RESOLVED: Path | None = None
+
+
+def _safe_static_path(rel: str) -> Path | None:
+    """Resolve rel against STATIC_DIR; return None if the path escapes the root."""
+    global _STATIC_RESOLVED
+    if _STATIC_RESOLVED is None:
+        _STATIC_RESOLVED = STATIC_DIR.resolve()
+    try:
+        candidate = (STATIC_DIR / rel).resolve()
+        if candidate.is_relative_to(_STATIC_RESOLVED):
+            return candidate
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 if STATIC_DIR.exists():
     next_static = STATIC_DIR / "_next"
     if next_static.exists():
@@ -127,15 +144,10 @@ if STATIC_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         """Serve frontend static files with SPA fallback."""
-        file_path = STATIC_DIR / full_path
-        if file_path.is_file():
-            return FileResponse(str(file_path))
-        html_path = STATIC_DIR / f"{full_path}.html"
-        if html_path.is_file():
-            return FileResponse(str(html_path))
-        index_path = STATIC_DIR / full_path / "index.html"
-        if index_path.is_file():
-            return FileResponse(str(index_path))
+        for rel in [full_path, f"{full_path}.html", f"{full_path}/index.html"]:
+            p = _safe_static_path(rel)
+            if p and p.is_file():
+                return FileResponse(str(p))
         root_index = STATIC_DIR / "index.html"
         if root_index.is_file():
             return FileResponse(str(root_index))

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from auth import is_auth_enabled, generate_token
+from auth import is_auth_enabled, generate_token, check_rate_limit
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -18,7 +18,10 @@ async def auth_status():
 
 
 @router.post("/login")
-async def auth_login(body: LoginRequest):
+async def auth_login(request: Request, body: LoginRequest):
+    ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
     token = generate_token(body.passphrase)
     if token is None:
         raise HTTPException(status_code=401, detail="Invalid passphrase")

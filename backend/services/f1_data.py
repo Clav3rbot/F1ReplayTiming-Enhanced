@@ -5,6 +5,7 @@ import os
 import logging
 import threading
 import time as _time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -28,8 +29,9 @@ except OSError:
     os.makedirs(CACHE_DIR, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE_DIR)
 
-# In-memory cache for loaded sessions (with lock to prevent concurrent duplicate loads)
-_session_cache: dict[str, fastf1.core.Session] = {}
+# LRU in-memory cache for loaded sessions (cap prevents OOM on long-running instances)
+_SESSION_CACHE_MAX = 8
+_session_cache: OrderedDict[str, fastf1.core.Session] = OrderedDict()
 _session_lock = threading.Lock()
 
 
@@ -196,11 +198,13 @@ def _load_session(year: int, round_num: int, session_type: str, *, minimal: bool
     """
     key = _cache_key(year, round_num, session_type)
     if key in _session_cache:
+        _session_cache.move_to_end(key)
         return _session_cache[key]
 
     with _session_lock:
         # Double-check after acquiring lock
         if key in _session_cache:
+            _session_cache.move_to_end(key)
             return _session_cache[key]
 
         t0 = _time.monotonic()
@@ -218,6 +222,10 @@ def _load_session(year: int, round_num: int, session_type: str, *, minimal: bool
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:
             _session_cache[key] = session
+            # Evict oldest entries beyond the cap
+            while len(_session_cache) > _SESSION_CACHE_MAX:
+                evicted_key, _ = _session_cache.popitem(last=False)
+                logger.info(f"Session cache evicted: {evicted_key} (cap={_SESSION_CACHE_MAX})")
 
         logger.info(f"Session {year}/{round_num}/{session_type} loaded in {elapsed:.1f}s ({load_mode}).")
         return session

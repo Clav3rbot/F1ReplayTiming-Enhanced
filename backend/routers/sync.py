@@ -57,12 +57,18 @@ Rules:
 - Do NOT guess - only extract what is clearly visible"""
 
 
-def _convert_to_jpeg(image_bytes: bytes, max_dim: int = 1200, quality: int = 80) -> bytes:
-    """Convert any image format to compressed JPEG."""
+# Cap PIL decompression to prevent memory exhaustion from crafted images
+Image.MAX_IMAGE_PIXELS = 50_000_000  # ~50 MP
+
+
+def _convert_to_jpeg_sync(image_bytes: bytes, max_dim: int = 1200, quality: int = 80) -> bytes:
+    """Convert any image format to compressed JPEG (runs in thread pool)."""
+    img = Image.open(io.BytesIO(image_bytes))
+    # Force pixel access to trigger decompression check before proceeding
+    img.verify()
     img = Image.open(io.BytesIO(image_bytes))
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    # Resize if needed
     if max(img.size) > max_dim:
         ratio = max_dim / max(img.size)
         new_size = (int(img.width * ratio), int(img.height * ratio))
@@ -70,6 +76,12 @@ def _convert_to_jpeg(image_bytes: bytes, max_dim: int = 1200, quality: int = 80)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=quality)
     return buf.getvalue()
+
+
+async def _convert_to_jpeg(image_bytes: bytes, max_dim: int = 1200, quality: int = 80) -> bytes:
+    """Async wrapper: runs CPU-bound image conversion off the event loop."""
+    import asyncio
+    return await asyncio.to_thread(_convert_to_jpeg_sync, image_bytes, max_dim, quality)
 
 
 async def _extract_leaderboard(image_bytes: bytes) -> dict:
@@ -278,7 +290,7 @@ async def sync_from_photo(
 
     # Convert to JPEG (handles HEIC, PNG, etc.)
     try:
-        image_bytes = _convert_to_jpeg(image_bytes)
+        image_bytes = await _convert_to_jpeg(image_bytes)
     except Exception as e:
         logger.error(f"Image conversion failed: {e}")
         raise HTTPException(status_code=400, detail="Could not process image")

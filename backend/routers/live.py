@@ -16,7 +16,22 @@ router = APIRouter(tags=["live"])
 
 # Shared live session state
 _live_sessions: dict[str, "LiveSession"] = {}
-_session_cleanup_lock = asyncio.Lock()
+_session_cleanup_lock: asyncio.Lock | None = None
+_session_create_lock: asyncio.Lock | None = None
+
+
+def _get_cleanup_lock() -> asyncio.Lock:
+    global _session_cleanup_lock
+    if _session_cleanup_lock is None:
+        _session_cleanup_lock = asyncio.Lock()
+    return _session_cleanup_lock
+
+
+def _get_create_lock() -> asyncio.Lock:
+    global _session_create_lock
+    if _session_create_lock is None:
+        _session_create_lock = asyncio.Lock()
+    return _session_create_lock
 
 
 class LiveSession:
@@ -229,28 +244,30 @@ async def _get_or_create_session(
     """
     key = f"{year}_{round_num}_{session_type}"
 
-    if key not in _live_sessions:
+    if key in _live_sessions:
+        return _live_sessions[key]
+
+    async with _get_create_lock():
+        # Double-check inside lock to prevent duplicate session creation
+        if key in _live_sessions:
+            return _live_sessions[key]
+
         data_dir = _get_test_data_dir(year, round_num, session_type)
 
         if source == "signalr":
-            # Force real SignalR connection
             session = LiveSession(key, session_type)
             _live_sessions[key] = session
             await session.start(year=year, round_num=round_num, use_signalr=True)
         elif source == "test" and data_dir:
-            # Force test replayer
             session = LiveSession(key, session_type)
             _live_sessions[key] = session
             await session.start(year=year, round_num=round_num, data_dir=data_dir, speed=speed)
         elif source == "auto":
-            # Auto: use test data if available, otherwise try SignalR
+            session = LiveSession(key, session_type)
+            _live_sessions[key] = session
             if data_dir:
-                session = LiveSession(key, session_type)
-                _live_sessions[key] = session
                 await session.start(year=year, round_num=round_num, data_dir=data_dir, speed=speed)
             else:
-                session = LiveSession(key, session_type)
-                _live_sessions[key] = session
                 await session.start(year=year, round_num=round_num, use_signalr=True)
         else:
             return None
@@ -357,7 +374,7 @@ async def live_websocket(
             # React Strict Mode remounts to reuse the session)
             if session.client_count == 0:
                 await asyncio.sleep(2)
-                async with _session_cleanup_lock:
+                async with _get_cleanup_lock():
                     if session.client_count == 0:
                         key = f"{year}_{round_num}_{type}"
                         if key in _live_sessions:

@@ -214,12 +214,18 @@ class LiveStateManager:
         # norm = {"x_min": float, "y_min": float, "scale": float}
         self._track_norm: dict[str, float] | None = track_norm
 
-        # Track outline as numpy arrays for nearest-point lookup
+        # Track outline as numpy arrays + KDTree for O(log N) nearest-point lookup
         self._track_xy: np.ndarray | None = None  # shape (N, 2)
+        self._track_kdtree = None
         if track_points:
             self._track_xy = np.array(
                 [[p["x"], p["y"]] for p in track_points], dtype=np.float64
             )
+            try:
+                from scipy.spatial import cKDTree
+                self._track_kdtree = cKDTree(self._track_xy)
+            except ImportError:
+                pass  # fallback to O(N) scan below
 
         # Auto-normalization from raw position data (fallback when no track_norm)
         self._raw_x_min: float = float("inf")
@@ -589,10 +595,13 @@ class LiveStateManager:
         track = self._track_xy
         if track is None or len(track) == 0:
             return 0.0, x, y
-        dx = track[:, 0] - x
-        dy = track[:, 1] - y
-        dist_sq = dx * dx + dy * dy
-        nearest_idx = int(np.argmin(dist_sq))
+        if self._track_kdtree is not None:
+            _, nearest_idx = self._track_kdtree.query([x, y])
+            nearest_idx = int(nearest_idx)
+        else:
+            dx = track[:, 0] - x
+            dy = track[:, 1] - y
+            nearest_idx = int(np.argmin(dx * dx + dy * dy))
         return (
             nearest_idx / len(track),
             float(track[nearest_idx, 0]),

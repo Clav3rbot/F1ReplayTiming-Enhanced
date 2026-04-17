@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { drawTrack, drawDrivers, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
+import { drawTrack, drawDrivers, computeTrackTransform, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
@@ -182,6 +182,12 @@ export default function TrackCanvas({
       ctx.translate(px, py);
 
       const lp = latestPropsRef.current;
+
+      // Compute transform once per frame — shared by drawTrack and drawDrivers
+      const transform = trackPoints.length > 0
+        ? computeTrackTransform(trackPoints, w, h, rotation, lp.compact, zoomRef.current, 0, 0)
+        : undefined;
+
       drawTrack(
         ctx,
         trackPoints,
@@ -197,6 +203,7 @@ export default function TrackCanvas({
         lp.sectorFlags,
         0,
         0,
+        transform,
       );
 
       const now = performance.now();
@@ -226,6 +233,7 @@ export default function TrackCanvas({
         zoomRef.current,
         0,
         0,
+        transform,
       );
 
       ctx.restore();

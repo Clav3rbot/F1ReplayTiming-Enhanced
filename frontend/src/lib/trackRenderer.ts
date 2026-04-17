@@ -45,7 +45,7 @@ const TRACK_STATUS_COLORS: Record<string, string> = {
 };
 
 /** Shared coordinate transform: rotation, bounds, scale, offset, toScreen. */
-function computeTrackTransform(
+export function computeTrackTransform(
   points: TrackPoint[],
   width: number,
   height: number,
@@ -104,6 +104,8 @@ function computeTrackTransform(
   return { rotated, scale, offsetX, offsetY, minX, maxX, minY, maxY, cos, sin, cx, cy, toScreen, rotate, padX, padTop, padBottom };
 }
 
+export type TrackTransform = ReturnType<typeof computeTrackTransform>;
+
 export function drawTrack(
   ctx: CanvasRenderingContext2D,
   points: TrackPoint[],
@@ -119,10 +121,11 @@ export function drawTrack(
   sectorFlags?: SectorFlag[] | null,
   panX: number = 0,
   panY: number = 0,
+  precomputed?: TrackTransform,
 ) {
   if (points.length === 0) return;
 
-  const { rotated, toScreen, rotate } = computeTrackTransform(
+  const { rotated, toScreen, rotate } = precomputed ?? computeTrackTransform(
     points, width, height, rotation, compact, zoom, panX, panY,
   );
 
@@ -297,10 +300,11 @@ export function drawDrivers(
   zoom: number = 1,
   panX: number = 0,
   panY: number = 0,
+  precomputed?: TrackTransform,
 ) {
   if (trackPoints.length === 0) return;
 
-  const { scale, toScreen, rotate } = computeTrackTransform(
+  const { scale, toScreen, rotate } = precomputed ?? computeTrackTransform(
     trackPoints, width, height, rotation, compact, zoom, panX, panY,
   );
 

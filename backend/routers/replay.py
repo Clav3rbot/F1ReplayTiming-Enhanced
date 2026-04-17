@@ -1,4 +1,6 @@
 import asyncio
+import bisect
+import copy
 import logging
 import math
 import os
@@ -36,6 +38,7 @@ _replay_clients: dict[str, int] = {}  # key -> active WebSocket count
 _eviction_tasks: dict[str, asyncio.Task] = {}  # key -> pending eviction task
 
 CACHE_EVICTION_SECONDS = 300  # 5 minutes after last client disconnects
+MAX_REPLAY_CACHED_SESSIONS = 10
 
 # In-memory cache for pit loss data
 _pit_loss_cache: dict | None = None
@@ -287,6 +290,10 @@ async def replay_websocket(
                     pit_loss_vsc = ga.get("vsc", 14.5)
                 logger.info(f"Pit loss for {event_name}: green={pit_loss_green}s, sc={pit_loss_sc}s, vsc={pit_loss_vsc}s")
 
+        # Precompute sorted lookup arrays for O(log N) seek
+        frame_timestamps = [float(f["timestamp"]) for f in frames]
+        frame_laps_list = [int(f.get("lap") or 0) for f in frames]
+
         # Extract qualifying phase start times for seek buttons
         quali_phases = []
         seen_phases = set()
@@ -349,8 +356,10 @@ async def replay_websocket(
         })
 
         # Helper to send a frame with pit predictions added
+        # Must copy: frames are shared cache objects; mutating in-place corrupts other clients
         def prepare_frame(f: dict) -> dict:
             if is_race and pit_loss_green > 0:
+                f = {**f, "drivers": [d.copy() for d in f.get("drivers", [])]}
                 _add_pit_predictions(f, pit_loss_green, pit_loss_sc, pit_loss_vsc)
             return f
 
@@ -376,10 +385,8 @@ async def replay_websocket(
 
         async def send_seek_frame(target_time: float):
             nonlocal frame_index
-            for i, f in enumerate(frames):
-                if f["timestamp"] >= target_time:
-                    frame_index = i
-                    break
+            i = bisect.bisect_left(frame_timestamps, target_time)
+            frame_index = min(i, len(frames) - 1)
             if frame_index < len(frames):
                 await websocket.send_json({"type": "frame", **prepare_frame(frames[frame_index])})
 
@@ -408,10 +415,8 @@ async def replay_websocket(
             elif cmd.startswith("seeklap:"):
                 try:
                     target_lap = int(cmd.split(":")[1])
-                    for i, f in enumerate(frames):
-                        if f["lap"] >= target_lap:
-                            frame_index = i
-                            break
+                    i = bisect.bisect_left(frame_laps_list, target_lap)
+                    frame_index = min(i, len(frames) - 1)
                     if frame_index < len(frames):
                         await websocket.send_json({"type": "frame", **prepare_frame(frames[frame_index])})
                     reset_anchor()
