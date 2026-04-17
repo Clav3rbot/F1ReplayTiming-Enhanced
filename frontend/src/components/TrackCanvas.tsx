@@ -183,7 +183,7 @@ export default function TrackCanvas({
 
       const lp = latestPropsRef.current;
 
-      // Compute transform once per frame — shared by drawTrack and drawDrivers
+      // Compute transform once per frame - shared by drawTrack and drawDrivers
       const transform = trackPoints.length > 0
         ? computeTrackTransform(trackPoints, w, h, rotation, lp.compact, zoomRef.current, 0, 0)
         : undefined;
