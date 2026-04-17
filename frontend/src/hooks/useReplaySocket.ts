@@ -165,7 +165,8 @@ export function useReplaySocket(year: number, round: number, sessionType: string
 
       ws.onmessage = (event) => {
         if (!mountedRef.current) return;
-        let msg: Record<string, unknown>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let msg: any;
         try {
           msg = JSON.parse(event.data as string);
         } catch {
