@@ -23,6 +23,94 @@ interface BufferedFrame {
   receivedAt: number; // Date.now() when received
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseWeatherData(value: unknown): WeatherData | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const { air_temp, track_temp, humidity, rainfall, wind_speed, wind_direction } = value;
+  if (
+    typeof air_temp !== "number" ||
+    typeof track_temp !== "number" ||
+    typeof humidity !== "number" ||
+    typeof rainfall !== "boolean" ||
+    typeof wind_speed !== "number" ||
+    typeof wind_direction !== "number"
+  ) {
+    return undefined;
+  }
+
+  return {
+    air_temp,
+    track_temp,
+    humidity,
+    rainfall,
+    wind_speed,
+    wind_direction,
+  };
+}
+
+function parseQualiPhase(value: unknown): QualiPhase | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const { phase, elapsed, remaining } = value;
+  if (typeof phase !== "string" || typeof elapsed !== "number" || typeof remaining !== "number") {
+    return undefined;
+  }
+
+  return { phase, elapsed, remaining };
+}
+
+function parseRcMessages(value: unknown): RCMessage[] {
+  if (!Array.isArray(value)) return [];
+
+  const parsed: RCMessage[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+
+    const { message, category, timestamp, lap, racing_number } = item;
+    if (typeof message !== "string" || typeof category !== "string" || typeof timestamp !== "number") {
+      continue;
+    }
+
+    parsed.push({
+      message,
+      category,
+      timestamp,
+      lap: typeof lap === "number" ? lap : undefined,
+      racing_number: typeof racing_number === "string" ? racing_number : undefined,
+    });
+  }
+
+  return parsed;
+}
+
+function parseReplayFrame(msg: Record<string, unknown>): ReplayFrame | null {
+  const { timestamp, lap, total_laps, session_type, drivers, status } = msg;
+  if (
+    typeof timestamp !== "number" ||
+    typeof lap !== "number" ||
+    typeof total_laps !== "number" ||
+    !Array.isArray(drivers) ||
+    typeof status !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    timestamp,
+    lap,
+    total_laps,
+    session_type: typeof session_type === "string" ? session_type : undefined,
+    drivers: drivers as ReplayDriver[],
+    status,
+    weather: parseWeatherData(msg.weather),
+    quali_phase: parseQualiPhase(msg.quali_phase),
+  };
+}
+
 export function useLiveSocket(
   year: number,
   round: number,
@@ -100,14 +188,19 @@ export function useLiveSocket(
 
     ws.onmessage = (event) => {
       if (aborted) return;
-      let msg: Record<string, unknown>;
+      let parsedData: unknown;
       try {
-        msg = JSON.parse(event.data as string);
+        parsedData = JSON.parse(event.data as string);
       } catch {
         return;
       }
 
-      switch (msg.type) {
+      if (!isRecord(parsedData)) return;
+      const msg = parsedData;
+
+      const messageType = typeof msg.type === "string" ? msg.type : "";
+
+      switch (messageType) {
         case "status":
           setState((s) => ({ ...s, loading: true }));
           break;
@@ -119,17 +212,9 @@ export function useLiveSocket(
           }));
           break;
         case "frame": {
-          const frame: ReplayFrame = {
-            timestamp: msg.timestamp,
-            lap: msg.lap,
-            total_laps: msg.total_laps,
-            session_type: msg.session_type,
-            drivers: msg.drivers,
-            status: msg.status,
-            weather: msg.weather,
-            quali_phase: msg.quali_phase,
-          };
-          const rcMessages: RCMessage[] = msg.rc_messages || [];
+          const frame = parseReplayFrame(msg);
+          if (!frame) break;
+          const rcMessages = parseRcMessages(msg.rc_messages);
 
           if (delayRef.current !== 0) {
             // Show first frame immediately so the user sees data right away,
@@ -157,7 +242,11 @@ export function useLiveSocket(
           }));
           break;
         case "error":
-          setState((s) => ({ ...s, error: msg.message, loading: false }));
+          setState((s) => ({
+            ...s,
+            error: typeof msg.message === "string" ? msg.message : "WebSocket error",
+            loading: false,
+          }));
           break;
       }
     };
