@@ -31,6 +31,8 @@ _locks: dict[str, asyncio.Lock] = {}
 
 # Thread pool for parallel telemetry uploads
 _telemetry_pool = ThreadPoolExecutor(max_workers=4)
+import atexit as _atexit
+_atexit.register(_telemetry_pool.shutdown, wait=False)
 
 
 def _process_driver_telemetry(

@@ -165,7 +165,12 @@ export function useReplaySocket(year: number, round: number, sessionType: string
 
       ws.onmessage = (event) => {
         if (!mountedRef.current) return;
-        const msg = JSON.parse(event.data);
+        let msg: Record<string, unknown>;
+        try {
+          msg = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
 
         switch (msg.type) {
           case "status":
@@ -205,6 +210,10 @@ export function useReplaySocket(year: number, round: number, sessionType: string
                 ? lastTimestampRef.current
                 : 0;
               ws.send(`seek:${seekTo}`);
+              // Re-send play if we were playing before disconnect
+              if (wasReadyRef.current && !pausedRef.current) {
+                ws.send("play");
+              }
             }
             wasReadyRef.current = true;
             break;

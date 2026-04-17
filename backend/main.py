@@ -51,8 +51,8 @@ if frontend_url:
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
 # Auth middleware (skip auth endpoints, health, and WebSocket upgrades)

@@ -308,11 +308,12 @@ export function drawDrivers(
     trackPoints, width, height, rotation, compact, zoom, panX, panY,
   );
 
+  const highlightedSet = new Set(highlightedDrivers);
   for (const drv of drivers) {
     const rp = rotate(drv.x, drv.y);
     const [sx, sy] = toScreen(rp);
 
-    const isHighlighted = highlightedDrivers.includes(drv.abbr);
+    const isHighlighted = highlightedSet.has(drv.abbr);
     const radius = isHighlighted ? 8 : 5;
 
     ctx.save();

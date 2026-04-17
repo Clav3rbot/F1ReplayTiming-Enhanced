@@ -358,6 +358,10 @@ async def live_websocket(
                 await asyncio.sleep(frame_interval)
         finally:
             command_task.cancel()
+            try:
+                await command_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
     except WebSocketDisconnect:
         logger.info(f"Live WS disconnected: {year}/{round_num}")

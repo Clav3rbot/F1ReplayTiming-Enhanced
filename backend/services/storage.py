@@ -36,7 +36,9 @@ def _local_put_json(path: str, data: object) -> None:
     filepath = _data_dir() / path
     filepath.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(data, separators=(",", ":")).encode()
-    filepath.write_bytes(body)
+    tmp = filepath.with_suffix(".tmp")
+    tmp.write_bytes(body)
+    os.replace(tmp, filepath)
     logger.info(f"Saved {path} ({len(body)} bytes)")
 
 

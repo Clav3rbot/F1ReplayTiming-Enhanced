@@ -100,7 +100,12 @@ export function useLiveSocket(
 
     ws.onmessage = (event) => {
       if (aborted) return;
-      const msg = JSON.parse(event.data);
+      let msg: Record<string, unknown>;
+      try {
+        msg = JSON.parse(event.data as string);
+      } catch {
+        return;
+      }
 
       switch (msg.type) {
         case "status":
@@ -134,6 +139,10 @@ export function useLiveSocket(
               setState((s) => ({ ...s, frame, rcMessages }));
             }
             bufferRef.current.push({ frame, rcMessages, receivedAt: Date.now() });
+            // Cap buffer to prevent unbounded growth during large delays
+            if (bufferRef.current.length > 200) {
+              bufferRef.current = bufferRef.current.slice(-200);
+            }
           } else {
             // No delay - show immediately
             setState((s) => ({ ...s, frame, rcMessages }));
