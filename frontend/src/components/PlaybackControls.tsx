@@ -407,6 +407,9 @@ export default function PlaybackControls({
   const fillPct = Math.min(100, Math.max(0, progress));
   const isScrubbing = scrubTime !== null;
   const displayedSeconds = timelineSeconds;
+  const displayedTimeText = formatTime(displayedSeconds);
+  const totalTimeText = formatTime(totalTime);
+  const currentTimeWidthCh = Math.max(4, totalTimeText.length);
 
   const scrubLapDisplay = useMemo(() => {
     if (!isRace || totalLaps <= 0) return null;
@@ -436,6 +439,7 @@ export default function PlaybackControls({
   /** During scrub, show the lap for the thumb position (same as post-seek frame); otherwise last frame lap. */
   const displayLap =
     isRace && isScrubbing && scrubLapDisplay != null ? scrubLapDisplay : currentLap;
+  const displayLapTwoDigits = String(Math.max(0, displayLap)).padStart(2, "0");
 
   // Drop committed overlay only when the incoming frame matches the seek target.
   // Do NOT clear on any currentTime delta: while playing, frames still advance from the old
@@ -655,7 +659,7 @@ export default function PlaybackControls({
           Lap
         </span>
         <div className="flex items-baseline gap-px font-mono tabular-nums">
-          <span className="text-[10px] font-extrabold leading-none text-white sm:text-[11px]">{displayLap}</span>
+          <span className="inline-block w-[2ch] text-right text-[10px] font-extrabold leading-none text-white sm:text-[11px]">{displayLapTwoDigits}</span>
           <span className="text-[9px] font-semibold leading-none text-f1-muted/80 sm:text-[10px]">/{totalLaps}</span>
         </div>
         <svg
@@ -853,7 +857,7 @@ export default function PlaybackControls({
       <div className="flex items-center gap-2 px-3 py-1.5">
         {playPauseBtn}
         <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-white font-mono tabular-nums-fixed">
-          {formatTime(displayedSeconds)}
+          {displayedTimeText}
           {isRace && displayLap > 0 && <span className="ml-2 font-mono tabular-nums-fixed text-f1-muted">Lap {displayLap}</span>}
         </span>
         {!isRace && qualiPhases && qualiPhases.length > 0 && (
@@ -979,9 +983,11 @@ export default function PlaybackControls({
       <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-4">
         <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:w-auto lg:justify-start">
           <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
-            {formatTime(displayedSeconds)}
+            <span className="inline-block text-right" style={{ width: `${currentTimeWidthCh}ch` }}>
+              {displayedTimeText}
+            </span>
             {showSessionTime && (
-              <span className="ml-1 hidden font-normal text-f1-muted opacity-80 md:inline">/ {formatTime(totalTime)}</span>
+              <span className="ml-1 hidden font-normal text-f1-muted opacity-80 md:inline">/ {totalTimeText}</span>
             )}
           </span>
           {!isRace && !qualiPhases?.length && (

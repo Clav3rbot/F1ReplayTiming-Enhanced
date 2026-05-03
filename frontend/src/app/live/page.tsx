@@ -36,6 +36,37 @@ interface SessionData {
   }>;
 }
 
+const DELAY_MIN = -300;
+const DELAY_MAX = 10;
+const DELAY_TICK_PERCENT = (-DELAY_MIN / (DELAY_MAX - DELAY_MIN)) * 100;
+
+function clampDelay(value: number): number {
+  return Math.max(DELAY_MIN, Math.min(DELAY_MAX, Math.round(value * 2) / 2));
+}
+
+function formatDelayValue(s: number): string {
+  if (Math.abs(s) < 60) return s.toFixed(1);
+  const sign = s < 0 ? "−" : "+";
+  const abs = Math.abs(s);
+  const m = Math.floor(abs / 60);
+  const sec = Math.round(abs % 60);
+  return `${sign}${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function formatDelayUnit(s: number): string {
+  return Math.abs(s) < 60 ? "seconds" : "min:sec";
+}
+
+function formatDelayShort(s: number): string {
+  if (s === 0) return "0s";
+  if (Math.abs(s) < 60) return `${s > 0 ? "+" : ""}${s}s`;
+  const sign = s < 0 ? "−" : "+";
+  const abs = Math.abs(s);
+  const m = Math.floor(abs / 60);
+  const sec = Math.round(abs % 60);
+  return sec === 0 ? `${sign}${m}m` : `${sign}${m}:${String(sec).padStart(2, "0")}`;
+}
+
 function LivePageInner() {
   const searchParams = useSearchParams();
   const year = Number(searchParams.get("year") || "0");
@@ -635,7 +666,7 @@ function LivePageInner() {
                   : "bg-f1-dark border-f1-border text-f1-muted hover:text-white"
               }`}
             >
-              Delay: {delayOffset > 0 ? "+" : ""}{delayOffset}s
+              Delay: {formatDelayShort(delayOffset)}
             </button>
             {showDelaySlider && (
               <div className="absolute bottom-full right-0 mb-2 bg-f1-card border border-f1-border rounded-lg p-3 shadow-xl z-50 w-56">
@@ -648,34 +679,69 @@ function LivePageInner() {
                     Reset
                   </button>
                 </div>
-                <input
-                  type="range"
-                  min={-60}
-                  max={10}
-                  step={0.5}
-                  value={delayOffset}
-                  onChange={(e) => setDelayOffset(Number(e.target.value))}
-                  className="w-full h-1 bg-f1-border rounded-lg appearance-none cursor-pointer accent-blue-500"
-                />
-                <div className="flex justify-between text-[9px] text-f1-muted mt-1">
-                  <span>-60s</span>
+                <div className="text-center">
+                  <span className="text-3xl font-extrabold text-white tabular-nums">{formatDelayValue(delayOffset)}</span>
+                  <span className="text-lg text-f1-muted ml-1">{formatDelayUnit(delayOffset)}</span>
+                </div>
+                {/* Slider with zero tick mark */}
+                <div className="relative">
+                  <input
+                    type="range"
+                    min={DELAY_MIN}
+                    max={DELAY_MAX}
+                    step={0.5}
+                    value={delayOffset}
+                    onChange={(e) => setDelayOffset(Number(e.target.value))}
+                    className="w-full h-1 bg-f1-border rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                  {/* Zero tick — positioned absolutely over the slider */}
+                  <div
+                    className="absolute pointer-events-none z-20"
+                    style={{ left: `calc(${DELAY_TICK_PERCENT}% - 7px)`, top: "calc(50% + 3px)", transform: "translate(-50%, -50%)" }}
+                  >
+                    <div className="w-px h-4 bg-white/40" />
+                  </div>
+                </div>
+                <div className="relative flex justify-between text-[10px] text-f1-muted mt-1">
+                  <span>-5m</span>
+                  <span>0s</span>
                   <span>+10s</span>
                 </div>
+                {/* Quick adjust buttons */}
+                <div className="flex items-center justify-center gap-1 mt-2">
+                  {[
+                    { label: "-30s", delta: -30 },
+                    { label: "-5s", delta: -5 },
+                    { label: "-1s", delta: -1 },
+                    { label: "-0.5s", delta: -0.5 },
+                    { label: "+0.5s", delta: 0.5 },
+                    { label: "+1s", delta: 1 },
+                    { label: "+5s", delta: 5 },
+                    { label: "+30s", delta: 30 },
+                  ].map(({ label, delta }) => (
+                    <button
+                      key={label}
+                      onClick={() => setDelayOffset(clampDelay(delayOffset + delta))}
+                      className="px-1.5 py-1 bg-f1-dark border border-f1-border rounded text-[10px] font-bold text-f1-muted hover:text-white hover:border-blue-500/50 transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <label className="text-[9px] text-f1-muted flex-shrink-0">Exact delay:</label>
+                  <label className="text-[9px] text-f1-muted flex-shrink-0">Exact (s):</label>
                   <input
                     type="number"
-                    min={-60}
-                    max={10}
+                    min={DELAY_MIN}
+                    max={DELAY_MAX}
                     step={0.5}
                     value={delayOffset}
                     onChange={(e) => {
                       const v = Number(e.target.value);
-                      if (!isNaN(v)) setDelayOffset(Math.max(-60, Math.min(10, v)));
+                      if (!isNaN(v)) setDelayOffset(clampDelay(v));
                     }}
-                    className="w-16 px-1.5 py-0.5 bg-f1-dark border border-f1-border rounded text-[10px] text-white text-center focus:outline-none focus:border-blue-500"
+                    className="w-20 px-1.5 py-0.5 bg-f1-dark border border-f1-border rounded text-[10px] text-white text-center focus:outline-none focus:border-blue-500"
                   />
-                  <span className="text-[9px] text-f1-muted">seconds</span>
                 </div>
                 <p className="text-[9px] text-f1-muted mt-2 leading-relaxed">
                   Pauses the live data feed until it aligns with your broadcast. Set this to match the delay of your streaming service so the leaderboard updates at the same time as the TV coverage.
