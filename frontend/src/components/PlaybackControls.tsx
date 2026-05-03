@@ -436,9 +436,11 @@ export default function PlaybackControls({
     currentLap,
   ]);
 
-  /** During scrub, show the lap for the thumb position (same as post-seek frame); otherwise last frame lap. */
+  /** Show the target lap during scrub OR while a seek is pending (committedTime); otherwise last frame lap. */
   const displayLap =
-    isRace && isScrubbing && scrubLapDisplay != null ? scrubLapDisplay : currentLap;
+    isRace && (isScrubbing || committedTime !== null) && scrubLapDisplay != null
+      ? scrubLapDisplay
+      : currentLap;
   const displayLapTwoDigits = String(Math.max(0, displayLap)).padStart(2, "0");
 
   // Drop committed overlay only when the incoming frame matches the seek target.
@@ -980,8 +982,11 @@ export default function PlaybackControls({
       <div className="mb-3 overflow-visible pt-1">{progressBarSection}</div>
 
       {/* <lg: tutto centrato. lg+: griglia — centro comprimibile + skip scrollabili, destra `auto` così 1x/LAP/⋯/FS restano sempre visibili. */}
-      <div className="flex w-full min-w-0 max-w-full flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-4">
-        <div className="flex w-full min-w-0 items-center justify-center gap-4 lg:w-auto lg:justify-start">
+      {/* <lg: flex-col (verticale). lg+: Layout assoluto, garantisce che non ci siano MAI sovrapposizioni e che il centro sia matematico. */}
+      <div className="relative flex w-full min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        
+        {/* Left Column */}
+        <div className="flex shrink-0 min-w-0 items-center justify-center gap-4 lg:justify-start">
           <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
             <span className="inline-block text-right" style={{ width: `${currentTimeWidthCh}ch` }}>
               {displayedTimeText}
@@ -1002,10 +1007,10 @@ export default function PlaybackControls({
           )}
         </div>
 
-        <div className="flex w-full min-w-0 max-w-full items-center justify-center gap-2 sm:gap-3 lg:min-w-0">
-          {/* rtl: scroll come a destra — i salti verso il play restano visibili, il resto è trascinabile */}
-          <div className="min-w-0 flex-1 basis-0 overflow-x-auto overflow-y-visible" dir="rtl">
-            <div className="inline-flex flex-nowrap items-center gap-0.5" dir="ltr">
+        {/* Center Column - Absolutely Centered on Desktop (xl+), Flex flow on iPad (lg) to prevent overlap */}
+        <div className="flex shrink-0 items-center justify-center gap-2 sm:gap-3 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+          <div className="shrink-0">
+            <div className="inline-flex flex-nowrap items-center gap-0.5">
               {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => {
                 const t = skipButtonText(label, true);
                 return (
@@ -1024,7 +1029,7 @@ export default function PlaybackControls({
             </div>
           </div>
           {playPauseBtn}
-          <div className="flex min-w-0 flex-1 basis-0 flex-nowrap items-center justify-start gap-0.5 overflow-x-auto overflow-y-visible">
+          <div className="flex shrink-0 flex-nowrap items-center justify-start gap-0.5">
             {SKIP_OPTIONS.map(({ label, seconds }) => {
               const t = skipButtonText(label, false);
               return (
@@ -1042,8 +1047,8 @@ export default function PlaybackControls({
           </div>
         </div>
 
-        {/* right column */}
-        <div className="flex w-full min-w-0 max-w-full justify-center py-0.5 lg:justify-end">
+        {/* Right Column */}
+        <div className="flex shrink-0 min-w-0 justify-center py-0.5 lg:justify-end">
           <div className="flex flex-nowrap items-center justify-center gap-1 py-0.5 sm:gap-1.5 lg:justify-end">
 
             {isRace && (
