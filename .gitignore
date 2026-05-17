@@ -24,11 +24,7 @@ backend/data/sessions/
 # Planning & internal docs
 /docs/
 
-# AI context
-CLAUDE.md
-
 # Docker configs
 *docker-compose*.y*ml
-frontend/tsconfig.tsbuildinfo
-.claude/settings.local.json
+!docker-compose.yml
 frontend/tsconfig.tsbuildinfo

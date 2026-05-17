@@ -1,258 +1,176 @@
-<h1><img src="https://github.com/user-attachments/assets/158de3d0-8bd5-41a5-a34d-a3a92471cf96" width="50" align="absmiddle" /> F1 Replay Timing</h1>
-
-
-
-
-https://github.com/user-attachments/assets/952b8634-2470-46d9-96e2-67a820459a49
-
-
+<h1><img src="frontend/public/logo.png" width="50" align="absmiddle" /> F1 Replay Timing Enhanced</h1>
 
 > **Disclaimer:** This project is intended for **personal, non-commercial use only**. This website is unofficial and is not associated in any way with the Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks are trade marks of Formula One Licensing B.V.
 
-A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more - both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
+A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more, both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
 
 ## Features
 
-- **Live timing** (Beta) - connect to live F1 sessions during race weekends with real-time data from the F1 SignalR stream, including a broadcast delay slider and automatic detection of post-session replays
+- **Live timing**: connect to live F1 sessions during race weekends with real-time data from the F1 SignalR stream, including a broadcast delay slider and automatic detection of post-session replays
 - **Track map** with real-time car positions from GPS telemetry, updating every 0.5 seconds with smooth interpolation
 - **Driver leaderboard** showing position, gap to leader, interval, tyre compound and age, tyre history, pit stop count, grid position changes, fastest lap indicator, investigation/penalty status, and last lap time with purple/green colour coding for fastest and personal best
-- **Race control messages** - steward decisions, investigations, penalties, track limits, and flag changes displayed in a resizable overlay on the track map
-- **Pit position prediction** (Beta) estimates where a driver would rejoin if they pitted now, with predicted gap ahead and behind, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
-- **Telemetry** for any driver showing speed, throttle, brake, gear, and DRS (2025 and earlier) plotted against track distance
-- **Picture-in-Picture** mode for a compact floating window with track map, race control, leaderboard, and telemetry
-- **Broadcast sync** - match the replay to a recording of a session, either by uploading a screenshot of the timing tower (using AI vision) or by manually entering gap times
+- **Race control messages**: steward decisions, investigations, penalties, track limits, and flag changes displayed in a resizable overlay on the track map
+- **Pit position prediction**: estimates where a driver would rejoin if they pitted now, with predicted gap ahead and behind, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
+- **Telemetry** for any driver showing speed, throttle, brake, gear, and DRS plotted against track distance
+- **Lap analysis panel**: lap time chart, delta comparison between two drivers, and sortable lap table
+- **Picture-in-Picture**: compact floating window with track map, race control, leaderboard, and telemetry
+- **Broadcast sync**: match the replay to a recording of a session, either by uploading a screenshot of the timing tower (using AI vision) or by manually entering gap times
 - **Weather data** including air and track temperature, humidity, wind, and rainfall status
 - **Track status flags** for green, yellow, Safety Car, Virtual Safety Car, and red flag conditions
-- **Playback controls** with 0.5x to 20x speed, skip buttons (5s, 30s, 1m, 5m), lap jumping, and a progress bar
-- **Lap analysis panel** with lap time chart, delta comparison between two drivers, and sortable lap table
-- **Session support** for races, qualifying, sprint qualifying, and practice sessions from 2024 onwards (practice sessions include live sector indicators)
+- **Playback controls** with 0.5× to 20× speed, skip buttons (5 s, 30 s, 1 m, 5 m), lap jumping, and a progress bar
+- **Session support** for races, qualifying, sprint qualifying, and practice sessions from 2024 onwards
 - **Passphrase authentication** to optionally restrict access when publicly hosted
 
 ## Architecture
 
-- **Frontend**: Next.js (React) with Tailwind CSS
-- **Backend**: FastAPI (Python) - serves pre-computed data from local storage or Cloudflare R2
-- **Data Source**: [FastF1](https://github.com/theOehrly/Fast-F1) (used during data processing only)
+- **Frontend**: Next.js (React) with Tailwind CSS, compiled to a static export
+- **Backend**: FastAPI (Python), serves pre-computed data from local storage or Cloudflare R2, and also serves the frontend static files
+- **Data source**: [FastF1](https://github.com/theOehrly/Fast-F1) (used during data processing only, not at runtime)
+- **Deployment**: single unified container on port 8000
 
-Session data is processed once and stored locally (or in R2 for remote access). You can either pre-compute data in bulk ahead of time, or let the app process sessions on demand when you select them.
+Session data is processed once and stored locally (or in R2). You can either pre-compute data in bulk ahead of time, or let the app process sessions on demand when you first select them.
 
-## Self-Hosting Guide
+## Self-Hosting
 
-### Option A: Docker with pre-built images (easiest)
+### Option A: Docker (recommended)
 
-Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
-
-Create a `docker-compose.yml` file:
-
-```yaml
-services:
-  backend:
-    image: ghcr.io/adn8naiagent/f1replaytiming-backend:latest
-    ports:
-      - "8000:8000"
-    environment:
-      - FRONTEND_URL=http://localhost:3000
-      - DATA_DIR=/data
-    volumes:
-      - f1data:/data
-      - f1cache:/data/fastf1-cache
-
-  frontend:
-    image: ghcr.io/adn8naiagent/f1replaytiming-frontend:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000  # Change to your backend URL if not using localhost
-    depends_on:
-      - backend
-
-volumes:
-  f1data:
-  f1cache:
-```
-
-Then run:
-
-```bash
-docker compose up
-```
-
-Open http://localhost:3000. Select any past session and it will be processed on demand.
-
-### Option B: Docker from source
-
-If you prefer to build the images yourself, or want to make changes to the code:
+Requires [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
 git clone <repo-url>
-cd F1timing
-docker compose up
+cd F1ReplayTiming
+docker build -t f1replay .
+docker run -p 8000:8000 -v f1data:/data f1replay
 ```
 
-Open http://localhost:3000. Select any past session and it will be processed on demand.
+Open http://localhost:8000. Select any past session and it will be processed on demand.
 
-### Docker configuration
+#### Environment variables
 
-#### Network & URL configuration
+| Variable | Purpose |
+|---|---|
+| `DATA_DIR` | Local path for processed session data (default: `/data`) |
+| `OPENROUTER_API_KEY` | Optional; enables photo sync ([get a key](https://openrouter.ai/)) |
+| `AUTH_ENABLED` / `AUTH_PASSPHRASE` | Optional; restrict access with a passphrase |
 
-Two environment variables control how the frontend and backend find each other:
-
-| Variable | Set on | Purpose |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | frontend | The URL your **browser** uses to reach the backend |
-| `FRONTEND_URL` | backend | The URL your browser uses to reach the frontend (needed for CORS) |
-
-The defaults (`http://localhost:8000` and `http://localhost:3000`) work when accessing the app on the same machine running Docker. If you access from another device, use a reverse proxy, or change ports, update both variables to match.
-
-**Example — accessing from other devices on your network:**
-```yaml
-backend:
-  environment:
-    - FRONTEND_URL=http://192.168.1.50:3000
-
-frontend:
-  environment:
-    - NEXT_PUBLIC_API_URL=http://192.168.1.50:8000
+Pass variables with `-e`:
+```bash
+docker run -p 8000:8000 -v f1data:/data \
+  -e OPENROUTER_API_KEY=sk-... \
+  -e AUTH_ENABLED=true \
+  -e AUTH_PASSPHRASE=mypassphrase \
+  f1replay
 ```
 
-**Example — behind a reverse proxy (e.g. Cloudflare Tunnel, nginx):**
-```yaml
-backend:
-  environment:
-    - FRONTEND_URL=https://f1.example.com
-
-frontend:
-  environment:
-    - NEXT_PUBLIC_API_URL=https://api.f1.example.com
+**Accessing from other devices on your network:**
+```bash
+docker run -p 8000:8000 -v f1data:/data \
+  -e FRONTEND_URL=http://192.168.1.50:8000 \
+  f1replay
 ```
 
-In this setup your reverse proxy routes `f1.example.com` to the frontend container (port 3000) and `api.f1.example.com` to the backend container (port 8000).
+**Behind a reverse proxy (e.g. Cloudflare Tunnel, nginx):**
+```bash
+docker run -p 8000:8000 -v f1data:/data \
+  -e FRONTEND_URL=https://f1.example.com \
+  f1replay
+```
 
-#### Optional features
+#### Pre-computing session data
 
-- `OPENROUTER_API_KEY` - enables the photo sync feature ([get a key](https://openrouter.ai/))
-- `AUTH_ENABLED` / `AUTH_PASSPHRASE` - restricts access with a passphrase
-
-#### Data
-
-Session data is persisted in a Docker volume, so it survives restarts.
-
-To pre-process session data in bulk (instead of on demand), use the precompute script:
+Session data is persisted in the Docker volume and survives restarts. To process data in bulk before browsing:
 
 ```bash
 # Process a specific race weekend
-docker compose exec backend python precompute.py 2026 --round 1
+docker exec <container> python precompute.py 2026 --round 1
 
-# Process only the race session (skip practice/qualifying)
-docker compose exec backend python precompute.py 2026 --round 1 --session R
+# Process only the race session
+docker exec <container> python precompute.py 2026 --round 1 --session R
 
-# Process an entire season (will take several hours)
-docker compose exec backend python precompute.py 2025 --skip-existing
+# Process an entire season (takes several hours)
+docker exec <container> python precompute.py 2025 --skip-existing
 
 # Process multiple years
-docker compose exec backend python precompute.py 2024 2025 --skip-existing
+docker exec <container> python precompute.py 2024 2025 --skip-existing
 ```
 
-### Option C: Manual setup
+### Option B: Manual setup
 
 #### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
-- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo/screenshot sync - manual entry sync works without this)
+- An [OpenRouter](https://openrouter.ai/) API key (optional, enables photo sync; manual entry works without it)
 
-#### 1. Clone the repository
+#### 1. Clone and configure
 
 ```bash
 git clone <repo-url>
-cd F1timing
+cd F1ReplayTiming
 ```
 
-#### 2. Configure environment variables
+Copy and edit the example env files:
 
-**Backend** (`backend/.env`):
+```bash
+cp .env.example backend/.env
 ```
-FRONTEND_URL=http://localhost:3000
-PORT=8000
+
+**`backend/.env`** key variables:
+```
 DATA_DIR=./data
-
-# Optional - enables photo/screenshot sync (manual entry sync works without this)
-# Get a key from https://openrouter.ai/
+# Optional
 OPENROUTER_API_KEY=
-
-# Optional - restrict access with a passphrase
 AUTH_ENABLED=false
 AUTH_PASSPHRASE=
 ```
 
-**Frontend** (`frontend/.env`):
-```
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-
-#### 3. Install dependencies and start
+#### 2. Install and run
 
 ```bash
 # Backend
 cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 
-# Frontend (in a separate terminal)
+# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Backend at http://localhost:8000, frontend at http://localhost:3000.
 
-#### 4. Getting session data
+#### 3. Getting session data
 
-There are two ways to get session data into the app:
+**On-demand (recommended for getting started):** select any past session from the homepage. The app processes it automatically using FastF1. First load takes **1-3 minutes**; subsequent loads are instant.
 
-#### Option A: On-demand processing (recommended for getting started)
-
-Simply select any past session from the homepage. If the data hasn't been processed yet, the app will automatically fetch and process it using FastF1 and start the replay. The first load of a session takes **1-3 minutes**. After that, it's instant.
-
-#### Option B: Bulk pre-compute (recommended for preparing a full season)
-
-Use the CLI script to process sessions ahead of time. This is useful if you want all data ready before you start using the app.
-
+**Bulk pre-compute:**
 ```bash
 cd backend
 source venv/bin/activate
 
-# Process a specific race weekend
-python precompute.py 2026 --round 1
-
-# Process only the race session (skip practice/qualifying)
-python precompute.py 2026 --round 1 --session R
-
-# Process an entire season (will take several hours)
-python precompute.py 2025 --skip-existing
-
-# Process multiple years
-python precompute.py 2024 2025 --skip-existing
+python precompute.py 2026 --round 1            # single race weekend
+python precompute.py 2026 --round 1 --session R  # race only
+python precompute.py 2025 --skip-existing      # full season (~2-3 hours)
+python precompute.py 2024 2025 --skip-existing # multiple years
 ```
 
-**Timing estimates:**
-- A single session (e.g. one race) takes **1-3 minutes**
-- A full race weekend (FP1, FP2, FP3, Qualifying, Race) takes **3-5 minutes**
-- A complete season (~24 rounds, all sessions) takes **2-3 hours**
+Timing estimates: single session ~1-3 min, full race weekend ~3-5 min, full season ~2-3 hours.
 
-The app also includes a background task that automatically checks for and processes new session data on race weekends (Friday–Monday).
+The app also runs a background task that automatically detects and processes new session data on race weekends (Friday-Monday).
 
 #### Photo Sync Feature
 
-The broadcast sync feature lets you match the replay to a recording of a session. You can always sync manually by entering gap times directly. To also enable photo/screenshot sync (where the app reads the timing tower from an image), set an [OpenRouter](https://openrouter.ai/) API key as `OPENROUTER_API_KEY`. It uses a vision model (Gemini Flash) to read the leaderboard from the photo. Any OpenRouter-compatible API key will work.
+The broadcast sync feature lets you align the replay to a video recording. Manual sync (entering gap times) always works. To enable photo/screenshot sync (reads the timing tower from an image), set `OPENROUTER_API_KEY`. The app uses Gemini Flash via OpenRouter to read the leaderboard.
 
 ## Acknowledgements
 
-This project is powered by [FastF1](https://github.com/theOehrly/Fast-F1), an open-source Python library for accessing Formula 1 timing and telemetry data. FastF1 is the original inspiration and data source for this project - without it, none of this would be possible.
+This project is powered by [FastF1](https://github.com/theOehrly/Fast-F1), an open-source Python library for accessing Formula 1 timing and telemetry data.
+
+Based on [F1ReplayTiming](https://github.com/adn8naiagent/F1ReplayTiming) by [@adn8naiagent](https://github.com/adn8naiagent). Significant modifications and additions (live timing system, lap analysis panel, Picture-in-Picture, unified single-container deployment, CI/CD pipelines, extensive UI/UX improvements, and various fixes) by [Clav3rbot](https://github.com/Clav3rbot).
 
 ## License
 
-MIT
+[MIT](LICENSE)
