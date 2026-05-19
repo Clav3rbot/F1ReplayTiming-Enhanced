@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
+import RaceCountdown from "./RaceCountdown";
 
 interface SessionEntry {
   name: string;
@@ -141,6 +142,20 @@ export default function SessionPicker() {
   const events = eventsData?.events || [];
 
   const displayEvents = events;
+
+  const nextRaceDate = useMemo(() => {
+    const now = new Date();
+    for (const evt of events) {
+      if (evt.status === "future") {
+        const raceSess = evt.sessions.find((s) => s.name === "Race");
+        if (raceSess?.date_utc) {
+          const d = new Date(raceSess.date_utc);
+          if (d > now) return { date: d, name: evt.event_name };
+        }
+      }
+    }
+    return null;
+  }, [events]);
 
   const latestEvent = useMemo(
     () => year === currentYear ? displayEvents.find((e) => e.status === "latest") || null : null,
@@ -293,10 +308,9 @@ export default function SessionPicker() {
       {/* Persistent Radial Glow Background (Old version restored and made fixed) */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
 
-      {/* Header */}
       <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-5">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 relative flex items-center justify-between gap-4 header-container-desktop">
+          <div className="flex items-center gap-3 sm:gap-5 header-logo-title-absolute">
             <div className="relative group">
               <div className="absolute -inset-1 bg-f1-red/50 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
               <img src="/logo.png" alt="F1 Replay" className="relative w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg shadow-2xl" />
@@ -308,7 +322,15 @@ export default function SessionPicker() {
               <p className="text-f1-muted text-xs sm:text-sm font-medium tracking-wide">Select a session to replay</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Countdown — absolute overlay, no layout impact */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden min-[1000px]:flex pointer-events-none">
+            <div className="pointer-events-auto">
+              {nextRaceDate && (
+                <RaceCountdown targetDate={nextRaceDate.date} raceName={nextRaceDate.name} />
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 header-buttons-absolute">
             {/* Desktop: text buttons */}
             <Link
               href="/features"

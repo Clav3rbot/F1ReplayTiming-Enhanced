@@ -8,7 +8,7 @@ export default function FeaturesPage() {
 
       {/* Header */}
       <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center gap-4">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center gap-4">
           <Link href="/" className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-f1-muted hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-lg group">
             <svg className="w-6 h-6 -ml-0.5 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />

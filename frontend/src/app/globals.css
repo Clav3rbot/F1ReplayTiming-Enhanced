@@ -294,3 +294,111 @@ input, textarea, select {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ─── Race Countdown: Split-Flap Display ─── */
+/*
+  Three-layer structure to correctly combine filter, perspective, and 3D:
+  1. filter  — must NOT be on the same element as perspective/preserve-3d (would flatten 3D)
+  2. perspective — must be the nearest perspective ancestor to Root (for drum effect)
+  3. rotator — gets the rotateY transform; label + Root rotate together
+*/
+.race-countdown-filter {
+  filter: drop-shadow(0 1px 12px rgba(225, 6, 0, 0.1));
+}
+
+.race-countdown-perspective {
+  perspective: 550px;
+}
+
+.race-countdown-rotator {
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  transform-style: preserve-3d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: transform 500ms var(--ease-out-cubic);
+  position: relative;
+}
+
+.race-countdown-label {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(225, 6, 0, 0.6);
+  white-space: nowrap;
+}
+
+.race-countdown {
+  --color-background: #111118;
+  --color-border-1: rgba(255, 255, 255, 0.12);
+  --color-border-2: rgba(0, 0, 0, 0.6);
+
+  display: flex;
+  font-size: 34px;
+  gap: 2px;
+}
+
+.race-countdown [data-split-flap-character]::after {
+  background-color: var(--color-background);
+  content: "";
+  display: block;
+  height: var(--split-flap-crease);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+}
+
+.race-countdown [data-split-flap-character] > [data-split-flap-flap] {
+  background: var(--color-background);
+  border-radius: 3px;
+  box-shadow:
+    inset 0 0 2px 0.75px var(--color-border-2),
+    inset 0 0 0 1px var(--color-border-1);
+  box-sizing: content-box;
+  height: 0.5em;
+  line-height: 1;
+  width: 1em;
+}
+
+.race-countdown [data-split-flap-character] > [data-split-flap-flap="top"] {
+  align-items: flex-start;
+  padding-top: 0.25em;
+}
+
+.race-countdown [data-split-flap-character] > [data-split-flap-flap="bottom"] {
+  align-items: flex-end;
+  padding-bottom: 0.25em;
+}
+
+.race-countdown [data-split-flap-character] > [data-split-flap-flap] > * {
+  opacity: calc(var(--split-flap-is-current) * 1 + var(--split-flap-is-next) * 0.5);
+  transition: opacity var(--split-flap-flip-duration) cubic-bezier(0, 0.55, 0.45, 1);
+}
+
+/* Header absolute alignment at min-width 1200px to perfectly match content boundaries */
+@media (min-width: 1000px) {
+  .header-container-desktop {
+    min-height: 104px !important;
+  }
+  .header-logo-title-absolute {
+    position: absolute !important;
+    left: max(0px, calc(750px - 50vw)) !important;
+    top: 50% !important;
+    transform: translate(-100%, -50%) !important;
+    white-space: nowrap;
+  }
+  .header-buttons-absolute {
+    position: absolute !important;
+    right: max(0px, calc(610px - 50vw)) !important;
+    top: 50% !important;
+    transform: translate(100%, -50%) !important;
+  }
+}
+
