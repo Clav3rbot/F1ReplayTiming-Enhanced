@@ -69,9 +69,10 @@ async function proxyHttp(request, url) {
 
 async function proxyWebSocket(request, url) {
   const isStatic = url.pathname.startsWith("/static");
+  // CF Workers: use https:// scheme + Upgrade header (wss:// scheme alone is insufficient)
   const target = isStatic
-    ? `wss://${F1_HOST}${url.pathname}${url.search}`
-    : `wss://${F1_HOST}/signalrcore${url.pathname}${url.search}`;
+    ? `https://${F1_HOST}${url.pathname}${url.search}`
+    : `https://${F1_HOST}/signalrcore${url.pathname}${url.search}`;
 
   // Connect to the F1 backend WebSocket
   const f1Headers = new Headers();
@@ -83,18 +84,24 @@ async function proxyWebSocket(request, url) {
     f1Headers.set(k, v);
   }
   f1Headers.set("Host", F1_HOST);
+  // Required by CF Workers runtime to initiate WebSocket upgrade to upstream
+  f1Headers.set("Upgrade", "websocket");
+  f1Headers.set("Connection", "Upgrade");
 
-  const f1Resp = await fetch(target, {
-    headers: f1Headers,
-  });
+  let f1Resp;
+  try {
+    f1Resp = await fetch(target, { headers: f1Headers });
+  } catch (err) {
+    return new Response(`Worker: F1 WebSocket connect failed: ${err}`, { status: 502 });
+  }
 
   if (f1Resp.status !== 101) {
-    return new Response("F1 WebSocket upgrade failed", { status: 502 });
+    return new Response(`Worker: F1 WebSocket upgrade rejected: ${f1Resp.status}`, { status: 502 });
   }
 
   const f1Ws = f1Resp.webSocket;
   if (!f1Ws) {
-    return new Response("No WebSocket from F1", { status: 502 });
+    return new Response("Worker: no WebSocket object from F1", { status: 502 });
   }
 
   // Create WebSocket pair: client <-> worker <-> F1
