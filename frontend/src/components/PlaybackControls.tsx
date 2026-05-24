@@ -388,6 +388,24 @@ export default function PlaybackControls({
   const [committedTime, setCommittedTime] = useState<number | null>(null);
   const [phaseJumping, setPhaseJumping] = useState(false);
   const phaseJumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const width = entries[0].contentRect.width;
+      setContainerWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const isWide = containerWidth === null ? true : containerWidth >= 560;
+  const isXWide = containerWidth === null ? true : containerWidth >= 960;
   const speedMenuRef = useRef<HTMLDivElement>(null);
   const speedBtnMobileRef = useRef<HTMLButtonElement>(null);
   const speedBtnDesktopRef = useRef<HTMLButtonElement>(null);
@@ -634,11 +652,9 @@ export default function PlaybackControls({
     }
   };
 
-  /** Desktop: < lg solo ±1m ±5m; da lg anche ±5s ±30s; etichette corte sotto lg. */
   function skipVisibility(label: string): string {
-    if (label === "5s" || label === "30s") return "hidden lg:inline-flex";
-    if (label === "5m") return "hidden xl:inline-flex";
-    return "";
+    if (label === "5m") return isXWide ? "inline-flex" : "hidden";
+    return "inline-flex";
   }
 
   function skipButtonText(label: string, backward: boolean): { compact: string; full: string } {
@@ -830,7 +846,7 @@ export default function PlaybackControls({
           e.stopPropagation();
           setSpeedMenuOpen((o) => !o);
         }}
-        className="flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12] touch-manipulation select-none lg:gap-1 lg:px-2.5"
+        className={`flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12] touch-manipulation select-none ${isWide ? "gap-1 px-2.5" : "px-2"}`}
       >
         <svg className="h-3.5 w-3.5 text-f1-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -981,12 +997,17 @@ export default function PlaybackControls({
     <div className="hidden min-w-0 max-w-full md:block px-5 py-3">
       <div className="mb-3 overflow-visible pt-1">{progressBarSection}</div>
 
-      {/* <lg: tutto centrato. lg+: griglia — centro comprimibile + skip scrollabili, destra `auto` così 1x/LAP/⋯/FS restano sempre visibili. */}
-      {/* <lg: flex-col (verticale). lg+: Layout assoluto, garantisce che non ci siano MAI sovrapposizioni e che il centro sia matematico. */}
-      <div className="relative flex w-full min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+      {/* Dynamic container-width layout flow to prevent overlaps */}
+      <div className={`relative flex w-full min-w-0 max-w-full ${
+        isWide
+          ? "flex-row items-center justify-between gap-4"
+          : "flex-col items-center gap-3"
+      }`}>
         
         {/* Left Column */}
-        <div className="flex shrink-0 min-w-0 items-center justify-center gap-4 lg:justify-start">
+        <div className={`flex shrink-0 min-w-0 items-center gap-4 ${
+          isWide ? "justify-start" : "justify-center"
+        }`}>
           <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
             <span className="inline-block text-right" style={{ width: `${currentTimeWidthCh}ch` }}>
               {displayedTimeText}
@@ -995,20 +1016,24 @@ export default function PlaybackControls({
               <span className="ml-1 hidden font-normal text-f1-muted opacity-80 md:inline">/ {totalTimeText}</span>
             )}
           </span>
-          {!isRace && !qualiPhases?.length && (
-            <span className="hidden font-mono text-xs font-bold text-f1-muted lg:inline">
+          {!isRace && !qualiPhases?.length && isWide && (
+            <span className="font-mono text-xs font-bold text-f1-muted">
               {formatTime(Math.max(0, totalTime - currentTime))}
             </span>
           )}
-          {!isRace && qualiPhase && qualiPhase.remaining > 0 && (
-            <span className="hidden font-sans text-xs font-bold text-f1-muted lg:inline">
+          {!isRace && qualiPhase && qualiPhase.remaining > 0 && isWide && (
+            <span className="font-sans text-xs font-bold text-f1-muted">
               {qualiPhase.phase} {formatTime(qualiPhase.remaining)}
             </span>
           )}
         </div>
 
-        {/* Center Column - Absolutely Centered on Desktop (xl+), Flex flow on iPad (lg) to prevent overlap */}
-        <div className="flex shrink-0 items-center justify-center gap-2 sm:gap-3 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+        {/* Center Column - Absolutely Centered on Desktop (isXWide), Flex flow on narrower containers */}
+        <div className={`flex shrink-0 items-center justify-center gap-2 sm:gap-3 ${
+          isXWide
+            ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            : "relative"
+        }`}>
           <div className="shrink-0">
             <div className="inline-flex flex-nowrap items-center gap-0.5">
               {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => {
@@ -1021,8 +1046,7 @@ export default function PlaybackControls({
                     className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white ${skipVisibility(label)}`}
                     title={`Back ${label}`}
                   >
-                    <span className="lg:hidden">{t.compact}</span>
-                    <span className="hidden lg:inline">{t.full}</span>
+                    <span>{t.full}</span>
                   </button>
                 );
               })}
@@ -1040,16 +1064,19 @@ export default function PlaybackControls({
                 className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white ${skipVisibility(label)}`}
                 title={`Forward ${label}`}
               >
-                <span className="lg:hidden">{t.compact}</span>
-                <span className="hidden lg:inline">{t.full}</span>
+                <span>{isWide ? t.full : t.compact}</span>
               </button>
             );})}
           </div>
         </div>
 
         {/* Right Column */}
-        <div className="flex shrink-0 min-w-0 justify-center py-0.5 lg:justify-end">
-          <div className="flex flex-nowrap items-center justify-center gap-1 py-0.5 sm:gap-1.5 lg:justify-end">
+        <div className={`flex shrink-0 min-w-0 py-0.5 ${
+          isWide ? "justify-end" : "justify-center"
+        }`}>
+          <div className={`flex flex-nowrap items-center gap-1 py-0.5 sm:gap-1.5 ${
+            isWide ? "justify-end" : "justify-center"
+          }`}>
 
             {isRace && (
             <>
@@ -1095,7 +1122,10 @@ export default function PlaybackControls({
   );
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible overflow-y-visible bg-f1-dark/95 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:overflow-y-visible sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl">
+    <div
+      ref={containerRef}
+      className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible overflow-y-visible bg-f1-dark/95 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:overflow-y-visible sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl"
+    >
       {mobileLayout}
       {desktopLayout}
     </div>

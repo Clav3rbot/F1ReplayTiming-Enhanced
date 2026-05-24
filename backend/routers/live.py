@@ -304,7 +304,6 @@ async def live_websocket(
                            "Download test data with: python backend/scripts/download_test_session.py "
                            f"--year {year} --round {round_num} --session {type}",
             })
-            await asyncio.sleep(0.25)
             await websocket.close()
             return
 

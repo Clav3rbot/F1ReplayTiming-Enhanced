@@ -41,8 +41,23 @@ export default function RaceCountdown({ targetDate, raceName }: RaceCountdownPro
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    function tick() { setNow(Date.now()); }
+    let id = setInterval(tick, 1000);
+
+    function onVisibility() {
+      if (document.visibilityState === "visible") {
+        // Clear queued catchup firings, jump to current time immediately
+        clearInterval(id);
+        tick();
+        id = setInterval(tick, 1000);
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const ms = targetDate.getTime() - now;
