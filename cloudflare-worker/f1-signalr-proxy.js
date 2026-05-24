@@ -1,8 +1,8 @@
 /**
- * Cloudflare Worker — F1 SignalR proxy
+ * Cloudflare Worker — F1 SignalR & Static Data proxy
  *
- * Proxies HTTP negotiate and WebSocket connections to
- * livetiming.formula1.com/signalrcore.
+ * Proxies HTTP negotiate, WebSocket connections, and static JSON data to
+ * livetiming.formula1.com.
  *
  * Deploy once on the free tier (workers.dev).
  * Set F1_SIGNALR_PROXY=https://<your-worker>.workers.dev in your .env.
@@ -12,8 +12,6 @@
  */
 
 const F1_HOST = "livetiming.formula1.com";
-const F1_BASE = `https://${F1_HOST}/signalrcore`;
-const F1_WS   = `wss://${F1_HOST}/signalrcore`;
 
 export default {
   async fetch(request) {
@@ -29,11 +27,14 @@ export default {
 };
 
 // ---------------------------------------------------------------------------
-// HTTP (negotiate POST + OPTIONS)
+// HTTP (negotiate POST + OPTIONS + static JSON data)
 // ---------------------------------------------------------------------------
 
 async function proxyHttp(request, url) {
-  const target = `${F1_BASE}${url.pathname}${url.search}`;
+  const isStatic = url.pathname.startsWith("/static");
+  const target = isStatic
+    ? `https://${F1_HOST}${url.pathname}${url.search}`
+    : `https://${F1_HOST}/signalrcore${url.pathname}${url.search}`;
 
   const headers = new Headers();
   for (const [k, v] of request.headers.entries()) {
@@ -67,7 +68,10 @@ async function proxyHttp(request, url) {
 // ---------------------------------------------------------------------------
 
 async function proxyWebSocket(request, url) {
-  const target = `${F1_WS}${url.pathname}${url.search}`;
+  const isStatic = url.pathname.startsWith("/static");
+  const target = isStatic
+    ? `wss://${F1_HOST}${url.pathname}${url.search}`
+    : `wss://${F1_HOST}/signalrcore${url.pathname}${url.search}`;
 
   // Connect to the F1 backend WebSocket
   const f1Headers = new Headers();
