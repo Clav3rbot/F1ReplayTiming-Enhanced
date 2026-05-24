@@ -219,10 +219,14 @@ class LiveSignalRClient:
             urllib.request.HTTPCookieProcessor(cookie_jar)
         )
 
+        # F1's CDN WAF blocks Python-urllib's default User-Agent.
+        _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
         # Some servers require an OPTIONS pre-flight; send it but ignore the
         # response body.
         options_req = urllib.request.Request(negotiate_url, method="OPTIONS")
         options_req.add_header("Accept", "*/*")
+        options_req.add_header("User-Agent", _UA)
         try:
             opener.open(options_req, timeout=10)
         except urllib.error.URLError:
@@ -236,6 +240,7 @@ class LiveSignalRClient:
         )
         post_req.add_header("Content-Type", "application/json")
         post_req.add_header("Accept", "application/json")
+        post_req.add_header("User-Agent", _UA)
 
         resp = opener.open(post_req, timeout=10)
         body = json.loads(resp.read().decode())
