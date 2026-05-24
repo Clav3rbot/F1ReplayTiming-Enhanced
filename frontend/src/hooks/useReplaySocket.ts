@@ -254,7 +254,7 @@ export function useReplaySocket(year: number, round: number, sessionType: string
         // If we were never ready, mark the error immediately.
         // If we were ready, onclose will fire next and handle reconnect.
         if (!wasReadyRef.current) {
-          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+          setState((s) => ({ ...s, error: s.error || "WebSocket connection error", loading: false }));
         }
       };
 
@@ -268,10 +268,10 @@ export function useReplaySocket(year: number, round: number, sessionType: string
           setState((s) => ({ ...s, reconnecting: true, error: null }));
           reconnectTimerRef.current = setTimeout(connect, delay);
         } else if (!wasReadyRef.current) {
-          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+          setState((s) => ({ ...s, error: s.error || "WebSocket connection error", loading: false }));
         } else {
           // Exceeded max reconnect attempts
-          setState((s) => ({ ...s, error: "WebSocket connection error", loading: false, reconnecting: false }));
+          setState((s) => ({ ...s, error: s.error || "WebSocket connection error", loading: false, reconnecting: false }));
         }
       };
     }

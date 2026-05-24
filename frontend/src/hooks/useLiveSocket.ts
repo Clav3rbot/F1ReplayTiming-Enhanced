@@ -253,7 +253,7 @@ export function useLiveSocket(
 
     ws.onerror = () => {
       if (!aborted) {
-        setState((s) => ({ ...s, error: "WebSocket connection error", loading: false }));
+        setState((s) => ({ ...s, error: s.error || "WebSocket connection error", loading: false }));
       }
     };
 
