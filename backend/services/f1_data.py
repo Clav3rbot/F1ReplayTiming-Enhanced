@@ -33,7 +33,10 @@ except OSError:
 proxy = os.environ.get("F1_SIGNALR_PROXY", "").rstrip("/")
 if proxy:
     logger.info("Routing FastF1 API requests through proxy: %s", proxy)
+    import fastf1.api
+    import fastf1._api
     fastf1.api.base_url = proxy
+    fastf1._api.base_url = proxy
 
 # LRU in-memory cache for loaded sessions (cap prevents OOM on long-running instances)
 _SESSION_CACHE_MAX = 8
