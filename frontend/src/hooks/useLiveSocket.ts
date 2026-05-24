@@ -124,6 +124,7 @@ export function useLiveSocket(
   const delayRef = useRef(delayOffset);
   delayRef.current = delayOffset;
   const hasShownFirstFrame = useRef(false);
+  const receivedErrorRef = useRef<string | null>(null);
   const [state, setState] = useState<LiveState>({
     connected: false,
     ready: false,
@@ -178,12 +179,16 @@ export function useLiveSocket(
 
   useEffect(() => {
     let aborted = false;
+    receivedErrorRef.current = null;
     const url = wsUrl(`/ws/live/${year}/${round}?type=${sessionType}&speed=${speed}`);
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (!aborted) setState((s) => ({ ...s, connected: true }));
+      if (!aborted) {
+        receivedErrorRef.current = null;
+        setState((s) => ({ ...s, connected: true, error: null }));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -242,9 +247,11 @@ export function useLiveSocket(
           }));
           break;
         case "error":
+          const errorMsg = typeof msg.message === "string" ? msg.message : "WebSocket error";
+          receivedErrorRef.current = errorMsg;
           setState((s) => ({
             ...s,
-            error: typeof msg.message === "string" ? msg.message : "WebSocket error",
+            error: errorMsg,
             loading: false,
           }));
           break;
@@ -253,7 +260,7 @@ export function useLiveSocket(
 
     ws.onerror = () => {
       if (!aborted) {
-        setState((s) => ({ ...s, error: s.error || "WebSocket connection error", loading: false }));
+        setState((s) => ({ ...s, error: receivedErrorRef.current || "WebSocket connection error", loading: false }));
       }
     };
 

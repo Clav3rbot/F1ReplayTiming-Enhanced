@@ -249,6 +249,7 @@ async def replay_websocket(
                 "type": "error",
                 "message": "Failed to load session data. The session may not be available yet.",
             })
+            await asyncio.sleep(0.25)
             await websocket.close()
             return
 
@@ -262,6 +263,7 @@ async def replay_websocket(
         if not frames:
             await _client_disconnect(cache_key)
             await websocket.send_json({"type": "error", "message": "No position data available"})
+            await asyncio.sleep(0.25)
             await websocket.close()
             return
 
