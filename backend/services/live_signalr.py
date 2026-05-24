@@ -16,6 +16,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import ssl
 import time
 import urllib.request
@@ -33,9 +34,27 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-_BASE_URL = "https://livetiming.formula1.com/signalrcore"
-_WS_URL = "wss://livetiming.formula1.com/signalrcore"
-_NEGOTIATE_URL = f"{_BASE_URL}/negotiate?negotiateVersion=1"
+_F1_BASE  = "https://livetiming.formula1.com/signalrcore"
+_F1_WS    = "wss://livetiming.formula1.com/signalrcore"
+
+
+def _get_endpoints() -> tuple[str, str, str]:
+    """Return (base_url, ws_url, negotiate_url).
+
+    If F1_SIGNALR_PROXY is set, route all traffic through the proxy
+    (a Cloudflare Worker or similar) to work around IP-based 403 blocks
+    on data-centre hosts.  The proxy must forward both HTTP and WebSocket
+    to livetiming.formula1.com/signalrcore.
+    """
+    proxy = os.environ.get("F1_SIGNALR_PROXY", "").rstrip("/")
+    if proxy:
+        base = proxy
+        ws   = proxy.replace("https://", "wss://").replace("http://", "ws://")
+        logger.info("SignalR routing via proxy: %s", proxy)
+    else:
+        base = _F1_BASE
+        ws   = _F1_WS
+    return base, ws, f"{base}/negotiate?negotiateVersion=1"
 
 _RECORD_SEPARATOR = "\x1e"
 
@@ -187,7 +206,7 @@ class LiveSignalRClient:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _negotiate() -> tuple[str, str]:
+    def _negotiate(negotiate_url: str) -> tuple[str, str]:
         """Perform the SignalR negotiate handshake over HTTP.
 
         Returns
@@ -202,19 +221,16 @@ class LiveSignalRClient:
 
         # Some servers require an OPTIONS pre-flight; send it but ignore the
         # response body.
-        options_req = urllib.request.Request(
-            _NEGOTIATE_URL, method="OPTIONS"
-        )
+        options_req = urllib.request.Request(negotiate_url, method="OPTIONS")
         options_req.add_header("Accept", "*/*")
         try:
             opener.open(options_req, timeout=10)
         except urllib.error.URLError:
-            # OPTIONS may fail or not be required — continue anyway.
             pass
 
         # POST negotiate
         post_req = urllib.request.Request(
-            _NEGOTIATE_URL,
+            negotiate_url,
             data=b"",
             method="POST",
         )
@@ -258,11 +274,12 @@ class LiveSignalRClient:
         """
         # Negotiate happens on a regular HTTP request — run in a thread so
         # we don't block the event loop.
-        connection_token, cookie = await asyncio.get_event_loop().run_in_executor(
-            None, self._negotiate
+        _, ws_base, negotiate_url = _get_endpoints()
+        connection_token, cookie = await asyncio.get_running_loop().run_in_executor(
+            None, self._negotiate, negotiate_url
         )
 
-        ws_url = f"{_WS_URL}?id={connection_token}"
+        ws_url = f"{ws_base}?id={connection_token}"
 
         extra_headers: dict[str, str] = {}
         if cookie:

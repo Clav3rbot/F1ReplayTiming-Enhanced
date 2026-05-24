@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from auth import is_auth_enabled, verify_token
 from routers import sessions, track, laps, results, replay, telemetry, sync, live, live_status
 from routers import auth_routes
-from services.auto_precompute import auto_precompute_loop
+from services.auto_precompute import auto_precompute_loop, get_allowed_session_types
 
 load_dotenv()
 
@@ -22,16 +22,20 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background auto-precompute task
-    task = asyncio.create_task(auto_precompute_loop())
-    logger.info("Auto-precompute background task scheduled")
+    allowed = get_allowed_session_types()
+    task = None
+    if allowed:
+        task = asyncio.create_task(auto_precompute_loop())
+        logger.info(f"Auto-precompute scheduled for session types: {', '.join(sorted(allowed))}")
+    else:
+        logger.info("Auto-precompute disabled (AUTO_PRECOMPUTE=off)")
     yield
-    # Cancel on shutdown
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(

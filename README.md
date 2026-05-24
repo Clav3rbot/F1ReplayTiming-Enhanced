@@ -50,6 +50,8 @@ Open http://localhost:8000. Select any past session and it will be processed on 
 | Variable | Purpose |
 |---|---|
 | `DATA_DIR` | Local path for processed session data (default: `/data`) |
+| `AUTO_PRECOMPUTE` | Which session types to background-fetch on race weekends: `off`, `race`, `race+qual` (default), `all` |
+| `F1_SIGNALR_PROXY` | Optional; Cloudflare Worker URL to proxy F1 SignalR connections — needed when hosting on data-centre IPs blocked by F1's CDN (e.g. Oracle Cloud, AWS) |
 | `OPENROUTER_API_KEY` | Optional; enables photo sync ([get a key](https://openrouter.ai/)) |
 | `AUTH_ENABLED` / `AUTH_PASSPHRASE` | Optional; restrict access with a passphrase |
 

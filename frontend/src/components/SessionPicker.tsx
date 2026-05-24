@@ -145,16 +145,20 @@ export default function SessionPicker() {
 
   const nextRaceDate = useMemo(() => {
     const now = new Date();
+    const upcoming: { date: Date; name: string }[] = [];
     for (const evt of events) {
-      if (evt.status === "future") {
-        const raceSess = evt.sessions.find((s) => s.name === "Race");
-        if (raceSess?.date_utc) {
-          const d = new Date(raceSess.date_utc);
-          if (d > now) return { date: d, name: evt.event_name };
+      if (evt.status === "available") continue;
+      for (const s of evt.sessions) {
+        if (!s.date_utc) continue;
+        const d = new Date(s.date_utc);
+        if (d > now) {
+          upcoming.push({ date: d, name: `${evt.country} · ${s.name}` });
         }
       }
     }
-    return null;
+    if (upcoming.length === 0) return null;
+    upcoming.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return upcoming[0];
   }, [events]);
 
   const latestEvent = useMemo(

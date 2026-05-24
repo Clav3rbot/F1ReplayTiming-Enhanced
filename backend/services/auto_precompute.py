@@ -15,6 +15,29 @@ logger = logging.getLogger("auto_precompute")
 # Check interval in seconds (30 minutes)
 CHECK_INTERVAL = 30 * 60
 
+_AUTO_PRECOMPUTE_PRESETS: dict[str, set[str]] = {
+    "off":       set(),
+    "race":      {"R", "S"},
+    "race+qual": {"R", "S", "Q", "SQ"},
+    "all":       {"R", "S", "Q", "SQ", "FP1", "FP2", "FP3"},
+}
+
+
+def get_allowed_session_types() -> set[str]:
+    """Return the set of session type codes to auto-precompute.
+
+    Controlled by the AUTO_PRECOMPUTE env var (default: race+qual).
+    """
+    import os
+    value = os.environ.get("AUTO_PRECOMPUTE", "race+qual").strip().lower()
+    if value not in _AUTO_PRECOMPUTE_PRESETS:
+        logger.warning(
+            f"Unknown AUTO_PRECOMPUTE value {value!r}, falling back to 'race+qual'. "
+            f"Valid values: {', '.join(_AUTO_PRECOMPUTE_PRESETS)}"
+        )
+        value = "race+qual"
+    return _AUTO_PRECOMPUTE_PRESETS[value]
+
 # Days of the week to check (0=Monday, 4=Friday, 5=Saturday, 6=Sunday)
 ACTIVE_DAYS = {0, 4, 5, 6}  # Mon, Fri, Sat, Sun
 
@@ -28,6 +51,10 @@ async def _check_and_process():
     from services import storage
 
     from services.process import process_session_sync as process_session
+
+    allowed = get_allowed_session_types()
+    if not allowed:
+        return
 
     now = datetime.now(timezone.utc)
     year = now.year
@@ -51,6 +78,9 @@ async def _check_and_process():
             session_name = s["name"]
             session_type = SESSION_NAME_TO_TYPE.get(session_name)
             if not session_type:
+                continue
+
+            if session_type not in allowed:
                 continue
 
             # Skip if session hasn't had enough time for data to be available
