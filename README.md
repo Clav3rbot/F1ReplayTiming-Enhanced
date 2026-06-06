@@ -4,6 +4,8 @@
 
 A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more, both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
 
+https://github.com/user-attachments/assets/33d8c570-3348-45f4-b5a1-53056a31d357
+
 ## Features
 
 - **Live timing**: connect to live F1 sessions during race weekends with real-time data from the F1 SignalR stream, including a broadcast delay slider and automatic detection of post-session replays
