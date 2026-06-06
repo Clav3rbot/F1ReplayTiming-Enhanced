@@ -346,14 +346,25 @@ async def live_websocket(
                     await websocket.send_json({"type": "frame", **frame})
 
                     # Check if session has finished (only after it was actually started)
-                    if (session._state_manager
-                        and session._state_manager._session_was_started
-                        and session._state_manager.session_status in ("Finalised", "Finished")):
-                        await websocket.send_json({
-                            "type": "finished",
-                            "message": "Session ended. Full replay with track positions and telemetry will be available shortly.",
-                        })
-                        break
+                    sm = session._state_manager
+                    if sm and sm._session_was_started:
+                        status = sm.session_status
+                        # "Finished" fires at the END OF EVERY QUALIFYING SEGMENT
+                        # (Q1, Q2, Q3) — not only at the true session end. During
+                        # Q1/Q2 the feed must stay open so the player can follow the
+                        # break and the next segment. Only treat "Finished" as the
+                        # end during Q3. "Finalised" always marks the real end.
+                        # phase 0 = QualifyingPart not received yet → treat as mid
+                        is_quali_mid_segment = sm._is_quali and sm._quali_phase < 3
+                        session_ended = status == "Finalised" or (
+                            status == "Finished" and not is_quali_mid_segment
+                        )
+                        if session_ended:
+                            await websocket.send_json({
+                                "type": "finished",
+                                "message": "Session ended. Full replay with track positions and telemetry will be available shortly.",
+                            })
+                            break
 
                 await asyncio.sleep(frame_interval)
         finally:
