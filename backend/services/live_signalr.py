@@ -300,7 +300,7 @@ class LiveSignalRClient:
             ping_interval=None,  # we handle pings at the SignalR level
         ) as ws:
             self._ws = ws
-            logger.info("WebSocket connected to %s", ws_url)
+            logger.info("WebSocket connected to %s", ws_base)
 
             # --- Handshake ---
             await self._send(ws, {"protocol": "json", "version": 1})

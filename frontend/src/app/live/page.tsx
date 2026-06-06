@@ -461,15 +461,19 @@ function LivePageInner() {
                 </div>
               )}
 
-              {/* Live positions unavailable overlay */}
-              <div className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-4">
-                <div className="bg-f1-card/90 border border-f1-border rounded-lg px-4 py-2.5 backdrop-blur-sm text-center max-w-sm">
-                  <p className="text-f1-muted text-xs leading-relaxed">
-                    Driver track positions and telemetry are not available during live sessions.
-                    These will be available in replay once the session is processed.
-                  </p>
+              {/* Live positions unavailable overlay — only when no car has a
+                  live position yet (F1 streams Position.z during green-flag
+                  running; absent when cars are in the pits / between runs). */}
+              {!drivers.some((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)) && (
+                <div className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-4">
+                  <div className="bg-f1-card/90 border border-f1-border rounded-lg px-4 py-2.5 backdrop-blur-sm text-center max-w-sm">
+                    <p className="text-f1-muted text-xs leading-relaxed">
+                      Live track positions appear when cars are running. They are
+                      not available while cars are in the pits or between runs.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {trackPoints.length > 0 ? (
                 <TrackCanvas
