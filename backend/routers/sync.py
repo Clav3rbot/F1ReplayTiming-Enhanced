@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["sync"])
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-VISION_MODEL = "google/gemini-2.0-flash-001"
+VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free"
 
 EXTRACT_PROMPT = """You are analyzing a photo of an F1 TV broadcast leaderboard/timing tower.
 
@@ -85,7 +85,7 @@ async def _convert_to_jpeg(image_bytes: bytes, max_dim: int = 1200, quality: int
 
 
 async def _extract_leaderboard(image_bytes: bytes) -> dict:
-    """Send image to Gemini via OpenRouter and extract leaderboard data."""
+    """Send image to vision model via OpenRouter and extract leaderboard data."""
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not configured")
@@ -94,18 +94,10 @@ async def _extract_leaderboard(image_bytes: bytes) -> dict:
 
     payload = {
         "model": VISION_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": EXTRACT_PROMPT},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                    },
-                ],
-            }
-        ],
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text": EXTRACT_PROMPT},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+        ]}],
         "max_tokens": 1000,
         "temperature": 0,
     }
@@ -114,10 +106,7 @@ async def _extract_leaderboard(image_bytes: bytes) -> dict:
         resp = await client.post(
             OPENROUTER_URL,
             json=payload,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
 
     if resp.status_code != 200:
