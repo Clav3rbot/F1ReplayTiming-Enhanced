@@ -286,8 +286,21 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
         pass
 
     # Get track coordinates from fastest lap telemetry
+    # The fastest lap may have empty pos_data (e.g. final lap of race) — fall back to any lap with X/Y
     fastest_lap = session.laps.pick_fastest()
-    telemetry = fastest_lap.get_telemetry()
+    try:
+        telemetry = fastest_lap.get_telemetry()
+    except Exception:
+        telemetry = None
+    if telemetry is None or "X" not in telemetry.columns or len(telemetry) == 0:
+        for _, lap in session.laps.iterlaps():
+            try:
+                t = lap.get_telemetry()
+                if t is not None and "X" in t.columns and len(t) > 0:
+                    telemetry = t
+                    break
+            except Exception:
+                continue
 
     if telemetry is None or "X" not in telemetry.columns or len(telemetry) == 0:
         raise ValueError("Telemetry data not available for this session")
@@ -631,7 +644,10 @@ def _get_driver_positions_by_time_sync(
     # Use the same normalization as the track outline (fastest lap)
     # so driver dots align exactly with the drawn track
     fastest_lap = laps.pick_fastest()
-    fastest_tel = fastest_lap.get_telemetry()
+    try:
+        fastest_tel = fastest_lap.get_telemetry()
+    except Exception:
+        fastest_tel = None
     if fastest_tel is not None and "X" in fastest_tel.columns and len(fastest_tel) > 0:
         x_min = float(fastest_tel["X"].min())
         x_max = float(fastest_tel["X"].max())
