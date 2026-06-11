@@ -67,9 +67,20 @@ def _check_session_has_data(year: int, round_num: int, session_type: str) -> boo
             return False
 
         # Check that telemetry with X/Y position data is actually available
-        fastest = session.laps.pick_fastest()
-        tel = fastest.get_telemetry()
-        has_full_data = tel is not None and "X" in tel.columns and len(tel) > 0
+        try:
+            fastest = session.laps.pick_fastest()
+            tel = fastest.get_telemetry()
+            has_full_data = tel is not None and "X" in tel.columns and len(tel) > 0
+        except Exception:
+            has_full_data = False
+        if not has_full_data:
+            # Truncated pos streams make the fastest lap unusable even though
+            # other laps still have position data (e.g. Monaco 2026 R)
+            try:
+                _get_reference_lap_telemetry(session)
+                has_full_data = True
+            except Exception:
+                has_full_data = False
 
         # Only cache positive results  - negative might change as data becomes available
         if has_full_data:
@@ -269,6 +280,54 @@ async def get_session_info(year: int, round_num: int, session_type: str = "R") -
     return await asyncio.to_thread(_get_session_info_sync, year, round_num, session_type)
 
 
+def _get_reference_lap_telemetry(session) -> tuple:
+    """Pick a reference lap with usable X/Y telemetry for track outline and replay bbox.
+
+    Prefers the fastest lap, but position streams can be truncated mid-session
+    (e.g. Monaco 2026 R: pos_data ends ~52min in while laps continue), in which
+    case get_telemetry() raises KeyError("None of ['Date'] are in the columns")
+    on the empty pos slice. Falls back to the fastest lap whose time span is
+    covered by position data. Returns (lap, telemetry); raises ValueError if no
+    lap has usable position telemetry.
+    """
+    laps = session.laps
+    candidates = laps[laps["LapTime"].notna()].sort_values("LapTime")
+
+    # Restrict to laps fully covered by the position stream, so the first
+    # candidate almost always succeeds instead of erroring through hundreds
+    # of laps that lie past the truncation point.
+    try:
+        pos_end = max(
+            df["Date"].max()
+            for df in session.pos_data.values()
+            if "Date" in df.columns and len(df) > 0
+        )
+        in_range = candidates[
+            candidates["LapStartDate"] + candidates["LapTime"] <= pos_end
+        ]
+        if len(in_range) > 0:
+            candidates = in_range
+    except Exception:
+        pass  # pos_data not loaded or empty — try candidates as-is
+
+    for _, lap in candidates.iterlaps():
+        try:
+            tel = lap.get_telemetry()
+        except Exception:
+            continue
+        if tel is None or "X" not in tel.columns or len(tel) < 50:
+            continue
+        span = max(
+            float(tel["X"].max() - tel["X"].min()),
+            float(tel["Y"].max() - tel["Y"].min()),
+        )
+        if span < 100:
+            continue  # degenerate slice (formation/crash lap with few real points)
+        return lap, tel
+
+    raise ValueError("Telemetry data not available for this session")
+
+
 def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> dict:
     session = _load_session(year, round_num, session_type)
 
@@ -285,12 +344,9 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     except Exception:
         pass
 
-    # Get track coordinates from fastest lap telemetry
-    fastest_lap = session.laps.pick_fastest()
-    telemetry = fastest_lap.get_telemetry()
-
-    if telemetry is None or "X" not in telemetry.columns or len(telemetry) == 0:
-        raise ValueError("Telemetry data not available for this session")
+    # Get track coordinates from a reference lap with valid position telemetry
+    # (fastest lap when possible, otherwise fastest lap covered by pos data)
+    ref_lap, telemetry = _get_reference_lap_telemetry(session)
 
     x = telemetry["X"].values
     y = telemetry["Y"].values
@@ -308,8 +364,8 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     # Compute sector boundaries from fastest lap sector session times
     sector_boundaries = None
     try:
-        s1_session_time = fastest_lap["Sector1SessionTime"]
-        s2_session_time = fastest_lap["Sector2SessionTime"]
+        s1_session_time = ref_lap["Sector1SessionTime"]
+        s2_session_time = ref_lap["Sector2SessionTime"]
         if pd.notna(s1_session_time) and pd.notna(s2_session_time):
             session_times = telemetry["SessionTime"]
             s1_idx = int((session_times - s1_session_time).abs().idxmin())
@@ -628,15 +684,17 @@ def _get_driver_positions_by_time_sync(
     sample_interval = 0.5
     num_samples = int(total_seconds / sample_interval)
 
-    # Use the same normalization as the track outline (fastest lap)
+    # Use the same normalization as the track outline (same reference lap)
     # so driver dots align exactly with the drawn track
-    fastest_lap = laps.pick_fastest()
-    fastest_tel = fastest_lap.get_telemetry()
-    if fastest_tel is not None and "X" in fastest_tel.columns and len(fastest_tel) > 0:
-        x_min = float(fastest_tel["X"].min())
-        x_max = float(fastest_tel["X"].max())
-        y_min = float(fastest_tel["Y"].min())
-        y_max = float(fastest_tel["Y"].max())
+    try:
+        _, ref_tel = _get_reference_lap_telemetry(session)
+    except ValueError:
+        ref_tel = None
+    if ref_tel is not None and "X" in ref_tel.columns and len(ref_tel) > 0:
+        x_min = float(ref_tel["X"].min())
+        x_max = float(ref_tel["X"].max())
+        y_min = float(ref_tel["Y"].min())
+        y_max = float(ref_tel["Y"].max())
     else:
         # Fallback to all drivers if fastest lap unavailable
         x_all = []
