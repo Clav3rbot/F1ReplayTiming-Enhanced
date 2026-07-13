@@ -24,6 +24,7 @@ export interface ReplayDriver {
   has_fastest_lap: boolean;
   flag: "investigation" | "penalty" | null;
   retired: boolean;
+  knocked_out?: boolean;
   pit_start: boolean;
   no_timing: boolean;
   relative_distance: number;

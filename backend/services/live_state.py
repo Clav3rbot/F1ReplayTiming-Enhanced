@@ -87,6 +87,7 @@ class _DriverState:
         "has_fastest_lap",
         "flag",
         "retired",
+        "knocked_out",
         "no_timing",
         "grid_position",
         "sectors",
@@ -124,6 +125,7 @@ class _DriverState:
         self.has_fastest_lap: bool = False
         self.flag: str | None = None  # "investigation" | "penalty" | None
         self.retired: bool = False
+        self.knocked_out: bool = False
         self.no_timing: bool = False
         self.grid_position: int | None = None
         self.sectors: list[dict[str, Any]] | None = None
@@ -159,6 +161,7 @@ class _DriverState:
             "has_fastest_lap": self.has_fastest_lap,
             "flag": self.flag,
             "retired": self.retired,
+            "knocked_out": self.knocked_out,
             "no_timing": self.no_timing,
             "grid_position": self.grid_position,
             "sectors": self.sectors,
@@ -374,8 +377,9 @@ class LiveStateManager:
                     drv.retired = True
 
             if "KnockedOut" in updates:
-                if updates["KnockedOut"]:
-                    drv.retired = True
+                # Keep knocked-out drivers visible with their posted time; the
+                # frontend dims them rather than dropping them out of timing.
+                drv.knocked_out = bool(updates["KnockedOut"])
 
             # Sectors (qualifying sector indicators)
             if "Sectors" in updates:

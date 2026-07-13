@@ -60,6 +60,17 @@ def _local_list_keys(prefix: str) -> list[str]:
     return [str(p.relative_to(_data_dir())) for p in base.rglob("*") if p.is_file()]
 
 
+def _local_list_sizes(prefix: str) -> dict[str, int]:
+    base = _data_dir() / prefix
+    if not base.exists():
+        return {}
+    sizes: dict[str, int] = {}
+    for p in base.rglob("*"):
+        if p.is_file():
+            sizes[p.relative_to(_data_dir()).as_posix()] = p.stat().st_size
+    return sizes
+
+
 # ---------------------------------------------------------------------------
 # R2 backend
 # ---------------------------------------------------------------------------
@@ -148,6 +159,16 @@ def _r2_list_keys(prefix: str) -> list[str]:
     return keys
 
 
+def _r2_list_sizes(prefix: str) -> dict[str, int]:
+    client = _get_r2_client()
+    sizes: dict[str, int] = {}
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=_r2_bucket(), Prefix=_r2_key(prefix)):
+        for obj in page.get("Contents", []):
+            sizes[obj["Key"]] = obj["Size"]
+    return sizes
+
+
 # ---------------------------------------------------------------------------
 # Public API - delegates to the configured backend
 # ---------------------------------------------------------------------------
@@ -175,3 +196,14 @@ def list_keys(prefix: str) -> list[str]:
     if _mode() == "r2":
         return _r2_list_keys(prefix)
     return _local_list_keys(prefix)
+
+
+def list_sizes(prefix: str) -> dict[str, int]:
+    """Return {storage_key: size_in_bytes} for every file under *prefix*.
+
+    For R2 the reported size is the gzip-compressed object size; for local
+    storage it is the on-disk (uncompressed) size.
+    """
+    if _mode() == "r2":
+        return _r2_list_sizes(prefix)
+    return _local_list_sizes(prefix)

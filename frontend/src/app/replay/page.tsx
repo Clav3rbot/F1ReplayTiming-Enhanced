@@ -14,7 +14,9 @@ import SessionLoadingScreen from "@/components/SessionLoadingScreen";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
+import LapNotifications from "@/components/LapNotifications";
 import type { SectorOverlay } from "@/lib/trackRenderer";
+import type { LapData } from "@/lib/lapTiming";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 /** Classify a Race Control message for indicator coloring. */
@@ -37,12 +39,13 @@ function ChevronToggle({ open }: { open: boolean }) {
 }
 
 interface TrackData {
-  track_points: { x: number; y: number }[];
+  track_points: { x: number; y: number; z?: number }[];
   rotation: number;
   circuit_name: string;
   sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
   corners?: { x: number; y: number; number: number; letter: string; angle: number }[] | null;
   marshal_sectors?: { x: number; y: number; number: number }[] | null;
+  elevation?: { range_m: number } | null;
 }
 
 interface SessionData {
@@ -171,16 +174,17 @@ function ReplayPageInner() {
   );
 
   // Fetch lap data for last lap time column (race/sprint only)
+  // Qualifying needs laps too — the lap-completion bubbles are driven by them
   const { data: lapsResponse } = useApi<{ laps: LapEntry[] }>(
-    (sessionType === "R" || sessionType === "S") && replay.ready
+    (sessionType === "R" || sessionType === "S" || sessionType === "Q" || sessionType === "SQ") && replay.ready
       ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
       : null,
   );
 
-  // Build lookup: driver -> lap_number -> lap_time
-  const lapData = useMemo(() => {
+  // Build lookup: driver -> lap_number -> { lap time, replay time it was completed at }
+  const lapData = useMemo<LapData | undefined>(() => {
     if (!lapsResponse?.laps) return undefined;
-    const map = new Map<string, Map<number, string>>();
+    const map: LapData = new Map();
     for (const lap of lapsResponse.laps) {
       if (!lap.lap_time) continue;
       let driverMap = map.get(lap.driver);
@@ -188,7 +192,7 @@ function ReplayPageInner() {
         driverMap = new Map();
         map.set(lap.driver, driverMap);
       }
-      driverMap.set(lap.lap_number, lap.lap_time);
+      driverMap.set(lap.lap_number, { time: lap.lap_time, completedAt: lap.time ?? null });
     }
     return map;
   }, [lapsResponse]);
@@ -447,6 +451,8 @@ function ReplayPageInner() {
                 marshalSectors={trackData?.marshal_sectors}
                 sectorFlags={replay.frame?.sector_flags}
                 playing={replay.playing}
+                showElevation={settings.showElevation}
+                elevationRangeM={trackData?.elevation?.range_m ?? null}
               />
             </div>
           </div>
@@ -585,8 +591,21 @@ function ReplayPageInner() {
                   marshalSectors={trackData?.marshal_sectors}
                   sectorFlags={replay.frame?.sector_flags}
                   playing={replay.playing}
+                  showElevation={settings.showElevation}
+                  elevationRangeM={trackData?.elevation?.range_m ?? null}
                 />
-                
+
+                {/* Qualifying lap-completion bubbles */}
+                <LapNotifications
+                  enabled={settings.showLapNotifications}
+                  isQualifying={isQualifying}
+                  isRace={isRace}
+                  lapData={lapData}
+                  currentTime={replay.frame?.timestamp || 0}
+                  currentLap={replay.frame?.lap || 0}
+                  drivers={drivers}
+                />
+
                 {showTelemetry && selectedDrivers.length <= 2 && (
                   <div className="absolute bottom-2 left-8 z-10">
                     {selectedDrivers.map((abbr) => {
@@ -1066,6 +1085,7 @@ function ReplayPageInner() {
                     marshalSectors={trackData?.marshal_sectors}
                     sectorFlags={replay.frame?.sector_flags}
                     playing={replay.playing}
+                    showElevation={settings.showElevation}
                   />
                 </div>
               )}

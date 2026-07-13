@@ -402,3 +402,13 @@ input, textarea, select {
   }
 }
 
+
+/* Qualifying lap-completion bubbles */
+@keyframes lapBubbleIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lap-bubble {
+  animation: lapBubbleIn 0.25s ease-out;
+}

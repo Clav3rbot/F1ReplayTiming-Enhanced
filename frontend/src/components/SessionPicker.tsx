@@ -3,12 +3,27 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
+import { getToken } from "@/lib/auth";
+import { apiUrl } from "@/lib/api";
 import RaceCountdown from "./RaceCountdown";
+
+interface SessionMenu {
+  x: number;
+  y: number;
+  href: string;
+  label: string;
+  key: string;
+  year: number;
+  round: number;
+  code: string;
+}
 
 interface SessionEntry {
   name: string;
   date_utc: string | null;
   available: boolean;
+  precomputed?: boolean;
+  size_bytes?: number;
 }
 
 interface LiveSessionInfo {
@@ -84,6 +99,13 @@ const SESSION_LABELS: Record<string, string> = {
   "Practice 3": "FP3",
 };
 
+function formatSize(bytes?: number): string | null {
+  if (!bytes || bytes <= 0) return null;
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 function formatLocalTime(dateUtc: string | null): { dayDate: string; time: string } | null {
   if (!dateUtc) return null;
   try {
@@ -130,6 +152,97 @@ export default function SessionPicker() {
   const [menuOpen, setMenuOpen] = useState(false);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Right-click / long-press menu on a session pill
+  const [ctxMenu, setCtxMenu] = useState<SessionMenu | null>(null);
+  const [reprocessing, setReprocessing] = useState<Set<string>>(new Set());
+  const [reprocessModal, setReprocessModal] = useState<{ label: string; key: string; state: "running" | "done" | "error"; message: string } | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClickRef = useRef(false);
+  const ctxMenuRef = useRef<HTMLDivElement>(null);
+
+  function authFetch(path: string, init?: RequestInit) {
+    const token = getToken();
+    return fetch(apiUrl(path), {
+      ...init,
+      headers: {
+        ...(init?.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }
+
+  function clearReprocessing(key: string) {
+    setReprocessing((p) => {
+      const n = new Set(p);
+      n.delete(key);
+      return n;
+    });
+  }
+
+  async function reprocess(m: SessionMenu) {
+    setCtxMenu(null);
+    setReprocessing((p) => new Set(p).add(m.key));
+    setReprocessModal({ label: m.label, key: m.key, state: "running", message: "Starting…" });
+    const finish = (state: "done" | "error", message: string) => {
+      clearReprocessing(m.key);
+      setReprocessModal((prev) => (prev && prev.key === m.key ? { ...prev, state, message } : prev));
+    };
+    try {
+      const res = await authFetch(
+        `/api/sessions/${m.year}/${m.round}/reprocess?type=${m.code}`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const detail = res.status === 403
+          ? "Reprocessing is disabled on this instance."
+          : "Failed to start reprocessing.";
+        throw new Error(detail);
+      }
+      const poll = async () => {
+        try {
+          const s = await authFetch(
+            `/api/sessions/${m.year}/${m.round}/reprocess/status?type=${m.code}`,
+          ).then((r) => r.json());
+          if (s.state === "running") {
+            setReprocessModal((prev) => (prev && prev.key === m.key ? { ...prev, message: s.message || prev.message } : prev));
+            setTimeout(poll, 1500);
+            return;
+          }
+          finish(
+            s.state === "done" ? "done" : "error",
+            s.message || (s.state === "done" ? "Reprocess complete" : "Reprocess failed"),
+          );
+        } catch {
+          finish("error", "Lost connection while reprocessing.");
+        }
+      };
+      setTimeout(poll, 1500);
+    } catch (e) {
+      finish("error", e instanceof Error ? e.message : "Failed to start reprocessing.");
+    }
+  }
+
+  // Close the context menu on outside click, scroll, resize, or Escape
+  useEffect(() => {
+    if (!ctxMenu) return;
+    // Only close on clicks OUTSIDE the menu, so item clicks still register.
+    const onDown = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null);
+    };
+    const onClose = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCtxMenu(null); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("scroll", onClose, true);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onClose);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("scroll", onClose, true);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onClose);
+    };
+  }, [ctxMenu]);
 
   const { data: seasonsData } = useApi<SeasonsResponse>("/api/seasons");
   const { data: eventsData, loading: eventsLoading } = useApi<EventsResponse>(
@@ -266,6 +379,15 @@ export default function SessionPicker() {
                 );
               }
               if (session.available) {
+                const sizeLabel = formatSize(session.size_bytes);
+                const tooltip = session.precomputed
+                  ? `Downloaded${sizeLabel ? ` · ${sizeLabel}` : ""} — right-click for options`
+                  : "Not downloaded — will process when opened";
+                const href = `/replay?year=${year}&round=${evt.round_number}&type=${code}`;
+                const sKey = `${year}_${evt.round_number}_${code}`;
+                const busy = reprocessing.has(sKey);
+                const openMenu = (x: number, y: number) =>
+                  setCtxMenu({ x, y, href, label: session.name, key: sKey, year, round: evt.round_number, code });
                 return (
                   <div key={session.name} className="flex flex-col items-center">
                     {localTime && (
@@ -274,10 +396,29 @@ export default function SessionPicker() {
                       </span>
                     )}
                     <Link
-                      href={`/replay?year=${year}&round=${evt.round_number}&type=${code}`}
-                      className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300"
+                      href={href}
+                      onClick={(e) => {
+                        if (suppressClickRef.current) { suppressClickRef.current = false; e.preventDefault(); }
+                      }}
+                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(e.clientX, e.clientY); }}
+                      onTouchStart={(e) => {
+                        const t = e.touches[0];
+                        longPressRef.current = setTimeout(() => { suppressClickRef.current = true; openMenu(t.clientX, t.clientY); }, 500);
+                      }}
+                      onTouchEnd={() => { if (longPressRef.current) clearTimeout(longPressRef.current); }}
+                      onTouchMove={() => { if (longPressRef.current) clearTimeout(longPressRef.current); }}
+                      title={tooltip}
+                      className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300 flex items-center gap-1.5 select-none"
                     >
                       {session.name}
+                      {busy ? (
+                        <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" aria-label="Reprocessing" />
+                      ) : session.precomputed ? (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-f1-green shadow-[0_0_6px_rgba(0,255,65,0.6)] flex-shrink-0"
+                          aria-label="Downloaded"
+                        />
+                      ) : null}
                     </Link>
                   </div>
                 );
@@ -311,6 +452,75 @@ export default function SessionPicker() {
     <div className="min-h-screen bg-f1-dark text-f1-text relative">
       {/* Persistent Radial Glow Background (Old version restored and made fixed) */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
+
+      {/* Session context menu (right-click / long-press) */}
+      {ctxMenu && (
+        <div
+          ref={ctxMenuRef}
+          className="fixed z-50 min-w-[11rem] glass-panel-heavy rounded-lg shadow-glass py-1 text-sm"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+        >
+          <button
+            onClick={() => { window.location.href = ctxMenu.href; }}
+            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+          >
+            Open
+          </button>
+          <button
+            onClick={() => { window.open(ctxMenu.href, "_blank", "noopener,noreferrer"); setCtxMenu(null); }}
+            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+          >
+            Open in new tab
+          </button>
+          <button
+            onClick={() => { window.open(ctxMenu.href, "_blank", "noopener,noreferrer,width=1280,height=820"); setCtxMenu(null); }}
+            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+          >
+            Open in new window
+          </button>
+          <div className="my-1 border-t border-white/10" />
+          <button
+            onClick={() => reprocess(ctxMenu)}
+            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+          >
+            ↻ Reprocess
+          </button>
+        </div>
+      )}
+
+      {/* Reprocess progress modal */}
+      {reprocessModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-sm p-6">
+            <h3 className="text-white font-bold text-base mb-1">Reprocessing {reprocessModal.label}</h3>
+            {reprocessModal.state === "running" && (
+              <>
+                <p className="text-f1-muted text-sm mb-4">
+                  Rebuilding this session&apos;s data. This usually takes 1–3 minutes. You can close this and it will keep running.
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
+                  <span className="text-white text-sm">{reprocessModal.message}</span>
+                </div>
+              </>
+            )}
+            {reprocessModal.state === "done" && (
+              <p className="text-f1-green text-sm mb-2">Done. Reopen the session to see the updated data.</p>
+            )}
+            {reprocessModal.state === "error" && (
+              <p className="text-f1-red text-sm mb-2">{reprocessModal.message}</p>
+            )}
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setReprocessModal(null)}
+                className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
+              >
+                {reprocessModal.state === "running" ? "Hide" : "Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 relative flex items-center justify-between gap-4 header-container-desktop">

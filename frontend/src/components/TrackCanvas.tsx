@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { drawTrack, drawDrivers, computeTrackTransform, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag } from "@/lib/trackRenderer";
+import { drawTrack, drawDrivers, computeTrackTransform, TrackPoint, DriverMarker, SectorOverlay, Corner, MarshalSector, SectorFlag, ELEVATION_FULL_SCALE_M } from "@/lib/trackRenderer";
 
 interface Props {
   trackPoints: TrackPoint[];
@@ -18,6 +18,8 @@ interface Props {
   marshalSectors?: MarshalSector[] | null;
   sectorFlags?: SectorFlag[] | null;
   playing?: boolean;
+  showElevation?: boolean;
+  elevationRangeM?: number | null;
 }
 
 // Longer than the 500ms frame interval so the dot is always still moving
@@ -53,6 +55,8 @@ export default function TrackCanvas({
   marshalSectors = null,
   sectorFlags = null,
   playing = true,
+  showElevation = false,
+  elevationRangeM = null,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,9 +86,10 @@ export default function TrackCanvas({
     corners,
     marshalSectors,
     sectorFlags,
+    showElevation,
   });
   useEffect(() => {
-    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags };
+    latestPropsRef.current = { trackStatus, playbackSpeed, showDriverNames, sectorOverlay, compact, corners, marshalSectors, sectorFlags, showElevation };
   });
   useEffect(() => {
     zoomRef.current = zoom * wheelZoomFactorRef.current;
@@ -204,6 +209,7 @@ export default function TrackCanvas({
         0,
         0,
         transform,
+        lp.showElevation,
       );
 
       const now = performance.now();
@@ -440,12 +446,33 @@ export default function TrackCanvas({
     if (canvas) canvas.style.transform = "";
   }, [zoom]);
 
+  // No legend in the compact (PiP) map — there's no room for it.
+  const showElevationLegend =
+    showElevation && !compact && trackPoints.some((p) => typeof p.z === "number");
+
   return (
     <div
       ref={containerRef}
       className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing relative"
     >
       <canvas ref={canvasRef} className="h-full w-full" />
+      {showElevationLegend && (
+        <div className="absolute bottom-4 left-3 flex items-end gap-2 pointer-events-none select-none">
+          <div className="flex flex-col items-center">
+            <span className="text-[9px] text-f1-muted leading-none mb-1">{ELEVATION_FULL_SCALE_M}m</span>
+            <div
+              className="w-2 h-20 rounded-sm border border-black/30"
+              style={{ background: "linear-gradient(to top, #33384a, #6fb7d6, #ffffff)" }}
+            />
+            <span className="text-[9px] text-f1-muted leading-none mt-1">0m</span>
+          </div>
+          {typeof elevationRangeM === "number" && (
+            <span className="text-[10px] font-bold text-f1-text leading-none mb-1">
+              Elevation Δ {elevationRangeM}m
+            </span>
+          )}
+        </div>
+      )}
       {/* Pan hint: shown via DOM ref to avoid React re-render causing canvas glitch */}
       <div
         ref={panHintRef}

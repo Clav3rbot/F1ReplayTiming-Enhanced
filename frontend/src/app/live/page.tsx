@@ -13,11 +13,12 @@ import PiPWindow from "@/components/PiPWindow";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
-  track_points: { x: number; y: number }[];
+  track_points: { x: number; y: number; z?: number }[];
   rotation: number;
   circuit_name: string;
   sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
   corners?: { x: number; y: number; number: number; letter: string; angle: number }[] | null;
+  elevation?: { range_m: number } | null;
 }
 
 interface SessionData {
@@ -258,13 +259,15 @@ function LivePageInner() {
   // Session hasn't started yet (connected but no driver data)
   const waitingForSession = live.ready && drivers.length === 0;
 
-  // Calculate leaderboard width
+  // Calculate leaderboard width — must stay in sync with replay's
+  // leaderboardWidthFull, or the right-hand columns get clipped
   const leaderboardWidth = (() => {
     let w = 106;
     if (settings.showTeamAbbr) w += 28;
     if (!isRace) w += 18;
     if (isRace && settings.showGridChange) w += 24;
     if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
+    if (isRace && settings.showLastLapTime) w += 60; // last lap time column
     if (settings.showGapToLeader) w += 56;
     if (isQualifying && settings.showSectors) w += 36;
     if (isRace && settings.showPitStops) w += 24;
@@ -491,6 +494,8 @@ function LivePageInner() {
                   playbackSpeed={1}
                   showDriverNames={settings.showDriverNames}
                   corners={settings.showCorners ? trackData?.corners : null}
+                  showElevation={settings.showElevation}
+                  elevationRangeM={trackData?.elevation?.range_m ?? null}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center">
@@ -836,6 +841,7 @@ function LivePageInner() {
                     showDriverNames={settings.showDriverNames}
                     compact={true}
                     corners={settings.showCorners ? trackData?.corners : null}
+                    showElevation={settings.showElevation}
                   />
                 </div>
               )}

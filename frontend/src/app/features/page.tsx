@@ -21,6 +21,19 @@ export default function FeaturesPage() {
       <div className="max-w-3xl mx-auto px-6 py-12 space-y-10 relative z-10">
 
 
+        {/* Session Picker */}
+        <section className="glass-panel p-6 rounded-2xl shadow-glass">
+          <h2 className="text-lg font-bold text-white mb-1">Session Picker</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Home page</p>
+          <p className="text-f1-text leading-relaxed">
+            A green dot
+            <span className="inline-block align-middle w-1.5 h-1.5 rounded-full bg-f1-green mx-1.5" />
+            next to a session means it has already been downloaded and will play instantly. Hover over
+            a session to see its stored size. Sessions without a dot are processed on demand the first
+            time you open them — right-click a session to reprocess it.
+          </p>
+        </section>
+
         {/* Track Map & Car Positions */}
         <section className="glass-panel p-6 rounded-2xl shadow-glass">
           <h2 className="text-lg font-bold text-white mb-1">Track Map</h2>
@@ -30,6 +43,29 @@ export default function FeaturesPage() {
             updating every 0.5 seconds with smooth interpolation. Click any driver on the leaderboard
             or map to highlight them. The track orientation matches the conventional broadcast view
             for each circuit. Available in replay mode only.
+          </p>
+        </section>
+
+        {/* Track Elevation */}
+        <section className="glass-panel p-6 rounded-2xl shadow-glass">
+          <h2 className="text-lg font-bold text-white mb-1">Track Elevation</h2>
+          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+          <p className="text-f1-text leading-relaxed mb-4">
+            The track line can be coloured by elevation, derived from the same GPS telemetry as the map.
+            The lowest point of the lap is dark and the highest is bright:
+          </p>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs text-f1-muted">Low</span>
+            <div
+              className="h-3 flex-1 max-w-xs rounded-sm border border-black/30"
+              style={{ background: "linear-gradient(to right, #33384a, #6fb7d6, #ffffff)" }}
+            />
+            <span className="text-xs text-f1-muted">High</span>
+          </div>
+          <p className="text-f1-text leading-relaxed">
+            Colours use a fixed scale across every circuit rather than each track&apos;s own range, so a flat
+            circuit stays uniformly dark while a hilly one shows a strong gradient. A legend on the map shows
+            the total elevation change. Toggle it in Settings &gt; Track Map.
           </p>
         </section>
 

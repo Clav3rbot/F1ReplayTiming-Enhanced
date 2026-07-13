@@ -25,10 +25,12 @@ export interface ReplaySettings {
   showPitFreeAir: boolean;
   showLastLapTime: boolean;
   showSectors: boolean;
+  showLapNotifications: boolean;
   highlightClose: boolean;
   useImperial: boolean;
   rcSound: boolean;
   showCorners: boolean;
+  showElevation: boolean;
   highContrast: boolean;
   showAllPanels: boolean;
 }
@@ -58,10 +60,12 @@ export const DEFAULTS: ReplaySettings = {
   showPitFreeAir: true,
   showLastLapTime: true,
   showSectors: true,
+  showLapNotifications: true,
   highlightClose: true,
   useImperial: false,
   rcSound: false,
   showCorners: true,
+  showElevation: false,
   highContrast: false,
   showAllPanels: false,
 };

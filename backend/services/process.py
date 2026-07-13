@@ -29,6 +29,52 @@ logger = logging.getLogger(__name__)
 # Locks to prevent duplicate processing of the same session
 _locks: dict[str, asyncio.Lock] = {}
 
+# State of user-triggered reprocess jobs: key -> {"state": ..., "message": ...}
+# state is "running" | "done" | "error"
+_reprocess_status: dict[str, dict] = {}
+
+
+def get_reprocess_status(year: int, round_num: int, session_type: str) -> dict:
+    """Return the current reprocess state + latest progress message for a session."""
+    return _reprocess_status.get(
+        f"{year}_{round_num}_{session_type}", {"state": "idle", "message": ""}
+    )
+
+
+async def start_reprocess(year: int, round_num: int, session_type: str) -> str:
+    """Kick off a background reprocess (overwrite) for a session.
+
+    Returns the resulting state immediately ("running", or "busy" if one is
+    already in flight for this session). Poll get_reprocess_status for progress.
+    """
+    key = f"{year}_{round_num}_{session_type}"
+    if _reprocess_status.get(key, {}).get("state") == "running":
+        return "busy"
+    _reprocess_status[key] = {"state": "running", "message": "Starting…"}
+
+    def on_status(msg: str):
+        cur = _reprocess_status.get(key)
+        if cur is not None:
+            cur["message"] = msg
+
+    async def _run():
+        try:
+            # skip_existing=False, so this overwrites the stored session.
+            ok = await asyncio.to_thread(
+                process_session_sync, year, round_num, session_type, False, on_status
+            )
+            _reprocess_status[key] = {
+                "state": "done" if ok else "error",
+                "message": "Reprocess complete" if ok else "Reprocess failed",
+            }
+        except Exception as e:
+            logger.error(f"Reprocess failed for {key}: {e}")
+            traceback.print_exc()
+            _reprocess_status[key] = {"state": "error", "message": str(e)[:200] or "Reprocess failed"}
+
+    asyncio.create_task(_run())
+    return "running"
+
 # Thread pool for parallel telemetry uploads
 _telemetry_pool = ThreadPoolExecutor(max_workers=4)
 import atexit as _atexit

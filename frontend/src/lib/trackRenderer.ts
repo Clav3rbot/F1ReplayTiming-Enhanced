@@ -1,6 +1,38 @@
 export interface TrackPoint {
   x: number;
   y: number;
+  z?: number; // metres above the track's lowest point
+}
+
+// Fixed elevation scale (metres). The hilliest F1 circuits have ~100 m of
+// relief, so colours are mapped against this constant for every track. Flat
+// tracks then occupy only the bottom of the ramp and stay looking flat.
+export const ELEVATION_FULL_SCALE_M = 100;
+
+// Cool brightness ramp: slate (low) -> cyan -> white (high).
+const ELEVATION_STOPS: { t: number; rgb: [number, number, number] }[] = [
+  { t: 0.0, rgb: [0x33, 0x38, 0x4a] },
+  { t: 0.5, rgb: [0x6f, 0xb7, 0xd6] },
+  { t: 1.0, rgb: [0xff, 0xff, 0xff] },
+];
+
+export function elevationColor(t: number): string {
+  const c = Math.max(0, Math.min(1, t));
+  let lo = ELEVATION_STOPS[0];
+  let hi = ELEVATION_STOPS[ELEVATION_STOPS.length - 1];
+  for (let i = 0; i < ELEVATION_STOPS.length - 1; i++) {
+    if (c >= ELEVATION_STOPS[i].t && c <= ELEVATION_STOPS[i + 1].t) {
+      lo = ELEVATION_STOPS[i];
+      hi = ELEVATION_STOPS[i + 1];
+      break;
+    }
+  }
+  const span = hi.t - lo.t || 1;
+  const f = (c - lo.t) / span;
+  const r = Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * f);
+  const g = Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * f);
+  const b = Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * f);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 export interface DriverMarker {
@@ -35,6 +67,10 @@ export interface SectorOverlay {
   boundaries: { s1_end: number; s2_end: number; total: number };
   colors: { s1: string; s2: string; s3: string };
 }
+
+// Sector overlay colour used when a sector has no posted time; matches the
+// DEFAULT_SECTOR the replay page passes. Skipped when layering over elevation.
+const DEFAULT_SECTOR_HEX = "#3A3A4A";
 
 const TRACK_STATUS_COLORS: Record<string, string> = {
   green: "#3A3A4A",
@@ -122,6 +158,7 @@ export function drawTrack(
   panX: number = 0,
   panY: number = 0,
   precomputed?: TrackTransform,
+  showElevation: boolean = false,
 ) {
   if (points.length === 0) return;
 
@@ -129,8 +166,58 @@ export function drawTrack(
     points, width, height, rotation, compact, zoom, panX, panY,
   );
 
-  // Draw track outline (optionally colored by sector)
-  if (sectorOverlay) {
+  // Elevation colouring needs per-point heights; only active when requested
+  // and the data is present.
+  const elevationActive = showElevation && points.some((p) => typeof p.z === "number");
+
+  // Draw track outline. Priority: elevation > sector overlay > track status.
+  if (elevationActive) {
+    // Colour each segment by its height on the fixed scale. Bucketing keeps
+    // this to a handful of stroke calls per frame instead of one per point.
+    const STOPS = 24;
+    const buckets: Path2D[] = Array.from({ length: STOPS }, () => new Path2D());
+    for (let i = 0; i < rotated.length; i++) {
+      const j = (i + 1) % rotated.length;
+      const z = points[i].z ?? 0;
+      const t = Math.max(0, Math.min(1, z / ELEVATION_FULL_SCALE_M));
+      const level = Math.min(STOPS - 1, Math.floor(t * STOPS));
+      const [x1, y1] = toScreen(rotated[i]);
+      const [x2, y2] = toScreen(rotated[j]);
+      buckets[level].moveTo(x1, y1);
+      buckets[level].lineTo(x2, y2);
+    }
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let level = 0; level < STOPS; level++) {
+      ctx.strokeStyle = elevationColor((level + 0.5) / STOPS);
+      ctx.stroke(buckets[level]);
+    }
+
+    // If the user has also selected sector shading, draw the highlighted
+    // sector colours on top of the elevation. Un-timed sectors (default grey)
+    // are skipped so the elevation shows through where there's no highlight.
+    if (sectorOverlay) {
+      const { boundaries, colors } = sectorOverlay;
+      const segments = [
+        { start: 0, end: boundaries.s1_end, color: colors.s1 },
+        { start: boundaries.s1_end, end: boundaries.s2_end, color: colors.s2 },
+        { start: boundaries.s2_end, end: rotated.length - 1, color: colors.s3 },
+      ];
+      for (const seg of segments) {
+        if (seg.color.toUpperCase() === DEFAULT_SECTOR_HEX) continue;
+        ctx.beginPath();
+        ctx.strokeStyle = seg.color;
+        const [sx2, sy2] = toScreen(rotated[seg.start]);
+        ctx.moveTo(sx2, sy2);
+        for (let i = seg.start + 1; i <= seg.end && i < rotated.length; i++) {
+          const [px, py] = toScreen(rotated[i]);
+          ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+    }
+  } else if (sectorOverlay) {
     const { boundaries, colors } = sectorOverlay;
     const segments = [
       { start: 0, end: boundaries.s1_end, color: colors.s1 },

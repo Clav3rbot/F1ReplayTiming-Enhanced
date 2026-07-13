@@ -4,11 +4,13 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
 import { ReplaySettings } from "@/hooks/useSettings";
 import { TYRE_COLORS, TYRE_SHORT, TEAM_ABBR } from "@/lib/constants";
+import { lapColorClass, SectorMarkers, LapData } from "@/lib/lapTiming";
 
 export interface LapEntry {
   driver: string;
   lap_number: number;
   lap_time: string | null;
+  time: number | null;
   compound: string | null;
   pit_in: boolean;
   pit_out: boolean;
@@ -24,7 +26,7 @@ interface Props {
   isQualifying?: boolean;
   compact?: boolean;
   onScaleChange?: (scale: number) => void;
-  lapData?: Map<string, Map<number, string>>;
+  lapData?: LapData;
   currentLap?: number;
   mobileTeamAbbrHidden?: boolean;
 }
@@ -163,7 +165,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               onClick={() => onDriverClick(drv.abbr)}
               className={`w-full flex items-center px-2 py-1 hover:bg-white/10 transition-colors duration-200 text-left relative ${
                 isHighlighted ? "bg-white/10 shadow-[inset_3px_0_0_rgba(255,255,255,0.8)]" : "border-l-[3px] border-transparent"
-              } ${drv.no_timing ? "opacity-40" : ""}`}
+              } ${drv.no_timing ? "opacity-40" : drv.knocked_out ? "opacity-50" : ""}`}
             >
               {isHighlighted && <div className="absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent pointer-events-none" />}
               {/* Position - 24px */}
@@ -301,31 +303,14 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                 let lastLapTime: string | null = null;
                 let lastLapNum = 0;
                 for (let l = currentLap; l >= 1; l--) {
-                  const t = driverLaps.get(l);
-                  if (t) { lastLapTime = t; lastLapNum = l; break; }
+                  const entry = driverLaps.get(l);
+                  if (entry) { lastLapTime = entry.time; lastLapNum = l; break; }
                 }
                 if (!lastLapTime || lastLapNum < 2 || drv.retired) return (
                   <span className="w-[52px] sm:w-[60px] flex-shrink-0" />
                 );
 
-                const toSecs = (t: string): number => {
-                  const p = t.split(":");
-                  return p.length === 2 ? parseInt(p[0]) * 60 + parseFloat(p[1]) : parseFloat(p[0]) || Infinity;
-                };
-                const lastSecs = toSecs(lastLapTime);
-
-                // Personal best: this driver's fastest lap up to current
-                let personalBest = Infinity;
-                for (let l = 2; l <= currentLap; l++) {
-                  const t = driverLaps.get(l);
-                  if (t) { const s = toSecs(t); if (s < personalBest) personalBest = s; }
-                }
-                const isPersonalBest = lastSecs <= personalBest + 0.0005;
-
-                // Fastest lap: use backend flag (has_fastest_lap) + personal best check
-                const isFastest = drv.has_fastest_lap && isPersonalBest;
-
-                const color = isFastest ? "text-purple-400" : isPersonalBest ? "text-green-400" : "text-f1-muted";
+                const color = lapColorClass(lastLapTime, drv.abbr, lapData, currentTime, currentLap, isRace, drv.has_fastest_lap);
 
                 return (
                   <span className={`w-[52px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums ${color}`} title="Last lap time">
@@ -336,22 +321,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Live sector indicators - fixed width (qualifying only) */}
               {isQualifying && settings.showSectors && (
-                <span className="w-7 flex-shrink-0 flex items-center justify-center gap-[2px] mx-1 relative z-10" title="S1 · S2 · S3 sector times&#10;Purple: personal best · Green: fastest · Yellow: normal · Grey: no data">
-                  {[1, 2, 3].map((sn) => {
-                    const sec = drv.sectors?.find((s) => s.num === sn);
-                    const bg = sec
-                      ? sec.color === "purple" ? "bg-f1-magenta shadow-[0_0_8px_rgba(255,0,255,0.6)]"
-                      : sec.color === "green" ? "bg-f1-green shadow-[0_0_8px_rgba(0,255,65,0.6)]"
-                      : "bg-yellow-400"
-                      : "bg-white/10";
-                    return (
-                      <span
-                        key={sn}
-                        className={`w-[6px] h-[14px] rounded-[1px] ${bg}`}
-                      />
-                    );
-                  })}
-                </span>
+                <SectorMarkers sectors={drv.sectors} className="w-7 flex-shrink-0 mx-1 relative z-10" />
               )}
 
               {/* Pit stops / chequered flag - 20px (race only) */}

@@ -1,11 +1,13 @@
 import logging
+import os
 import time
 from copy import deepcopy
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, HTTPException
-from services.storage import get_json, put_json
-from services.process import ensure_session_data
+from auth import is_auth_enabled
+from services.storage import get_json, put_json, list_sizes
+from services.process import ensure_session_data, start_reprocess, get_reprocess_status
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["sessions"])
@@ -39,8 +41,17 @@ def _build_events(year: int) -> dict:
     now = datetime.now(timezone.utc)
     last_past_idx = None
 
+    # One storage listing for the whole season, used to mark which sessions are
+    # already pre-computed (replay.json present) and how much they take up.
+    try:
+        sizes = list_sizes(f"sessions/{year}")
+    except Exception as e:
+        logger.warning(f"Could not list stored session sizes for {year}: {e}")
+        sizes = {}
+
     for i, evt in enumerate(events):
         has_past_session = False
+        round_num = evt.get("round_number")
         for session in evt.get("sessions", []):
             date_str = session.get("date_utc")
             if date_str:
@@ -56,6 +67,18 @@ def _build_events(year: int) -> dict:
                     session["available"] = False
             else:
                 session["available"] = False
+
+            # replay.json is the definitive marker that a session is fully processed
+            session_type = SESSION_NAME_TO_TYPE.get(session.get("name", ""))
+            precomputed = False
+            size_bytes = 0
+            if session_type and round_num is not None:
+                prefix = f"sessions/{year}/{round_num}/{session_type}/"
+                precomputed = (prefix + "replay.json") in sizes
+                if precomputed:
+                    size_bytes = sum(v for k, v in sizes.items() if k.startswith(prefix))
+            session["precomputed"] = precomputed
+            session["size_bytes"] = size_bytes
 
         # Normalize date_utc to ISO 8601 with "Z" so the browser
         # correctly interprets them as UTC and converts to local time
@@ -153,3 +176,32 @@ async def get_session(
         status_code=404,
         detail=f"Session data not available for {year} Round {round_num} ({type}).",
     )
+
+
+def _reprocess_allowed() -> bool:
+    """Reprocessing is expensive, so it is only exposed on instances that are
+    either passphrase-protected or explicitly opted in with ALLOW_REPROCESS."""
+    override = os.environ.get("ALLOW_REPROCESS")
+    if override is not None:
+        return override.lower() in ("true", "1", "yes")
+    return is_auth_enabled()
+
+
+@router.post("/sessions/{year}/{round_num}/reprocess")
+async def reprocess_session(year: int, round_num: int, type: str = Query("R")):
+    """Re-run processing for a session, overwriting the stored data.
+
+    Runs in the background; poll the status endpoint for progress.
+    """
+    if not _reprocess_allowed():
+        raise HTTPException(
+            status_code=403,
+            detail="Reprocessing is disabled on this instance. Enable AUTH_ENABLED or set ALLOW_REPROCESS=true.",
+        )
+    state = await start_reprocess(year, round_num, type)
+    return {"state": state}
+
+
+@router.get("/sessions/{year}/{round_num}/reprocess/status")
+async def reprocess_session_status(year: int, round_num: int, type: str = Query("R")):
+    return get_reprocess_status(year, round_num, type)
