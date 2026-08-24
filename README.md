@@ -52,6 +52,7 @@ Open http://localhost:8000. Select any past session and it will be processed on 
 | Variable | Purpose |
 |---|---|
 | `DATA_DIR` | Local path for processed session data (default: `/data`) |
+| `PORT` | Port the app listens on inside the container (default: `8000`) — map the same port on both sides: `-e PORT=9000 -p 9000:9000` |
 | `AUTO_PRECOMPUTE` | Which session types to background-fetch on race weekends: `off`, `race`, `race+qual` (default), `all` |
 | `F1_SIGNALR_PROXY` | Optional; Cloudflare Worker URL to proxy F1 SignalR connections — needed when hosting on data-centre IPs blocked by F1's CDN (e.g. Oracle Cloud, AWS) |
 | `OPENROUTER_API_KEY` | Optional; enables photo sync ([get a key](https://openrouter.ai/)) |
