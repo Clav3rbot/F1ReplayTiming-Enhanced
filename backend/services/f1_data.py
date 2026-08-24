@@ -77,7 +77,7 @@ def _check_session_has_data(year: int, round_num: int, session_type: str) -> boo
             # Truncated pos streams make the fastest lap unusable even though
             # other laps still have position data (e.g. Monaco 2026 R)
             try:
-                _get_reference_lap_telemetry(session)
+                _scan_reference_lap(session, min_points=0)
                 has_full_data = True
             except Exception:
                 has_full_data = False
@@ -280,15 +280,47 @@ async def get_session_info(year: int, round_num: int, session_type: str = "R") -
     return await asyncio.to_thread(_get_session_info_sync, year, round_num, session_type)
 
 
-def _get_reference_lap_telemetry(session) -> tuple:
+# The track outline is drawn from one lap's position trace. The F1 position feed
+# sometimes repeats a car's previous coordinate instead of updating it, so a lap
+# can carry a full complement of samples but only a handful of distinct points
+# and render as a coarse polygon rather than the circuit (the 2026 Hungarian
+# race gives 26 distinct points a lap against ~300 in qualifying). Below this
+# many distinct points, look for a better lap elsewhere in the weekend.
+MIN_OUTLINE_POSITION_POINTS = 150
+
+# Preference order when borrowing an outline from another session of the same
+# weekend. Track geometry does not change between sessions, so any of them will do.
+_OUTLINE_SESSION_PREFERENCE = ("Q", "FP3", "FP2", "FP1", "SQ", "S", "R")
+
+
+def _distinct_position_points(lap) -> int:
+    """Count the position samples on `lap` where the car actually moved.
+
+    Repeated coordinates contribute no shape to the outline, so they don't count
+    towards whether a lap is dense enough to draw.
+    """
+    try:
+        pos = lap.get_pos_data()
+    except Exception:
+        return 0
+    if pos is None or len(pos) < 2 or "X" not in pos.columns:
+        return 0
+    x = pos["X"].values.astype(float)
+    y = pos["Y"].values.astype(float)
+    repeats = int(((np.diff(x) == 0) & (np.diff(y) == 0)).sum())
+    return len(x) - repeats
+
+
+def _scan_reference_lap(session, min_points: int = MIN_OUTLINE_POSITION_POINTS) -> tuple:
     """Pick a reference lap with usable X/Y telemetry for track outline and replay bbox.
 
     Prefers the fastest lap, but position streams can be truncated mid-session
     (e.g. Monaco 2026 R: pos_data ends ~52min in while laps continue), in which
     case get_telemetry() raises KeyError("None of ['Date'] are in the columns")
     on the empty pos slice. Falls back to the fastest lap whose time span is
-    covered by position data. Returns (lap, telemetry); raises ValueError if no
-    lap has usable position telemetry.
+    covered by position data, skipping laps with fewer than `min_points` distinct
+    position samples. Returns (lap, telemetry); raises ValueError if no lap
+    qualifies.
     """
     laps = session.laps
     candidates = laps[laps["LapTime"].notna()].sort_values("LapTime")
@@ -323,9 +355,71 @@ def _get_reference_lap_telemetry(session) -> tuple:
         )
         if span < 100:
             continue  # degenerate slice (formation/crash lap with few real points)
+        if min_points:
+            points = _distinct_position_points(lap)
+            if points < min_points:
+                # A degraded feed affects the whole session, so every other lap
+                # traces the same coarse polygon — don't scan hundreds of them.
+                raise ValueError(
+                    f"outline lap has only {points} distinct position points"
+                )
         return lap, tel
 
     raise ValueError("Telemetry data not available for this session")
+
+
+def _session_ids(session) -> tuple[int, int, str]:
+    """(year, round, session_type) of a loaded session."""
+    return (
+        int(session.event.year),
+        int(session.event["RoundNumber"]),
+        SESSION_NAME_TO_TYPE.get(str(session.name), str(session.name)),
+    )
+
+
+@lru_cache(maxsize=8)
+def _borrowed_reference_lap(year: int, round_num: int, session_type: str) -> tuple:
+    """Outline lap taken from another session of the same weekend.
+
+    Used when this session's own position feed repeated coordinates: the track
+    geometry is identical across the weekend, so a cleaner session draws it.
+    """
+    for st in _OUTLINE_SESSION_PREFERENCE:
+        if st == session_type:
+            continue
+        try:
+            lap, tel = _scan_reference_lap(_load_session(year, round_num, st))
+        except Exception:
+            continue
+        logger.warning(
+            f"[{year} R{round_num} {session_type}] position feed too coarse for an "
+            f"outline, drawing the track from {st} instead"
+        )
+        return lap, tel
+
+    logger.warning(
+        f"[{year} R{round_num} {session_type}] no session this weekend has a clean "
+        f"position trace, drawing the coarse outline"
+    )
+    return _scan_reference_lap(_load_session(year, round_num, session_type), min_points=0)
+
+
+def _get_reference_lap_telemetry(session) -> tuple:
+    """Reference lap for the track outline and the replay bounding box.
+
+    Both uses must share one lap, otherwise the driver dots are scaled against a
+    different bounding box than the track they're drawn on.
+    """
+    try:
+        return _scan_reference_lap(session)
+    except ValueError:
+        pass
+    try:
+        return _borrowed_reference_lap(*_session_ids(session))
+    except Exception:
+        # Weekend lookup failed (offline, unknown session name) — a coarse
+        # outline still beats no track at all.
+        return _scan_reference_lap(session, min_points=0)
 
 
 def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> dict:
