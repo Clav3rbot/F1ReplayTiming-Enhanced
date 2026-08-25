@@ -7,6 +7,7 @@ on:
     branches:
       - dev
       - main
+  workflow_dispatch:  # re-run a deploy without a code change
 
 env:
   REGISTRY: ghcr.io
