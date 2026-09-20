@@ -259,6 +259,28 @@ const SplitFlapDisplaySlot = memo(
           }
         };
 
+        // A countdown tick always advances exactly one character, because the
+        // character sets are ordered for that. A longer jump means time passed
+        // without us rendering (window minimised, tab hidden, machine asleep),
+        // so land on the new value instead of flipping through everything we
+        // missed, which read as the seconds racing to catch up.
+        const forwardSteps =
+          (newCharIndex - lastCharIndex + characters.length) % characters.length;
+
+        if ((isGoingBackwards || isGoingForwards) && forwardSteps > 1) {
+          if (flippingThroughTimeout.current) {
+            clearTimeout(flippingThroughTimeout.current);
+          }
+          slotRef.current?.style.setProperty("--split-flap-flip-duration", "0ms");
+          slotRef.current?.style.setProperty("--split-flap-current-character-index", `${newCharIndex}`);
+          lastValueRef.current = currentCharacter;
+          requestAnimationFrame(() => {
+            slotRef.current?.style.removeProperty("--split-flap-flip-duration");
+            onFullyFlipped?.(currentCharacter, index);
+          });
+          return;
+        }
+
         if (isGoingBackwards || isGoingForwards) {
           if (flippingThroughTimeout.current) {
             clearTimeout(flippingThroughTimeout.current);

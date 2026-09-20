@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DocPageHeader from "@/components/DocPageHeader";
 
 export default function FeaturesPage() {
   return (
@@ -6,38 +7,32 @@ export default function FeaturesPage() {
       {/* Persistent Radial Glow Background */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
 
-      {/* Header */}
-      <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex items-center gap-4">
-          <Link href="/" className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-f1-muted hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-lg group">
-            <svg className="w-6 h-6 -ml-0.5 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Features</h1>
-        </div>
-      </div>
+      <DocPageHeader title="Features" />
 
       <div className="max-w-3xl mx-auto px-6 py-12 space-y-10 relative z-10">
 
 
         {/* Session Picker */}
-        <section className="glass-panel p-6 rounded-2xl shadow-glass">
-          <h2 className="text-lg font-bold text-white mb-1">Session Picker</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Home page</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Session Picker</h2>
+            <span className="text-xs text-f1-muted">Home page</span>
+          </div>
           <p className="text-f1-text leading-relaxed">
             A green dot
             <span className="inline-block align-middle w-1.5 h-1.5 rounded-full bg-f1-green mx-1.5" />
             next to a session means it has already been downloaded and will play instantly. Hover over
             a session to see its stored size. Sessions without a dot are processed on demand the first
-            time you open them — right-click a session to reprocess it.
+            time you open them. Right-click a session to reprocess it.
           </p>
         </section>
 
         {/* Track Map & Car Positions */}
-        <section className="glass-panel p-6 rounded-2xl shadow-glass">
-          <h2 className="text-lg font-bold text-white mb-1">Track Map</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Track Map</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed">
             A track map shows car positions derived from GPS telemetry data processed via FastF1,
             updating every 0.5 seconds with smooth interpolation. Click any driver on the leaderboard
@@ -47,9 +42,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Track Elevation */}
-        <section className="glass-panel p-6 rounded-2xl shadow-glass">
-          <h2 className="text-lg font-bold text-white mb-1">Track Elevation</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Track Elevation</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-4">
             The track line can be coloured by elevation, derived from the same GPS telemetry as the map.
             The lowest point of the lap is dark and the highest is bright:
@@ -70,9 +67,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Driver Leaderboard */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Driver Leaderboard</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Driver Leaderboard</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-4">
             The leaderboard displays all drivers sorted by position, with data sourced directly from
             the official F1 live timing feed. Each row can show a range of information, all toggleable
@@ -195,9 +194,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Starting Grid */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Starting Grid</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Race only</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Starting Grid</h2>
+            <span className="text-xs text-f1-muted">Race only</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             For the first 10 seconds of the race, the leaderboard displays the starting grid order
             before live timing data takes over.
@@ -210,11 +211,13 @@ export default function FeaturesPage() {
         </section>
 
         {/* Data Availability */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Data Availability</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Data Availability</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed">
-            Occasionally, timing data may be temporarily unavailable for a driver &mdash; for example,
+            Occasionally, timing data may be temporarily unavailable for a driver, for example
             during pit stops or if the F1 timing system has a brief gap. When this happens, the
             affected driver is shown greyed out at the bottom of the leaderboard. They return to
             their correct position as soon as data is available again.
@@ -222,11 +225,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Pit Position Prediction */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-1">
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
             <h2 className="text-lg font-bold text-white">Pit Position Prediction</h2>
+            <span className="text-xs text-f1-muted">Race only</span>
           </div>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Race only</p>
           <p className="text-f1-text leading-relaxed mb-3">
             Shows the predicted position a driver would return to if they pitted right now. The prediction
             uses precise pit lane times for each circuit, calculated from the actual pit entry and exit
@@ -243,7 +246,7 @@ export default function FeaturesPage() {
             (73% of the green flag loss), reflecting the lower relative time cost of pitting
             under caution. Predictions appear from lap 5 onwards.
           </p>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Confidence indicator
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -252,11 +255,11 @@ export default function FeaturesPage() {
             next position behind:
           </p>
           <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc">
-            <li><span className="text-f1-muted font-bold">Default</span> — more than 2.5s margin, high confidence</li>
-            <li><span className="text-yellow-400 font-bold">Yellow</span> — 1s to 2.5s margin, a slower pit stop could cost a position</li>
-            <li><span className="text-red-400 font-bold">Red</span> — less than 1s margin, very tight</li>
+            <li><span className="text-f1-muted font-bold">Default</span>: more than 2.5s margin, high confidence</li>
+            <li><span className="text-yellow-400 font-bold">Yellow</span>: 1s to 2.5s margin, a slower pit stop could cost a position</li>
+            <li><span className="text-red-400 font-bold">Red</span>: less than 1s margin, very tight</li>
           </ul>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mt-4 mb-2">
+          <h3 className="text-sm font-bold text-white mt-4 mb-2">
             Pit gaps
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -268,9 +271,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Race Control Messages */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Race Control Messages</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Race Control Messages</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             A live feed of all race control messages is accessible via the RC button on the track map.
             Messages include steward investigations, penalties, track limit deletions, DRS activations,
@@ -280,12 +285,12 @@ export default function FeaturesPage() {
             Each message is colour-coded for quick scanning:
           </p>
           <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
-            <li><span className="text-orange-400 font-bold">Orange</span> — incident noted or under investigation</li>
-            <li><span className="text-red-400 font-bold">Red</span> — penalty issued</li>
-            <li><span className="text-green-400 font-bold">Green</span> — cleared / no further action</li>
-            <li><span className="text-f1-muted font-bold">Grey</span> — other messages (DRS, flags, etc.)</li>
+            <li><span className="text-orange-400 font-bold">Orange</span>: incident noted or under investigation</li>
+            <li><span className="text-red-400 font-bold">Red</span>: penalty issued</li>
+            <li><span className="text-green-400 font-bold">Green</span>: cleared / no further action</li>
+            <li><span className="text-f1-muted font-bold">Grey</span>: other messages (DRS, flags, etc.)</li>
           </ul>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Driver indicators
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -299,9 +304,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Broadcast Sync */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Broadcast Sync</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Broadcast Sync</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Sync the replay to a live broadcast or recording so the timing data matches what&apos;s on screen.
             There are two sync methods:
@@ -326,9 +333,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Telemetry */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Telemetry</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Telemetry</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Click any driver to open a detailed telemetry view showing real-time data for their current lap:
           </p>
@@ -357,9 +366,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Weather */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Weather</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Weather</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed">
             Real-time weather conditions are displayed in the session header, including air temperature,
             track temperature, humidity, wind speed and direction, and rainfall status. Each weather
@@ -368,14 +379,16 @@ export default function FeaturesPage() {
         </section>
 
         {/* Track Status */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Track Status &amp; Flags</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">Replay</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Track Status &amp; Flags</h2>
+            <span className="text-xs text-f1-muted">Replay</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Flag conditions are shown on the track map at marshal sector level, giving you a precise
             view of where incidents are occurring rather than just a global status.
           </p>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Marshal sector flags
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -384,19 +397,19 @@ export default function FeaturesPage() {
             three-letter abbreviation is shown next to the indicator.
           </p>
           <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
-            <li><span className="text-yellow-400 font-bold">Yellow circle</span> &mdash; single yellow flag in that marshal sector</li>
-            <li><span className="text-yellow-400 font-bold">Yellow circle with outer ring</span> &mdash; double yellow flag (more serious, drivers must slow significantly)</li>
-            <li><span className="text-red-400 font-bold">Red circle</span> &mdash; red flag at that location</li>
+            <li><span className="text-yellow-400 font-bold">Yellow circle</span>: single yellow flag in that marshal sector</li>
+            <li><span className="text-yellow-400 font-bold">Yellow circle with outer ring</span>: double yellow flag (more serious, drivers must slow significantly)</li>
+            <li><span className="text-red-400 font-bold">Red circle</span>: red flag at that location</li>
           </ul>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Full track colouring
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
             For track-wide conditions, the entire track outline changes colour:
           </p>
           <ul className="text-f1-text leading-relaxed space-y-1 ml-4 list-disc mb-3">
-            <li><span className="text-yellow-400 font-bold">Yellow</span> &mdash; Safety Car or Virtual Safety Car deployed</li>
-            <li><span className="text-red-400 font-bold">Red</span> &mdash; session red flagged</li>
+            <li><span className="text-yellow-400 font-bold">Yellow</span>: Safety Car or Virtual Safety Car deployed</li>
+            <li><span className="text-red-400 font-bold">Red</span>: session red flagged</li>
           </ul>
           <p className="text-f1-text leading-relaxed">
             Localised yellow flags (affecting one or two marshal sectors) do not colour the full track,
@@ -405,9 +418,11 @@ export default function FeaturesPage() {
         </section>
 
         {/* Live Timing */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Live Timing</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Live Timing</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             During active F1 sessions, live timing connects directly to the F1 SignalR stream to
             provide real-time leaderboard data, tyre information, race control messages, and weather.
@@ -416,9 +431,9 @@ export default function FeaturesPage() {
             Driver positions on the track map and telemetry data (speed, throttle, brake, gear) are
             not available in live mode, as track position data requires an authenticated F1 TV
             subscription. These become available in replay mode once the session is processed via
-            FastF1, typically 1&ndash;2 hours after the chequered flag.
+            FastF1, typically 1 to 2 hours after the chequered flag.
           </p>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Broadcast delay
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -430,27 +445,29 @@ export default function FeaturesPage() {
         </section>
 
         {/* Playback */}
-        <section className="bg-f1-card border border-f1-border rounded-xl p-6">
-          <h2 className="text-lg font-bold text-white mb-1">Playback Controls</h2>
-          <p className="text-xs font-bold text-f1-red uppercase tracking-wider mb-3">All sessions</p>
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-white">Playback Controls</h2>
+            <span className="text-xs text-f1-muted">All sessions</span>
+          </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Control replay speed from 0.5x to 20x, skip forward and backward by 5 seconds, 30 seconds,
             1 minute, or 5 minutes, or jump directly to any lap. A progress bar shows the current position
             within the session. For qualifying and practice, elapsed and remaining session time are displayed.
           </p>
-          <h3 className="text-sm font-bold text-f1-red uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-bold text-white mb-2">
             Session time
           </h3>
           <p className="text-f1-text leading-relaxed">
-            Total session time is hidden by default to avoid spoilers &mdash; a longer-than-expected
+            Total session time is hidden by default to avoid spoilers, since a longer-than-expected
             session can reveal red flags and stoppages. You can enable it in the settings menu.
           </p>
         </section>
 
         <div className="text-center pt-4">
-          <a href="/" className="text-f1-muted hover:text-white transition-colors text-sm">
+          <Link href="/" className="text-f1-muted hover:text-white transition-colors text-sm">
             Back to session picker
-          </a>
+          </Link>
         </div>
       </div>
     </div>

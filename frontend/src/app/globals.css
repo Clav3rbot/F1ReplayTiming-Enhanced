@@ -1,14 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  /* Native controls (select popups, scrollbars, date pickers) follow the app's
+     dark palette instead of the browser's default light chrome. */
+  color-scheme: dark;
+
   --background: #0B0B11;
   --foreground: #F1F5F9;
-  --font-inter: 'Inter', sans-serif;
-  --font-jetbrains-mono: 'JetBrains Mono', monospace;
 }
 
 html,
@@ -38,6 +38,14 @@ input:focus-visible,
 textarea:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgba(225, 6, 0, 0.4);
+}
+
+/* Chrome paints the native option list from the select's own background, so a
+   translucent one (bg-white/5) composites over white and the popup comes out
+   light however color-scheme is set. Give the options an opaque dark base. */
+option {
+  background-color: #1A1A24;
+  color: #F1F5F9;
 }
 
 /* Glass panel utility */

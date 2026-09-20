@@ -6,6 +6,7 @@ import { useApi } from "@/hooks/useApi";
 import { getToken } from "@/lib/auth";
 import { apiUrl } from "@/lib/api";
 import RaceCountdown from "./RaceCountdown";
+import StorageManager from "./StorageManager";
 
 interface SessionMenu {
   x: number;
@@ -16,6 +17,8 @@ interface SessionMenu {
   year: number;
   round: number;
   code: string;
+  precomputed: boolean;
+  sizeBytes?: number;
 }
 
 interface SessionEntry {
@@ -150,6 +153,7 @@ export default function SessionPicker() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [storageOpen, setStorageOpen] = useState(false);
   const latestRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +161,7 @@ export default function SessionPicker() {
   const [ctxMenu, setCtxMenu] = useState<SessionMenu | null>(null);
   const [reprocessing, setReprocessing] = useState<Set<string>>(new Set());
   const [reprocessModal, setReprocessModal] = useState<{ label: string; key: string; state: "running" | "done" | "error"; message: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ label: string; year: number; round: number; code: string; sizeLabel: string | null; state: "confirm" | "deleting" | "done" | "error"; message: string } | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef(false);
   const ctxMenuRef = useRef<HTMLDivElement>(null);
@@ -223,6 +228,27 @@ export default function SessionPicker() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteModal) return;
+    const m = deleteModal;
+    setDeleteModal({ ...m, state: "deleting" });
+    try {
+      const res = await authFetch(
+        `/api/sessions/${m.year}/${m.round}?type=${m.code}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error();
+      const body = await res.json();
+      setDeleteModal({
+        ...m,
+        state: "done",
+        message: `Freed ${formatSize(body.freed_bytes) || "0 KB"}.`,
+      });
+    } catch {
+      setDeleteModal({ ...m, state: "error", message: "Failed to delete this session's data." });
+    }
+  }
+
   // Close the context menu on outside click, scroll, resize, or Escape
   useEffect(() => {
     if (!ctxMenu) return;
@@ -255,6 +281,8 @@ export default function SessionPicker() {
   const events = eventsData?.events || [];
 
   const displayEvents = events;
+  const hasLive = !!liveSession && liveSession.year === year;
+  const dividerRule = hasLive ? "bg-gradient-to-r from-transparent to-f1-red/50" : "bg-white/[0.07]";
 
   const nextRaceDate = useMemo(() => {
     const now = new Date();
@@ -387,7 +415,7 @@ export default function SessionPicker() {
                 const sKey = `${year}_${evt.round_number}_${code}`;
                 const busy = reprocessing.has(sKey);
                 const openMenu = (x: number, y: number) =>
-                  setCtxMenu({ x, y, href, label: session.name, key: sKey, year, round: evt.round_number, code });
+                  setCtxMenu({ x, y, href, label: session.name, key: sKey, year, round: evt.round_number, code, precomputed: !!session.precomputed, sizeBytes: session.size_bytes });
                 return (
                   <div key={session.name} className="flex flex-col items-center">
                     {localTime && (
@@ -485,6 +513,85 @@ export default function SessionPicker() {
           >
             ↻ Reprocess
           </button>
+          {ctxMenu.precomputed && (
+            <button
+              onClick={() => {
+                setDeleteModal({
+                  label: ctxMenu.label,
+                  year: ctxMenu.year,
+                  round: ctxMenu.round,
+                  code: ctxMenu.code,
+                  sizeLabel: formatSize(ctxMenu.sizeBytes),
+                  state: "confirm",
+                  message: "",
+                });
+                setCtxMenu(null);
+              }}
+              className="block w-full text-left px-4 py-2 text-f1-red hover:bg-white/5 transition-colors"
+            >
+              Delete data{ctxMenu.sizeBytes ? ` (${formatSize(ctxMenu.sizeBytes)})` : ""}
+            </button>
+          )}
+        </div>
+      )}
+
+      {storageOpen && <StorageManager onClose={() => setStorageOpen(false)} />}
+
+      {/* Delete confirmation */}
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-sm p-6">
+            <h3 className="text-white font-bold text-base mb-1">
+              {deleteModal.state === "done" ? "Data deleted" : `Delete ${deleteModal.label} data?`}
+            </h3>
+            {deleteModal.state === "confirm" && (
+              <>
+                <p className="text-f1-muted text-sm mb-4">
+                  Removes the stored data for this session
+                  {deleteModal.sizeLabel ? `, freeing ${deleteModal.sizeLabel}` : ""}. Open the
+                  session to download it again.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setDeleteModal(null)}
+                    className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-white/10 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="px-4 py-2 bg-f1-red text-white text-sm font-bold rounded-md hover:shadow-[0_4px_15px_rgba(225,6,0,0.4)] transition-all duration-300"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+            {deleteModal.state === "deleting" && (
+              <div className="flex items-center gap-3 mt-3">
+                <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
+                <span className="text-white text-sm">Deleting…</span>
+              </div>
+            )}
+            {(deleteModal.state === "done" || deleteModal.state === "error") && (
+              <>
+                <p className={`text-sm mb-2 ${deleteModal.state === "done" ? "text-f1-green" : "text-f1-red"}`}>
+                  {deleteModal.message}
+                </p>
+                <div className="flex justify-end mt-5">
+                  <button
+                    onClick={() => {
+                      setDeleteModal(null);
+                      if (deleteModal.state === "done") window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -525,12 +632,9 @@ export default function SessionPicker() {
       <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 relative flex items-center justify-between gap-4 header-container-desktop">
           <div className="flex items-center gap-3 sm:gap-5 header-logo-title-absolute">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-f1-red/50 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
-              <img src="/logo.png" alt="F1 Replay" className="relative w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg shadow-2xl" />
-            </div>
+            <img src="/logo.png" alt="F1 Replay" className="w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg" />
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70 tracking-tight mb-0.5 sm:mb-1">
+              <h1 className="text-xl sm:text-3xl font-extrabold text-white tracking-tight mb-0.5 sm:mb-1">
                 F1 Replay Timing
               </h1>
               <p className="text-f1-muted text-xs sm:text-sm font-medium tracking-wide">Select a session to replay</p>
@@ -558,6 +662,12 @@ export default function SessionPicker() {
             >
               About
             </Link>
+            <button
+              onClick={() => setStorageOpen(true)}
+              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+            >
+              Storage
+            </button>
           {/* Mobile: hamburger menu */}
           <div className="relative sm:hidden" ref={menuRef}>
             <button
@@ -582,6 +692,12 @@ export default function SessionPicker() {
                 >
                   About
                 </Link>
+                <button
+                  onClick={() => { setMenuOpen(false); setStorageOpen(true); }}
+                  className="block w-full text-left px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Storage
+                </button>
               </div>
             )}
           </div>
@@ -615,7 +731,7 @@ export default function SessionPicker() {
         ) : (
           <>
             {/* Live session banner — only show on the year that has the live session */}
-            {liveSession && liveSession.year === year && (
+            {hasLive && liveSession && (
               <div className="mb-4 max-w-3xl mx-auto">
                 <Link
                   href={`/live?year=${liveSession.year}&round=${liveSession.round_number}&type=${liveSession.session_type}`}
@@ -652,23 +768,13 @@ export default function SessionPicker() {
             )}
 
             {/* Section divider */}
-            {liveSession && liveSession.year === year ? (
-              <div style={{ position: "relative", zIndex: 1, maxWidth: "48rem", margin: "28px auto 20px", display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ flex: 1, height: "1px", background: "linear-gradient(to right, transparent, rgba(225,6,0,0.5))" }} />
-                <span style={{ color: "#9EA1AC", fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                  {year} Season
-                </span>
-                <div style={{ flex: 1, height: "1px", background: "linear-gradient(to left, transparent, rgba(225,6,0,0.5))" }} />
-              </div>
-            ) : (
-              <div style={{ position: "relative", zIndex: 1, maxWidth: "48rem", margin: "0 auto 16px", display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
-                <span style={{ color: "#9EA1AC", fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                  {year} Season
-                </span>
-                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.07)" }} />
-              </div>
-            )}
+            <div className={`relative z-[1] max-w-3xl mx-auto flex items-center gap-3 ${hasLive ? "mt-7 mb-5" : "mb-4"}`}>
+              <div className={`flex-1 h-px ${dividerRule}`} />
+              <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.12em] text-f1-muted">
+                {year} Season
+              </span>
+              <div className={`flex-1 h-px ${dividerRule} rotate-180`} />
+            </div>
             <div className="flex flex-col gap-2 max-w-3xl mx-auto">
               {displayEvents.map((evt) => (
                 <EventRow key={evt.round_number} evt={evt} />

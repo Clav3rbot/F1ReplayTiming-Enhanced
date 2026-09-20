@@ -1,4 +1,5 @@
 import logging
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Query, HTTPException
 from services.storage import get_json, put_json
@@ -7,16 +8,39 @@ from services.f1_data import _get_track_data_sync
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["track"])
 
+# How long to trust a "the corner API does not know this circuit" verdict.
+# A track new to the calendar shows up in that database within weeks of its
+# first race, so this is about eventually picking the corners up, not polling.
+CORNER_RECHECK_DAYS = 30
 
-def _needs_corners(track_data: dict | None) -> bool:
+
+def _has_corners(track_data: dict | None) -> bool:
+    """True when this copy carries usable corner data, not just the key."""
     if not track_data:
-        return True
+        return False
     corners = track_data.get("corners")
-    if corners is None:
+    return isinstance(corners, list) and len(corners) > 0
+
+
+def _corner_check_is_due(track_data: dict) -> bool:
+    """True when corners are missing and the last attempt is old enough to retry.
+
+    A circuit the upstream API has no entry for (Madrid, new in 2026) answers
+    404 every time, so retrying on each request rebuilt the whole session and
+    rewrote track.json to storage for nothing. Recording when we last asked
+    keeps the retry to once a month, which still picks the corners up once the
+    circuit is added upstream.
+    """
+    if _has_corners(track_data):
+        return False
+    last = track_data.get("corners_checked")
+    if not isinstance(last, str):
         return True
-    if isinstance(corners, list) and len(corners) == 0:
+    try:
+        checked = date.fromisoformat(last)
+    except ValueError:
         return True
-    return False
+    return date.today() - checked >= timedelta(days=CORNER_RECHECK_DAYS)
 
 
 def _is_stale(track_data: dict | None) -> bool:
@@ -27,7 +51,9 @@ def _is_stale(track_data: dict | None) -> bool:
     """
     if not track_data:
         return True
-    return _needs_corners(track_data) or "elevation" not in track_data
+    if "elevation" not in track_data:
+        return True
+    return _corner_check_is_due(track_data)
 
 
 def _regenerate(path: str, year: int, round_num: int, session_type: str, cached: dict) -> dict:
@@ -42,9 +68,14 @@ def _regenerate(path: str, year: int, round_num: int, session_type: str, cached:
     if not fresh:
         return cached
 
-    if _needs_corners(fresh) and not _needs_corners(cached):
+    if not _has_corners(fresh) and _has_corners(cached):
         # Never trade away corners we already have for a rebuild that lost them.
         fresh["corners"] = cached["corners"]
+
+    if not _has_corners(fresh):
+        # Remember that we asked, so the next request serves this copy instead
+        # of rebuilding the session again.
+        fresh["corners_checked"] = date.today().isoformat()
 
     put_json(path, fresh)
     return fresh

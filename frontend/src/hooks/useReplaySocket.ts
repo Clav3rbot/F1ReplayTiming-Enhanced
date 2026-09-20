@@ -178,6 +178,9 @@ export function useReplaySocket(year: number, round: number, sessionType: string
         }
 
         switch (msg.type) {
+          case "ping":
+            // Server keep-alive so proxies don't time the socket out. Nothing to do.
+            break;
           case "status":
             setState((s) => ({ ...s, loading: true, statusMessage: msg.message || null }));
             break;

@@ -322,7 +322,7 @@ function ReplayPageInner() {
             {typeof dataError === 'string' ? dataError : "Data for this session is not available yet."}
           </p>
           <p className="text-f1-muted text-sm mb-6">
-            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
+            If the session just finished, data typically becomes available 1 to 2 hours after the chequered flag.
           </p>
           <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
             Back to session picker
