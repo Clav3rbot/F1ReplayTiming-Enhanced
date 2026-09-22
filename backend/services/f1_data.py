@@ -280,9 +280,11 @@ def _get_session_info_sync(year: int, round_num: int, session_type: str = "R") -
 # Share of on-track time without real position data above which the replay
 # warns that car positions are approximate.
 POSITION_MISSING_WARN = 0.05
-# Share of moving car-data samples repeating the previous values above which
-# the replay warns that telemetry is unreliable (clean sessions sit near 0.5%).
-CAR_DATA_FROZEN_WARN = 0.10
+# Share of lap time with car data frozen for CAR_FROZEN_MIN_S or longer above
+# which the replay warns that telemetry is unreliable. Clean 2026 sessions sit
+# at <= 0.6%; China/Japan ~6-8% (long dead stretches), Hungary R ~16%.
+CAR_DATA_FROZEN_WARN = 0.03
+CAR_FROZEN_MIN_S = 1.0
 
 
 def _position_missing_share(session) -> float:
@@ -314,10 +316,14 @@ def _position_missing_share(session) -> float:
 
 
 def _car_data_frozen_share(session) -> float:
-    """Share of moving car-data samples during laps that repeat the previous speed and RPM exactly."""
+    """Share of drivers' lap time the car data spends frozen (speed and RPM unchanged while moving).
+
+    Only freezes of at least CAR_FROZEN_MIN_S count: the feed repeats a single
+    sample now and then even when healthy.
+    """
     laps = session.laps
     ok = laps["LapStartTime"].notna() & laps["LapTime"].notna()
-    total = frozen = 0
+    total = frozen = 0.0
     for num, drv_laps in laps[ok].groupby("DriverNumber"):
         car = session.car_data.get(str(num))
         if car is None or len(car) < 2 or "Speed" not in car.columns:
@@ -326,12 +332,17 @@ def _car_data_frozen_share(session) -> float:
         a = drv_laps["LapStartTime"].min().total_seconds()
         b = (drv_laps["LapStartTime"] + drv_laps["LapTime"]).max().total_seconds()
         m = (t >= a) & (t <= b)
-        v = car["Speed"].values[m].astype(float)
-        rpm = car["RPM"].values[m].astype(float)
-        repeat = np.r_[False, (np.diff(v) == 0) & (np.diff(rpm) == 0)]
-        moving = v > STATIONARY_KMH
-        total += int(moving.sum())
-        frozen += int((repeat & moving).sum())
+        t, v, rpm = t[m], car["Speed"].values[m].astype(float), car["RPM"].values[m].astype(float)
+        if len(t) < 2:
+            continue
+        repeat = np.r_[False, (np.diff(v) == 0) & (np.diff(rpm) == 0)] & (v > STATIONARY_KMH)
+        # Runs of repeats: each starts at a rising edge; its duration runs from the
+        # last fresh sample before it to its last repeat.
+        edges = np.diff(np.r_[0, repeat.astype(int), 0])
+        run_start, run_end = np.where(edges == 1)[0], np.where(edges == -1)[0]
+        dur = t[run_end - 1] - t[run_start - 1]
+        frozen += float(dur[dur >= CAR_FROZEN_MIN_S].sum())
+        total += b - a
     return frozen / total if total else 0.0
 
 
