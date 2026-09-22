@@ -331,6 +331,11 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
 const EMPTY_CHAPTERS: TimelineChapter[] = [];
 const EMPTY_MARKERS: TimelineMarker[] = [];
 
+/** Scrubbing within this many px of a highlight marker snaps onto it... */
+const MARKER_SNAP_PX = 12;
+/** ...and releasing there seeks this many seconds before the event. */
+const MARKER_LEAD_S = 5;
+
 /** Timeline chapter look per track status. Outlined = virtual (VSC): hollow pill, same hue as the SC. */
 const CHAPTER_STYLE: Record<TimelineChapter["kind"], { label: string; rgb: string; outlined?: boolean }> = {
   yellow: { label: "Yellow flag", rgb: "250,204,21" },
@@ -589,6 +594,19 @@ export default function PlaybackControls({
     return pct * totalTime;
   }
 
+  /** Time of the highlight marker within MARKER_SNAP_PX of `t` on the bar, if any. */
+  function markerNear(t: number): number | null {
+    const w = activeBarRef.current?.getBoundingClientRect().width ?? 0;
+    if (w <= 0 || totalTime <= 0) return null;
+    const tolerance = (MARKER_SNAP_PX / w) * totalTime;
+    let best: number | null = null;
+    for (const m of markers) {
+      const d = Math.abs(m.t - t);
+      if (d <= tolerance && (best == null || d < Math.abs(best - t))) best = m.t;
+    }
+    return best;
+  }
+
   const startScrub = (e: React.PointerEvent<HTMLDivElement>) => {
     if (totalTime <= 0) return;
     // Prevent default to stop iOS Safari from scrolling/bouncing while scrubbing
@@ -609,7 +627,7 @@ export default function PlaybackControls({
     }
 
     const target = getSeekTimeFromClientX(e.clientX);
-    setScrubTime(target);
+    setScrubTime(markerNear(target) ?? target);
     pendingScrubClientXRef.current = e.clientX;
     scrubStateRef.current = { pointerId: e.pointerId, startX: e.clientX, moved: false };
 
@@ -620,7 +638,8 @@ export default function PlaybackControls({
       scrubRafRef.current = null;
       const x = pendingScrubClientXRef.current;
       if (x == null || !scrubStateRef.current) return;
-      setScrubTime(getSeekTimeFromClientX(x));
+      const t = getSeekTimeFromClientX(x);
+      setScrubTime(markerNear(t) ?? t);
     };
 
     const onMove = (ev: PointerEvent) => {
@@ -668,7 +687,9 @@ export default function PlaybackControls({
         }
       }
       const finalTime = getSeekTimeFromClientX(lastKnownX);
-      commitSeek(finalTime);
+      // Released on a marker: start a few seconds early so the moment itself is seen.
+      const snapped = markerNear(finalTime);
+      commitSeek(snapped != null ? Math.max(0, snapped - MARKER_LEAD_S) : finalTime);
       // Prevent synthetic click after pointer interaction from re-seeking.
       ignoreNextClickRef.current = true;
       window.setTimeout(() => { ignoreNextClickRef.current = false; }, 0);
