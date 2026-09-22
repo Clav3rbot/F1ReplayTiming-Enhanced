@@ -368,6 +368,76 @@ def _scan_reference_lap(session, min_points: int = MIN_OUTLINE_POSITION_POINTS) 
     raise ValueError("Telemetry data not available for this session")
 
 
+# A real position sample farther than this from a telemetry row means the
+# position feed had a gap there (the feed normally ticks every ~0.3 s).
+POSITION_GAP_S = 2.0
+
+
+def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: np.ndarray) -> tuple:
+    """X/Y for `tel`, rebuilt from lap distance wherever the position feed dropped out.
+
+    F1's archive sometimes loses the Position stream for most of a session while
+    car data keeps going (Monaco 2026 R: positions stop after lap 5). FastF1 then
+    interpolates X/Y across the gap, which sends cars far off the map or freezes
+    them. Distance is integrated from speed, so it survives the gap: each lap's
+    distance fraction is placed on the reference outline by arc length. Checked
+    against real positions this lands within ~5 m median, ~15-25 m p90.
+
+    Rows before the first lap starts (grid, formation) keep the feed's values.
+    Returns (x, y) as raw arrays, or the originals when nothing needs filling.
+    """
+    x = tel["X"].values.astype(float)
+    y = tel["Y"].values.astype(float)
+    if "Source" not in tel.columns or "Distance" not in tel.columns or len(ref_x) < 2:
+        return x, y
+
+    t = (tel["Date"] - tel["Date"].iloc[0]).dt.total_seconds().values
+    pos_t = t[tel["Source"].values == "pos"]
+    if len(pos_t) == 0:
+        gap = np.ones(len(t), dtype=bool)
+    else:
+        j = np.clip(np.searchsorted(pos_t, t), 1, len(pos_t) - 1)
+        nearest = np.minimum(np.abs(t - pos_t[j - 1]), np.abs(t - pos_t[j]))
+        if len(pos_t) == 1:
+            nearest = np.abs(t - pos_t[0])
+        gap = nearest > POSITION_GAP_S
+    if not gap.any():
+        return x, y
+
+    laps_sorted = drv_laps[drv_laps["LapStartDate"].notna()].sort_values("LapStartDate")
+    if len(laps_sorted) == 0:
+        return x, y
+    t0 = tel["Date"].iloc[0]
+    starts = (laps_sorted["LapStartDate"] - t0).dt.total_seconds().values
+    last_end = laps_sorted["LapStartDate"].iloc[-1] + laps_sorted["LapTime"].iloc[-1]
+    ends = np.append(starts[1:], (last_end - t0).total_seconds() if pd.notna(last_end) else np.nan)
+    if np.isnan(ends[-1]):
+        starts, ends = starts[:-1], ends[:-1]
+    if len(starts) == 0:
+        return x, y
+
+    d = tel["Distance"].values.astype(float)
+    d_start = np.interp(starts, t, d)
+    d_end = np.interp(ends, t, d)
+    k = np.searchsorted(starts, t, side="right") - 1
+    on_lap = k >= 0
+    kk = np.clip(k, 0, len(starts) - 1)
+    frac = np.clip((d - d_start[kk]) / np.maximum(d_end[kk] - d_start[kk], 1.0), 0.0, 0.99999)
+
+    seg = np.hypot(np.diff(ref_x), np.diff(ref_y))
+    arc = np.concatenate([[0.0], np.cumsum(seg)])
+    if arc[-1] <= 0:
+        return x, y
+    arc /= arc[-1]
+
+    fill = gap & on_lap
+    x = x.copy()
+    y = y.copy()
+    x[fill] = np.interp(frac[fill], arc, ref_x)
+    y[fill] = np.interp(frac[fill], arc, ref_y)
+    return x, y
+
+
 def _session_ids(session) -> tuple[int, int, str]:
     """(year, round, session_type) of a loaded session."""
     return (
@@ -659,7 +729,15 @@ def _get_driver_telemetry_sync(
     try:
         tel = lap_row.get_telemetry()
     except Exception:
-        return None
+        tel = None
+    if tel is None or len(tel) == 0:
+        # get_telemetry() needs position data for the lap; when the position
+        # feed dropped out (Monaco 2026 R) the chart channels still exist in
+        # car data alone.
+        try:
+            tel = lap_row.get_car_data().add_distance().add_relative_distance()
+        except Exception:
+            return None
 
     if tel is None or len(tel) == 0:
         return None
@@ -1408,14 +1486,17 @@ def _get_driver_positions_by_time_sync(
 
     # Pre-convert telemetry to numpy arrays for fast lookup via searchsorted
     driver_arrays: dict[str, dict] = {}
+    ref_x = ref_tel["X"].values.astype(float) if ref_tel is not None and "X" in ref_tel.columns else np.array([])
+    ref_y = ref_tel["Y"].values.astype(float) if ref_tel is not None and "Y" in ref_tel.columns else np.array([])
     for drv, tel in driver_pos_data.items():
         if "Date" not in tel.columns or len(tel) == 0:
             continue
+        raw_x, raw_y = _fill_position_gaps(tel, laps.pick_drivers(drv), ref_x, ref_y)
         times = (tel["Date"] - min_date).dt.total_seconds().values.astype(np.float64)
         sort_idx = np.argsort(times)
         times = times[sort_idx]
-        x_vals = ((tel["X"].values[sort_idx] - x_min) / scale).astype(np.float64)
-        y_vals = ((tel["Y"].values[sort_idx] - y_min) / scale).astype(np.float64)
+        x_vals = ((raw_x[sort_idx] - x_min) / scale).astype(np.float64)
+        y_vals = ((raw_y[sort_idx] - y_min) / scale).astype(np.float64)
         rel_dist = tel["RelativeDistance"].values[sort_idx].astype(np.float64) if "RelativeDistance" in tel.columns else np.zeros(len(times))
         speed = tel["Speed"].values[sort_idx].astype(np.float64) if "Speed" in tel.columns else np.zeros(len(times))
         throttle = tel["Throttle"].values[sort_idx].astype(np.float64) if "Throttle" in tel.columns else np.zeros(len(times))
