@@ -27,4 +27,4 @@ EXPOSE 8000
 ENV PORT=8000
 ENV STATIC_DIR=/app/static
 
-CMD sh -c "cp -n /app/data/pit_loss.json /data/pit_loss.json 2>/dev/null; uvicorn main:app --host 0.0.0.0 --port $PORT"
+CMD ["sh", "-c", "cp -n /app/data/pit_loss.json /data/pit_loss.json 2>/dev/null; exec uvicorn main:app --host 0.0.0.0 --port $PORT"]

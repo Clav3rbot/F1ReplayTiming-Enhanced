@@ -69,6 +69,10 @@ async def start_reprocess(year: int, round_num: int, session_type: str) -> str:
             ok = await asyncio.to_thread(
                 process_session_sync, year, round_num, session_type, False, on_status
             )
+            if ok:
+                # Drop the old frames so the next viewer loads the fresh replay.json.
+                from routers.replay import evict_cached_session
+                evict_cached_session(year, round_num, session_type)
             _reprocess_status[key] = {
                 "state": "done" if ok else "error",
                 "message": "Reprocess complete" if ok else "Reprocess failed",
@@ -366,7 +370,7 @@ async def ensure_session_data(
     base = f"sessions/{year}/{round_num}/{session_type}"
 
     # Fast path: data already exists
-    if storage.exists(f"{base}/replay.json"):
+    if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
         return True
 
     # Get or create lock for this session
@@ -376,7 +380,7 @@ async def ensure_session_data(
 
     async with _locks[key]:
         # Double-check after acquiring lock (another request may have finished)
-        if storage.exists(f"{base}/replay.json"):
+        if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
             return True
 
         # Wrap sync callback for async on_status
@@ -414,7 +418,7 @@ async def ensure_session_data_ws(
     """
     base = f"sessions/{year}/{round_num}/{session_type}"
 
-    if storage.exists(f"{base}/replay.json"):
+    if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
         return True
 
     key = f"{year}_{round_num}_{session_type}"
@@ -425,10 +429,10 @@ async def ensure_session_data_ws(
     if _locks[key].locked():
         await send_status("Waiting for session data (another request is processing)...")
         async with _locks[key]:
-            return storage.exists(f"{base}/replay.json")
+            return await asyncio.to_thread(storage.exists, f"{base}/replay.json")
 
     async with _locks[key]:
-        if storage.exists(f"{base}/replay.json"):
+        if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
             return True
 
         await send_status("Session data not found — processing on demand...")

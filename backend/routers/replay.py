@@ -10,6 +10,9 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from services.storage import get_json
 from services.process import ensure_session_data_ws
+from routers.sessions import SESSION_NAME_TO_TYPE
+
+VALID_SESSION_TYPES = frozenset(SESSION_NAME_TO_TYPE.values())
 
 def _log_memory():
     """Log current process memory usage."""
@@ -184,8 +187,8 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
     key = f"{year}_{round_num}_{session_type}"
     if key not in _replay_cache:
         frames = get_json(f"sessions/{year}/{round_num}/{session_type}/replay.json")
-        if frames is None:
-            frames = []
+        if not frames:
+            return []  # don't pin a transient miss in the cache
         for f in frames:
             _sanitize_frame(f)
         _replay_cache[key] = frames
@@ -194,7 +197,19 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
 
 
 async def _get_frames(year: int, round_num: int, session_type: str) -> list[dict]:
-    return await asyncio.to_thread(_get_frames_sync, year, round_num, session_type)
+    frames = await asyncio.to_thread(_get_frames_sync, year, round_num, session_type)
+    # Enforce the cap on the event loop (eviction touches asyncio tasks).
+    # Oldest-inserted sessions without viewers go first; watched ones are never dropped.
+    for key in list(_replay_cache):
+        if len(_replay_cache) <= MAX_REPLAY_CACHED_SESSIONS:
+            break
+        if _replay_clients.get(key, 0) == 0 and key != f"{year}_{round_num}_{session_type}":
+            task = _eviction_tasks.pop(key, None)
+            if task:
+                task.cancel()
+            del _replay_cache[key]
+            logger.info(f"[memory] Evicted {key} (cache cap) — {_log_memory()}")
+    return frames
 
 
 def _client_connect(key: str):
@@ -256,9 +271,14 @@ async def replay_websocket(
     if is_auth_enabled() and not verify_token(token):
         await websocket.close(code=4401, reason="Unauthorized")
         return
+    if type not in VALID_SESSION_TYPES:
+        await websocket.close(code=4400, reason="Unknown session type")
+        return
     await websocket.accept()
 
     receiver_task: asyncio.Task | None = None
+    cache_key = f"{year}_{round_num}_{type}"
+    connected = False  # only unregister a client we actually registered
 
     try:
         async def send_status(msg: str):
@@ -277,18 +297,17 @@ async def replay_websocket(
             await websocket.close()
             return
 
-        # Reload frames (clear cache first so _get_frames_sync reads fresh data)
-        cache_key_reload = f"{year}_{round_num}_{type}"
-        _replay_cache.pop(cache_key_reload, None)
+        # Cached frames are dropped on reprocess/delete (evict_cached_session),
+        # so a cache hit here is always current.
         frames = await _get_frames(year, round_num, type)
-        cache_key = f"{year}_{round_num}_{type}"
-        _client_connect(cache_key)
 
         if not frames:
-            await _client_disconnect(cache_key)
             await websocket.send_json({"type": "error", "message": "No position data available"})
             await websocket.close()
             return
+
+        _client_connect(cache_key)
+        connected = True
 
         # Load pit loss data for races
         is_race = type in ("R", "S")
@@ -296,10 +315,10 @@ async def replay_websocket(
         pit_loss_sc = 0.0
         pit_loss_vsc = 0.0
         if is_race:
-            pit_data = _get_pit_loss_data()
+            pit_data = await asyncio.to_thread(_get_pit_loss_data)
             if pit_data:
                 # Try to find circuit-specific data by matching event name from session info
-                info = get_json(f"sessions/{year}/{round_num}/{type}/info.json")
+                info = await asyncio.to_thread(get_json, f"sessions/{year}/{round_num}/{type}/info.json")
                 event_name = info.get("event_name", "") if info else ""
                 circuits = pit_data.get("circuits", {})
                 circuit_entry = circuits.get(event_name)
@@ -518,12 +537,8 @@ async def replay_websocket(
                 await beat_if_idle()
 
     except WebSocketDisconnect:
-        cache_key = f"{year}_{round_num}_{type}"
-        await _client_disconnect(cache_key)
         logger.info(f"[memory] WebSocket disconnected: {year}/{round_num}/{type} — {_log_memory()}")
     except Exception as e:
-        cache_key = f"{year}_{round_num}_{type}"
-        await _client_disconnect(cache_key)
         logger.error(f"WebSocket error: {e}")
         try:
             await websocket.close()
@@ -532,3 +547,5 @@ async def replay_websocket(
     finally:
         if receiver_task is not None:
             receiver_task.cancel()
+        if connected:
+            await _client_disconnect(cache_key)
