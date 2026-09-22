@@ -280,36 +280,59 @@ def _get_session_info_sync(year: int, round_num: int, session_type: str = "R") -
 # Share of on-track time without real position data above which the replay
 # warns that car positions are approximate.
 POSITION_MISSING_WARN = 0.05
+# Share of moving car-data samples repeating the previous values above which
+# the replay warns that telemetry is unreliable (clean sessions sit near 0.5%).
+CAR_DATA_FROZEN_WARN = 0.10
 
 
 def _position_missing_share(session) -> float:
-    """Share of on-track time (any driver on a lap) with no position sample within POSITION_GAP_S."""
+    """Share of drivers' lap time spent in a position gap (no fresh sample for > POSITION_GAP_S)."""
     laps = session.laps
-    starts = laps["LapStartDate"]
-    ends = starts + laps["LapTime"]
-    ok = starts.notna() & ends.notna()
+    ok = laps["LapStartDate"].notna() & laps["LapTime"].notna()
     if not ok.any():
         return 0.0
-    t0 = starts[ok].min()
-    lap_s = (starts[ok] - t0).dt.total_seconds().values
-    lap_e = (ends[ok] - t0).dt.total_seconds().values
+    t0 = laps.loc[ok, "LapStartDate"].min()
+    total = missing = 0
+    for num, drv_laps in laps[ok].groupby("DriverNumber"):
+        # ponytail: 1 s grid per lap; ~100k points for a whole race, cheap enough
+        grid = np.concatenate([
+            np.arange(s, s + d, 1.0)
+            for s, d in zip(
+                (drv_laps["LapStartDate"] - t0).dt.total_seconds().values,
+                drv_laps["LapTime"].dt.total_seconds().values,
+            )
+        ])
+        total += len(grid)
+        pos = session.pos_data.get(str(num))
+        if pos is None or len(pos) == 0 or "Date" not in pos.columns:
+            missing += len(grid)
+            continue
+        pt = (pos["Date"] - t0).dt.total_seconds().values
+        fresh = _fresh_mask(pos["X"].values.astype(float), pos["Y"].values.astype(float))
+        missing += int(_in_position_gap(grid, pt[fresh]).sum())
+    return missing / total if total else 0.0
 
-    # ponytail: 1 s grid over the session; ~10k points for a race, cheap enough
-    grid = np.arange(0.0, float(lap_e.max()), 1.0)
-    order = np.argsort(lap_s)
-    running_end = np.maximum.accumulate(lap_e[order])
-    k = np.searchsorted(lap_s[order], grid, side="right") - 1
-    on_track = (k >= 0) & (running_end[np.clip(k, 0, len(order) - 1)] >= grid)
-    if not on_track.any():
-        return 0.0
 
-    stamps = [df["Date"] for df in session.pos_data.values() if "Date" in df.columns and len(df) > 0]
-    if not stamps:
-        return 1.0
-    pos_t = np.unique((pd.concat(stamps) - t0).dt.total_seconds().values)
-    j = np.clip(np.searchsorted(pos_t, grid), 0, len(pos_t) - 1)
-    nearest = np.minimum(np.abs(grid - pos_t[j]), np.abs(grid - pos_t[np.maximum(j - 1, 0)]))
-    return float((nearest[on_track] > POSITION_GAP_S).mean())
+def _car_data_frozen_share(session) -> float:
+    """Share of moving car-data samples during laps that repeat the previous speed and RPM exactly."""
+    laps = session.laps
+    ok = laps["LapStartTime"].notna() & laps["LapTime"].notna()
+    total = frozen = 0
+    for num, drv_laps in laps[ok].groupby("DriverNumber"):
+        car = session.car_data.get(str(num))
+        if car is None or len(car) < 2 or "Speed" not in car.columns:
+            continue
+        t = car["SessionTime"].dt.total_seconds().values
+        a = drv_laps["LapStartTime"].min().total_seconds()
+        b = (drv_laps["LapStartTime"] + drv_laps["LapTime"]).max().total_seconds()
+        m = (t >= a) & (t <= b)
+        v = car["Speed"].values[m].astype(float)
+        rpm = car["RPM"].values[m].astype(float)
+        repeat = np.r_[False, (np.diff(v) == 0) & (np.diff(rpm) == 0)]
+        moving = v > STATIONARY_KMH
+        total += int(moving.sum())
+        frozen += int((repeat & moving).sum())
+    return frozen / total if total else 0.0
 
 
 def _data_notes(session) -> list[str]:
@@ -319,22 +342,21 @@ def _data_notes(session) -> list[str]:
         missing = _position_missing_share(session)
         if missing >= POSITION_MISSING_WARN:
             notes.append(
-                f"F1's position feed is missing for {missing:.0%} of this session. "
+                f"F1's position feed is missing or frozen for {missing:.0%} of this session. "
                 "In those stretches cars are placed on the track from their lap distance, "
                 "so positions are approximate and pit lane trips are not shown."
             )
     except Exception as e:
         logger.warning(f"Position coverage check failed: {e}")
     try:
-        _scan_reference_lap(session)
-    except ValueError as e:
-        if "distinct position points" in str(e):
+        frozen = _car_data_frozen_share(session)
+        if frozen >= CAR_DATA_FROZEN_WARN:
             notes.append(
-                "F1's position feed for this session is low resolution, "
-                "so car movement on the map can look jerky."
+                f"F1's car telemetry (speed, throttle, gear) is frozen for {frozen:.0%} of this session, "
+                "so telemetry charts and speed readouts are unreliable in those stretches."
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Car data check failed: {e}")
     return notes
 
 
@@ -430,16 +452,44 @@ def _scan_reference_lap(session, min_points: int = MIN_OUTLINE_POSITION_POINTS) 
     raise ValueError("Telemetry data not available for this session")
 
 
-# A real position sample farther than this from a telemetry row means the
-# position feed had a gap there (the feed normally ticks every ~0.3 s).
+# Two consecutive real position samples farther apart than this mean the
+# position feed had a gap there (it normally ticks every ~0.3 s).
 POSITION_GAP_S = 2.0
+# Below this speed a repeated coordinate is a stopped car, not a stale feed.
+STATIONARY_KMH = 5.0
+# Share of a lap's moving car-data samples allowed to be frozen repeats before
+# its integrated distance is no longer trusted to place the car.
+LAP_FROZEN_TOLERANCE = 0.05
+
+
+def _fresh_mask(x: np.ndarray, y: np.ndarray, speed: np.ndarray | None = None) -> np.ndarray:
+    """Samples that carry a new position: moved since the previous one, or the car is stopped.
+
+    Some feeds keep repeating the last coordinate for seconds while the car is
+    moving (Hungary 2026 R, ~74% of the race), which is a gap in all but name.
+    """
+    changed = np.r_[True, (np.diff(x) != 0) | (np.diff(y) != 0)]
+    if speed is None:
+        return changed
+    return changed | (np.nan_to_num(speed, nan=0.0) < STATIONARY_KMH)
+
+
+def _in_position_gap(t: np.ndarray, fresh_t: np.ndarray) -> np.ndarray:
+    """True where `t` lies between fresh samples more than POSITION_GAP_S apart (or outside them all)."""
+    if len(fresh_t) == 0:
+        return np.ones(len(t), dtype=bool)
+    j = np.searchsorted(fresh_t, t, side="right")
+    prev = np.where(j > 0, fresh_t[np.maximum(j - 1, 0)], -np.inf)
+    nxt = np.where(j < len(fresh_t), fresh_t[np.minimum(j, len(fresh_t) - 1)], np.inf)
+    return ((nxt - prev) > POSITION_GAP_S) & (t != prev)
 
 
 def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: np.ndarray) -> tuple:
     """X/Y for `tel`, rebuilt from lap distance wherever the position feed dropped out.
 
     F1's archive sometimes loses the Position stream for most of a session while
-    car data keeps going (Monaco 2026 R: positions stop after lap 5). FastF1 then
+    car data keeps going (Monaco 2026 R: positions stop after lap 5), or keeps
+    repeating stale coordinates (Hungary 2026 R). FastF1 then
     interpolates X/Y across the gap, which sends cars far off the map or freezes
     them. Distance is integrated from speed, so it survives the gap: each lap's
     distance fraction is placed on the reference outline by arc length. Checked
@@ -454,15 +504,10 @@ def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: n
         return x, y
 
     t = (tel["Date"] - tel["Date"].iloc[0]).dt.total_seconds().values
-    pos_t = t[tel["Source"].values == "pos"]
-    if len(pos_t) == 0:
-        gap = np.ones(len(t), dtype=bool)
-    else:
-        j = np.clip(np.searchsorted(pos_t, t), 1, len(pos_t) - 1)
-        nearest = np.minimum(np.abs(t - pos_t[j - 1]), np.abs(t - pos_t[j]))
-        if len(pos_t) == 1:
-            nearest = np.abs(t - pos_t[0])
-        gap = nearest > POSITION_GAP_S
+    is_pos = tel["Source"].values == "pos"
+    speed = tel["Speed"].values.astype(float) if "Speed" in tel.columns else None
+    fresh = _fresh_mask(x[is_pos], y[is_pos], speed[is_pos] if speed is not None else None)
+    gap = _in_position_gap(t, t[is_pos][fresh])
     if not gap.any():
         return x, y
 
@@ -490,9 +535,23 @@ def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: n
     arc = np.concatenate([[0.0], np.cumsum(seg)])
     if arc[-1] <= 0:
         return x, y
+    # Distance only places the car when the car data behind it is live: when it
+    # is frozen too (Hungary 2026 R) the integrated distance drifts 10-15% per
+    # lap, worse than the stale positions it would replace.
+    is_car = tel["Source"].values == "car"
+    car_frozen = np.zeros(len(t), dtype=bool)
+    car_moving = np.zeros(len(t), dtype=bool)
+    if speed is not None and "RPM" in tel.columns and is_car.sum() > 1:
+        v = speed[is_car]
+        rpm = tel["RPM"].values[is_car].astype(float)
+        car_frozen[is_car] = np.r_[False, (np.diff(v) == 0) & (np.diff(rpm) == 0)] & (v > STATIONARY_KMH)
+        car_moving[is_car] = v > STATIONARY_KMH
+    moving_per_lap = np.bincount(kk[on_lap & car_moving], minlength=len(starts))
+    frozen_per_lap = np.bincount(kk[on_lap & car_frozen], minlength=len(starts))
+    lap_ok = frozen_per_lap <= LAP_FROZEN_TOLERANCE * np.maximum(moving_per_lap, 1)
     arc /= arc[-1]
 
-    fill = gap & on_lap
+    fill = gap & on_lap & lap_ok[kk]
     x = x.copy()
     y = y.copy()
     x[fill] = np.interp(frac[fill], arc, ref_x)
