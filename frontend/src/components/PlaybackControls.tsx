@@ -822,16 +822,23 @@ export default function PlaybackControls({
     }));
   }, [chapters, totalTime]);
 
+  // While scrubbing the tooltip follows the thumb, so touch devices (no hover)
+  // still see the chapter and incidents under the finger.
+  const infoPct = scrubTime != null && totalTime > 0 ? (scrubTime / totalTime) * 100 : hoverPct;
+
   const hoverInfo = useMemo(() => {
-    if (hoverPct == null || totalTime <= 0) return null;
-    const t = (hoverPct / 100) * totalTime;
+    if (infoPct == null || totalTime <= 0) return null;
+    const t = (infoPct / 100) * totalTime;
     const chapter = chapters.find((c) => t >= c.start && t <= c.end) ?? null;
     // ponytail: linear scans; fine for the few dozen events a session has
     const tolerance = totalTime * 0.006;
     const near = markers.filter((m) => Math.abs(m.t - t) <= tolerance).slice(0, 3);
-    const lap = isRace && totalLaps > 0 ? lapAtSessionTime(t, lapStarts, totalTime, totalLaps, currentLap) : null;
+    const lap = scrubTime != null
+      ? scrubLapDisplay
+      : isRace && totalLaps > 0 ? lapAtSessionTime(t, lapStarts, totalTime, totalLaps, currentLap) : null;
     return { t, chapter, near, lap };
-  }, [hoverPct, totalTime, chapters, markers, isRace, totalLaps, lapStarts, currentLap]);
+  }, [infoPct, scrubTime, scrubLapDisplay, totalTime, chapters, markers, isRace, totalLaps, lapStarts, currentLap]);
+  const showInfoTooltip = !!hoverInfo && (!!hoverInfo.chapter || hoverInfo.near.length > 0 || !!highlightsPath);
 
   function chapterRangeText(c: TimelineChapter): string {
     const duration = formatTime(c.end - c.start);
@@ -857,10 +864,10 @@ export default function PlaybackControls({
         onPointerMove={onBarHover}
         onPointerLeave={() => setHoverPct(null)}
       >
-        {hoverInfo && !isScrubbing && (hoverInfo.chapter || hoverInfo.near.length > 0 || highlightsPath) && (
+        {showInfoTooltip && hoverInfo && (
           <div
             className="pointer-events-none absolute z-[70] -translate-x-1/2"
-            style={{ left: `clamp(7.5rem, ${hoverPct}%, calc(100% - 7.5rem))`, bottom: "calc(50% + 3.6rem)" }}
+            style={{ left: `clamp(7.5rem, ${infoPct}%, calc(100% - 7.5rem))`, bottom: "calc(50% + 3.6rem)" }}
           >
             <div className="w-max max-w-[15rem] rounded-lg border border-white/10 bg-[#1a1a26]/95 bg-glass-gradient px-2.5 py-1.5 shadow-2xl shadow-black/50 ring-1 ring-inset ring-white/[0.05] backdrop-blur-xl">
               <div className="flex items-baseline gap-2 font-mono tabular-nums">
@@ -958,7 +965,7 @@ export default function PlaybackControls({
             {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
             <div className="pointer-events-none absolute right-0 top-1/2 z-[60] -translate-y-1/2">
               <div className="relative flex items-center justify-center">
-                {scrubLapDisplay != null && isScrubbing && (
+                {scrubLapDisplay != null && isScrubbing && !showInfoTooltip && (
                   <div
                     className="absolute bottom-full left-1/2 z-[61] mb-1.5 flex -translate-x-1/2 justify-center"
                     role="status"
