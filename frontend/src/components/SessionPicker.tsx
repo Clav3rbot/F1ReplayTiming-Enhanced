@@ -7,6 +7,44 @@ import { getToken } from "@/lib/auth";
 import { apiUrl } from "@/lib/api";
 import RaceCountdown from "./RaceCountdown";
 import StorageManager from "./StorageManager";
+import GuidedTour, { type TourStep } from "./GuidedTour";
+
+const HOME_TOUR: TourStep[] = [
+  {
+    title: "Welcome to F1 Replay Timing",
+    body: "Rewatch every Formula 1 session since 2024 with live timing, car positions on track and telemetry. Here's a 30-second tour.",
+  },
+  {
+    target: "seasons",
+    title: "Pick a season",
+    body: "Switch between championships. Each season lists every Grand Prix weekend.",
+  },
+  {
+    target: "event,event-fallback",
+    title: "Open a Grand Prix",
+    body: (
+      <>
+        Click a weekend to see its sessions: practice, qualifying, sprint and race. A{" "}
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-f1-green align-middle shadow-[0_0_6px_rgba(0,255,65,0.6)]" />{" "}
+        green dot means it&apos;s ready and loads instantly. Right-click a session to open it in a new tab or window.
+      </>
+    ),
+  },
+  {
+    target: "countdown",
+    title: "Next session",
+    body: "Countdown to the next session. During a race weekend, live sessions appear at the top of the list with a LIVE badge.",
+  },
+  {
+    target: "nav",
+    title: "Learn more",
+    body: "Features explains everything the player can do. Storage shows which sessions are saved on the server.",
+  },
+  {
+    title: "You're all set",
+    body: "Open any session to start watching. The first time you do, a short tour shows you around the player.",
+  },
+];
 
 interface SessionMenu {
   x: number;
@@ -330,6 +368,7 @@ export default function SessionPicker() {
 
     return (
       <div
+        data-tour={isLatest ? "event" : isFuture ? undefined : "event-fallback"}
         className={`glass-panel overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
           isSelected && isLatest
             ? "border-f1-red ring-1 ring-f1-red/50 shadow-[0_4px_30px_rgba(225,6,0,0.15)] bg-white/5"
@@ -478,6 +517,7 @@ export default function SessionPicker() {
 
   return (
     <div className="min-h-screen bg-f1-dark text-f1-text relative">
+      <GuidedTour id="home" steps={HOME_TOUR} />
       {/* Persistent Radial Glow Background (Old version restored and made fixed) */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
 
@@ -642,13 +682,13 @@ export default function SessionPicker() {
           </div>
           {/* Countdown — absolute overlay, no layout impact */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden min-[1000px]:flex pointer-events-none">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto" data-tour={nextRaceDate ? "countdown" : undefined}>
               {nextRaceDate && (
                 <RaceCountdown targetDate={nextRaceDate.date} raceName={nextRaceDate.name} />
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 header-buttons-absolute">
+          <div className="flex items-center gap-2 header-buttons-absolute" data-tour="nav">
             {/* Desktop: text buttons */}
             <Link
               href="/features"
@@ -707,7 +747,7 @@ export default function SessionPicker() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Season selector */}
-        <div className="flex gap-2 mb-8 flex-wrap max-w-3xl mx-auto justify-center sm:justify-start">
+        <div className="flex gap-2 mb-8 flex-wrap max-w-3xl mx-auto justify-center sm:justify-start" data-tour="seasons">
           {seasons.map((s) => (
             <button
               key={s}

@@ -94,6 +94,23 @@ export interface FrameLapsRleSegment {
   count: number;
 }
 
+/** Non-green track status period (server `chapters`), drawn as a segment on the timeline. */
+export interface TimelineChapter {
+  kind: "yellow" | "vsc" | "sc" | "red";
+  start: number;
+  end: number;
+  lap_start: number | null;
+  lap_end: number | null;
+}
+
+/** Point event on the timeline (server `markers`): on-track incident or retirement. */
+export interface TimelineMarker {
+  kind: "incident" | "retirement";
+  t: number;
+  label: string;
+  lap: number | null;
+}
+
 interface ReplayState {
   connected: boolean;
   ready: boolean;
@@ -108,6 +125,10 @@ interface ReplayState {
   totalFrames: number;
   frameLapsRle: FrameLapsRleSegment[];
   replaySampleInterval: number;
+  /** 0..1 action intensity per equal-width time bin, for the timeline heatmap. */
+  highlights: number[];
+  chapters: TimelineChapter[];
+  markers: TimelineMarker[];
   finished: boolean;
   error: string | null;
   statusMessage: string | null;
@@ -140,6 +161,9 @@ export function useReplaySocket(year: number, round: number, sessionType: string
     totalFrames: 0,
     frameLapsRle: [],
     replaySampleInterval: 0.5,
+    highlights: [],
+    chapters: [],
+    markers: [],
     finished: false,
     error: null,
     statusMessage: null,
@@ -211,6 +235,9 @@ export function useReplaySocket(year: number, round: number, sessionType: string
                 typeof msg.replay_sample_interval === "number" && msg.replay_sample_interval > 0
                   ? msg.replay_sample_interval
                   : 0.5,
+              highlights: Array.isArray(msg.highlights) ? msg.highlights : [],
+              chapters: Array.isArray(msg.chapters) ? msg.chapters : [],
+              markers: Array.isArray(msg.markers) ? msg.markers : [],
             }));
             // On reconnect: seek to last known position; on initial load: seek to 0
             if (ws.readyState === WebSocket.OPEN) {

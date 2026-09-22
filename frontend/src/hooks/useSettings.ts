@@ -33,6 +33,9 @@ export interface ReplaySettings {
   showElevation: boolean;
   highContrast: boolean;
   showAllPanels: boolean;
+  showTimelineHeatmap: boolean;
+  showTimelineChapters: boolean;
+  showTimelineMarkers: boolean;
 }
 
 const STORAGE_KEY = "f1replay_settings";
@@ -68,6 +71,9 @@ export const DEFAULTS: ReplaySettings = {
   showElevation: false,
   highContrast: false,
   showAllPanels: false,
+  showTimelineHeatmap: true,
+  showTimelineChapters: true,
+  showTimelineMarkers: true,
 };
 
 function loadSettings(): ReplaySettings {
