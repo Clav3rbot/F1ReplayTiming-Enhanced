@@ -680,8 +680,8 @@ export default function SessionPicker() {
               <p className="text-f1-muted text-xs sm:text-sm font-medium tracking-wide">Select a session to replay</p>
             </div>
           </div>
-          {/* Countdown — absolute overlay, no layout impact */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden min-[1000px]:flex pointer-events-none">
+          {/* Countdown — absolute overlay, no layout impact. Hidden below 1140px, where it would run into the logo */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden min-[1140px]:flex pointer-events-none">
             <div className="pointer-events-auto" data-tour={nextRaceDate ? "countdown" : undefined}>
               {nextRaceDate && (
                 <RaceCountdown targetDate={nextRaceDate.date} raceName={nextRaceDate.name} />

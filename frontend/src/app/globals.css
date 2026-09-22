@@ -419,7 +419,8 @@ input, textarea, select {
   }
   .header-buttons-absolute {
     position: absolute !important;
-    right: max(0px, calc(610px - 50vw)) !important;
+    /* Keeps the 274px Features/About/Storage group 32px inside the viewport below 1380px */
+    right: max(0px, calc(690px - 50vw)) !important;
     top: 50% !important;
     transform: translate(100%, -50%) !important;
   }
