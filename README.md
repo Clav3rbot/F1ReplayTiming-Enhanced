@@ -9,7 +9,7 @@ https://github.com/user-attachments/assets/33d8c570-3348-45f4-b5a1-53056a31d357
 ## Features
 
 - **Live timing**: connect to live F1 sessions during race weekends with real-time data from the F1 SignalR stream, including a broadcast delay slider and automatic detection of post-session replays
-- **Track map** with real-time car positions from GPS telemetry, updating every 0.5 seconds with smooth interpolation
+- **Track map** with real-time car positions from GPS telemetry, updating every 0.5 seconds with smooth interpolation, plus optional corner numbers and an elevation view
 - **Driver leaderboard** showing position, gap to leader, interval, tyre compound and age, tyre history, pit stop count, grid position changes, fastest lap indicator, investigation/penalty status, and last lap time with purple/green colour coding for fastest and personal best
 - **Race control messages**: steward decisions, investigations, penalties, track limits, and flag changes displayed in a resizable overlay on the track map
 - **Pit position prediction**: estimates where a driver would rejoin if they pitted now, with predicted gap ahead and behind, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
@@ -20,6 +20,11 @@ https://github.com/user-attachments/assets/33d8c570-3348-45f4-b5a1-53056a31d357
 - **Weather data** including air and track temperature, humidity, wind, and rainfall status
 - **Track status flags** for green, yellow, Safety Car, Virtual Safety Car, and red flag conditions
 - **Playback controls** with 0.5× to 20× speed, skip buttons (5 s, 30 s, 1 m, 5 m), lap jumping, and a progress bar
+- **Session timeline**: hover the progress bar to see where the action is. An intensity curve peaks at the busiest moments (overtakes, incidents, retirements, flag changes); coloured chapters mark yellow flag, Safety Car, Virtual Safety Car and red flag periods; markers show on-track incidents and retirements. Each overlay can be toggled in Settings → Timeline
+- **Qualifying view**: Q1/Q2/Q3 phase jumps, live sector time bars, lap completion notifications, and knocked-out drivers dimmed in the leaderboard
+- **Guided tour** on first visit to the homepage and the player, ending with an F1 start-lights sequence that starts the replay; it can be replayed from Settings → Other
+- **Next session countdown** on the homepage
+- **Storage management**: see which sessions are stored and how much space they take, delete old sessions, and reprocess a session from the picker
 - **Session support** for races, qualifying, sprint qualifying, and practice sessions from 2024 onwards
 - **Passphrase authentication** to optionally restrict access when publicly hosted
 
@@ -52,11 +57,15 @@ Open http://localhost:8000. Select any past session and it will be processed on 
 | Variable | Purpose |
 |---|---|
 | `DATA_DIR` | Local path for processed session data (default: `/data`) |
+| `STORAGE_MODE` | `local` (default) or `r2` to store session data in Cloudflare R2 |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET_NAME` | Cloudflare R2 credentials, required when `STORAGE_MODE=r2` |
 | `PORT` | Port the app listens on inside the container (default: `8000`) — map the same port on both sides: `-e PORT=9000 -p 9000:9000` |
 | `AUTO_PRECOMPUTE` | Which session types to background-fetch on race weekends: `off`, `race`, `race+qual` (default), `all` |
 | `F1_SIGNALR_PROXY` | Optional; Cloudflare Worker URL to proxy F1 SignalR connections — needed when hosting on data-centre IPs blocked by F1's CDN (e.g. Oracle Cloud, AWS) |
 | `OPENROUTER_API_KEY` | Optional; enables photo sync ([get a key](https://openrouter.ai/)) |
 | `AUTH_ENABLED` / `AUTH_PASSPHRASE` | Optional; restrict access with a passphrase |
+| `ALLOW_REPROCESS` | Optional; `true`/`false` to force-enable or disable reprocessing and deleting sessions from the UI. Defaults to enabled only when `AUTH_ENABLED` is on |
+| `FRONTEND_URL` / `EXTRA_ORIGINS` | Optional; allowed CORS origins when the site is opened from another address (see examples below). `EXTRA_ORIGINS` takes a comma-separated list |
 
 Pass variables with `-e`:
 ```bash
@@ -174,7 +183,7 @@ The broadcast sync feature lets you align the replay to a video recording. Manua
 
 This project is powered by [FastF1](https://github.com/theOehrly/Fast-F1), an open-source Python library for accessing Formula 1 timing and telemetry data.
 
-Based on [F1ReplayTiming](https://github.com/adn8naiagent/F1ReplayTiming) by [@adn8naiagent](https://github.com/adn8naiagent). Significant modifications and additions (live timing system, lap analysis panel, Picture-in-Picture, unified single-container deployment, CI/CD pipelines, extensive UI/UX improvements, and various fixes) by [Clav3rbot](https://github.com/Clav3rbot).
+Based on [F1ReplayTiming](https://github.com/adn8naiagent/F1ReplayTiming) by [@adn8naiagent](https://github.com/adn8naiagent). Significant modifications and additions (live timing system, lap analysis panel, Picture-in-Picture, session timeline highlights, guided tour, storage management, unified single-container deployment, CI/CD pipelines, extensive UI/UX improvements, and various fixes) by [Clav3rbot](https://github.com/Clav3rbot).
 
 ## License
 
