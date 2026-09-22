@@ -82,7 +82,7 @@ def _regenerate(path: str, year: int, round_num: int, session_type: str, cached:
 
 
 @router.get("/sessions/{year}/{round_num}/track")
-async def track_geometry(
+def track_geometry(
     year: int,
     round_num: int,
     type: str = Query("R", description="Session type"),

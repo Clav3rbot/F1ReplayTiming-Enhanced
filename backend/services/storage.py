@@ -10,6 +10,7 @@ Set DATA_DIR to control the local storage directory (default: ./data).
 
 from __future__ import annotations
 
+import gc
 import gzip
 import json
 import logging
@@ -18,11 +19,34 @@ import shutil
 from pathlib import Path
 from functools import lru_cache
 
+import orjson
+
 logger = logging.getLogger(__name__)
 
 
 def _mode() -> str:
     return os.environ.get("STORAGE_MODE", "local").lower()
+
+
+def _loads(body: bytes) -> object:
+    """Parse JSON fast. Replay files are ~100-200 MB of small dicts, so the
+    cyclic GC firing on every allocation burst costs more than the parse itself;
+    it is paused for the duration (nothing parsed here can form a cycle).
+
+    orjson rejects NaN/Infinity tokens, which older files may contain; those go
+    through the stdlib parser with the constants mapped to None, the only form
+    a browser JSON.parse accepts.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        try:
+            return orjson.loads(body)
+        except orjson.JSONDecodeError:
+            return json.loads(body, parse_constant=lambda _: None)
+    finally:
+        if was_enabled:
+            gc.enable()
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +71,7 @@ def _local_get_json(path: str) -> object | None:
     filepath = _data_dir() / path
     if not filepath.exists():
         return None
-    return json.loads(filepath.read_bytes())
+    return _loads(filepath.read_bytes())
 
 
 def _local_exists(path: str) -> bool:
@@ -159,7 +183,7 @@ def _r2_get_json(path: str) -> object | None:
             body = gzip.decompress(body)
         except gzip.BadGzipFile:
             pass
-        return json.loads(body)
+        return _loads(body)
     except ClientError as e:
         if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
             return None

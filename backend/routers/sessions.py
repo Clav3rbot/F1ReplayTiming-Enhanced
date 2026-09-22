@@ -153,7 +153,7 @@ async def get_session(
     round_num: int,
     type: str = Query("R", description="Session type: R, Q, S, FP1, FP2, FP3, SQ"),
 ):
-    data = get_json(f"sessions/{year}/{round_num}/{type}/info.json")
+    data = await asyncio.to_thread(get_json, f"sessions/{year}/{round_num}/{type}/info.json")
     if data is not None:
         return data
 

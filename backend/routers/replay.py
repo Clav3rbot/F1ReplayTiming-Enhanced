@@ -1,8 +1,6 @@
 import asyncio
 import bisect
-import copy
 import logging
-import math
 import os
 import re
 import time
@@ -174,13 +172,20 @@ def _add_pit_predictions(frame: dict, pit_loss_green: float, pit_loss_sc: float,
             d["pit_prediction_free_air"] = None
 
 
-def _sanitize_frame(frame: dict) -> dict:
-    """Replace NaN/Infinity floats with None to produce valid JSON."""
-    for drv in frame.get("drivers", []):
-        for key, val in drv.items():
-            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
-                drv[key] = None
-    return frame
+# event_name per session, for the pit-loss lookup. Saves an R2 round-trip
+# on every race connect; the name of an event never changes.
+_event_names: dict[str, str] = {}
+
+
+def _get_event_name_sync(year: int, round_num: int, session_type: str) -> str:
+    key = f"{year}_{round_num}_{session_type}"
+    if key not in _event_names:
+        info = get_json(f"sessions/{year}/{round_num}/{session_type}/info.json")
+        name = info.get("event_name", "") if info else ""
+        if not name:
+            return ""  # don't pin a miss
+        _event_names[key] = name
+    return _event_names[key]
 
 
 def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]:
@@ -189,8 +194,7 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
         frames = get_json(f"sessions/{year}/{round_num}/{session_type}/replay.json")
         if not frames:
             return []  # don't pin a transient miss in the cache
-        for f in frames:
-            _sanitize_frame(f)
+        # NaN/Infinity already come back as None from storage._loads.
         _replay_cache[key] = frames
         logger.info(f"[memory] Cached {key} ({len(frames)} frames) — {_log_memory()}")
     return _replay_cache[key]
@@ -286,8 +290,11 @@ async def replay_websocket(
 
         await send_status("Loading session data...")
 
-        # On-demand: process session if data doesn't exist yet
-        available = await ensure_session_data_ws(year, round_num, type, send_status)
+        # On-demand: process session if data doesn't exist yet. Frames in
+        # memory prove it exists, which skips an R2 round-trip.
+        available = cache_key in _replay_cache or await ensure_session_data_ws(
+            year, round_num, type, send_status
+        )
 
         if not available:
             await websocket.send_json({
@@ -318,8 +325,7 @@ async def replay_websocket(
             pit_data = await asyncio.to_thread(_get_pit_loss_data)
             if pit_data:
                 # Try to find circuit-specific data by matching event name from session info
-                info = await asyncio.to_thread(get_json, f"sessions/{year}/{round_num}/{type}/info.json")
-                event_name = info.get("event_name", "") if info else ""
+                event_name = await asyncio.to_thread(_get_event_name_sync, year, round_num, type)
                 circuits = pit_data.get("circuits", {})
                 circuit_entry = circuits.get(event_name)
                 if circuit_entry:

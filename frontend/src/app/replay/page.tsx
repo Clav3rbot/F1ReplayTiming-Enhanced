@@ -169,14 +169,17 @@ function ReplayPageInner() {
   // WebSocket for replay data (must be declared before useApp hooks that depend on it)
   const replay = useReplaySocket(year, round, sessionType);
 
+  // Fetched in parallel with the WebSocket rather than after "ready": for an
+  // already-processed session both are in storage, so waiting only adds latency.
   const { data: trackData, loading: trackLoading } = useApi<TrackData>(
-    replay.ready ? `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}` : null,
+    `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`,
   );
 
   // Fetch lap data for last lap time column (race/sprint only)
   // Qualifying needs laps too — the lap-completion bubbles are driven by them
-  const { data: lapsResponse } = useApi<{ laps: LapEntry[] }>(
-    (sessionType === "R" || sessionType === "S" || sessionType === "Q" || sessionType === "SQ") && replay.ready
+  const needsLaps = sessionType === "R" || sessionType === "S" || sessionType === "Q" || sessionType === "SQ";
+  const { data: lapsResponse, loading: lapsLoading } = useApi<{ laps: LapEntry[] }>(
+    needsLaps
       ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
       : null,
   );
@@ -241,17 +244,15 @@ function ReplayPageInner() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [replay.playing, replay.finished, replay.play, replay.pause, replay.reset]);
 
-  // When WebSocket finishes on-demand processing and track data is still missing,
-  // re-fetch track/laps (the WebSocket just created them in storage)
-  const prevReady = useRef(false);
+  // When the session was processed on demand, the early track/laps fetches
+  // found nothing; once the WebSocket is ready (data now in storage) and those
+  // requests have settled empty, re-fetch them once.
   useEffect(() => {
-    if (replay.ready && !prevReady.current) {
-      prevReady.current = true;
-      if (!trackData) {
-        setRetryKey((k) => k + 1);
-      }
+    if (!replay.ready || retryKey > 0 || trackLoading || lapsLoading) return;
+    if (!trackData || (needsLaps && !lapsResponse)) {
+      setRetryKey(1);
     }
-  }, [replay.ready, trackData]);
+  }, [replay.ready, retryKey, trackLoading, lapsLoading, trackData, lapsResponse, needsLaps]);
 
   const lastRcCountRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
