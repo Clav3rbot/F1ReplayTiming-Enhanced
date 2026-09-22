@@ -28,6 +28,9 @@ def _mode() -> str:
     return os.environ.get("STORAGE_MODE", "local").lower()
 
 
+_FREEZE_MIN_BYTES = 8 * 1024 * 1024
+
+
 def _loads(body: bytes) -> object:
     """Parse JSON fast. Replay files are ~100-200 MB of small dicts, so the
     cyclic GC firing on every allocation burst costs more than the parse itself;
@@ -41,9 +44,20 @@ def _loads(body: bytes) -> object:
     gc.disable()
     try:
         try:
-            return orjson.loads(body)
+            data = orjson.loads(body)
         except orjson.JSONDecodeError:
-            return json.loads(body, parse_constant=lambda _: None)
+            data = json.loads(body, parse_constant=lambda _: None)
+        if len(body) > _FREEZE_MIN_BYTES:
+            # Millions of fresh objects would otherwise be walked by the
+            # collections that fire right after re-enabling (the allocation
+            # count kept growing while disabled), then again by every full
+            # collection while cached: seconds of stalled event loop each.
+            # Frozen, the collector skips them; refcounting still frees them
+            # (parsed JSON holds no cycles).
+            # ponytail: freezes every object alive right now, so cyclic garbage
+            # among them is never collected; fine at one freeze per big parse.
+            gc.freeze()
+        return data
     finally:
         if was_enabled:
             gc.enable()
