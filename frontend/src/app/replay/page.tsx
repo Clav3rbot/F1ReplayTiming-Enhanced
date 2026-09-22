@@ -12,6 +12,7 @@ import LapAnalysisPanel from "@/components/LapAnalysisPanel";
 import PlaybackControls from "@/components/PlaybackControls";
 import SessionLoadingScreen from "@/components/SessionLoadingScreen";
 import GuidedTour, { type TourStep } from "@/components/GuidedTour";
+import DataNotice from "@/components/DataNotice";
 import StartLights from "@/components/StartLights";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
@@ -57,6 +58,8 @@ interface SessionData {
   circuit: string;
   country: string;
   session_type: string;
+  /** Known gaps in F1's data for this session, shown when the replay opens. */
+  data_notes?: string[];
   drivers: Array<{
     abbreviation: string;
     driver_number: string;
@@ -76,6 +79,7 @@ function ReplayPageInner() {
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [telemetryPosition, setTelemetryPosition] = useState<"left" | "bottom">("left");
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
+  const [dataNoticeClosed, setDataNoticeClosed] = useState(false);
   const [pipActive, setPipActive] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -164,6 +168,7 @@ function ReplayPageInner() {
   const { data: sessionData, loading: sessionLoading, error: sessionError } = useApi<SessionData>(
     `/api/sessions/${year}/${round}?type=${sessionType}`,
   );
+  const dataNotes = sessionData?.data_notes ?? [];
 
   // retryKey: forces track/laps re-fetch after WebSocket finishes on-demand processing
   const [retryKey, setRetryKey] = useState(0);
@@ -1210,7 +1215,12 @@ function ReplayPageInner() {
       )}
 
       {/* Sync with photo modal */}
-      <GuidedTour id="replay" steps={REPLAY_TOUR} startDelayMs={900} onFinish={replay.play} />
+      {dataNotes.length > 0 && !dataNoticeClosed ? (
+        <DataNotice notes={dataNotes} onClose={() => setDataNoticeClosed(true)} />
+      ) : (
+        // Held back until the data notice is closed so the two dialogs never stack.
+        <GuidedTour id="replay" steps={REPLAY_TOUR} startDelayMs={900} onFinish={replay.play} />
+      )}
       {showSyncPhoto && (
         <SyncPhoto
           year={year}
