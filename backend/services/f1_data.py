@@ -273,7 +273,69 @@ def _get_session_info_sync(year: int, round_num: int, session_type: str = "R") -
         "country": str(session.event.get("Country", "")),
         "session_type": session_type,
         "drivers": drivers,
+        "data_notes": _data_notes(session),
     }
+
+
+# Share of on-track time without real position data above which the replay
+# warns that car positions are approximate.
+POSITION_MISSING_WARN = 0.05
+
+
+def _position_missing_share(session) -> float:
+    """Share of on-track time (any driver on a lap) with no position sample within POSITION_GAP_S."""
+    laps = session.laps
+    starts = laps["LapStartDate"]
+    ends = starts + laps["LapTime"]
+    ok = starts.notna() & ends.notna()
+    if not ok.any():
+        return 0.0
+    t0 = starts[ok].min()
+    lap_s = (starts[ok] - t0).dt.total_seconds().values
+    lap_e = (ends[ok] - t0).dt.total_seconds().values
+
+    # ponytail: 1 s grid over the session; ~10k points for a race, cheap enough
+    grid = np.arange(0.0, float(lap_e.max()), 1.0)
+    order = np.argsort(lap_s)
+    running_end = np.maximum.accumulate(lap_e[order])
+    k = np.searchsorted(lap_s[order], grid, side="right") - 1
+    on_track = (k >= 0) & (running_end[np.clip(k, 0, len(order) - 1)] >= grid)
+    if not on_track.any():
+        return 0.0
+
+    stamps = [df["Date"] for df in session.pos_data.values() if "Date" in df.columns and len(df) > 0]
+    if not stamps:
+        return 1.0
+    pos_t = np.unique((pd.concat(stamps) - t0).dt.total_seconds().values)
+    j = np.clip(np.searchsorted(pos_t, grid), 0, len(pos_t) - 1)
+    nearest = np.minimum(np.abs(grid - pos_t[j]), np.abs(grid - pos_t[np.maximum(j - 1, 0)]))
+    return float((nearest[on_track] > POSITION_GAP_S).mean())
+
+
+def _data_notes(session) -> list[str]:
+    """Known gaps in F1's data for this session, shown as a notice when the replay opens."""
+    notes = []
+    try:
+        missing = _position_missing_share(session)
+        if missing >= POSITION_MISSING_WARN:
+            notes.append(
+                f"F1's position feed is missing for {missing:.0%} of this session. "
+                "In those stretches cars are placed on the track from their lap distance, "
+                "so positions are approximate and pit lane trips are not shown."
+            )
+    except Exception as e:
+        logger.warning(f"Position coverage check failed: {e}")
+    try:
+        _scan_reference_lap(session)
+    except ValueError as e:
+        if "distinct position points" in str(e):
+            notes.append(
+                "F1's position feed for this session is low resolution, "
+                "so car movement on the map can look jerky."
+            )
+    except Exception:
+        pass
+    return notes
 
 
 async def get_session_info(year: int, round_num: int, session_type: str = "R") -> dict:
