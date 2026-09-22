@@ -20,7 +20,8 @@ const HOME_TOUR: TourStep[] = [
     body: "Switch between championships. Each season lists every Grand Prix weekend.",
   },
   {
-    target: "event,event-fallback",
+    // Every row carries the tag; the tour spotlights the first one in the list
+    target: "event",
     title: "Open a Grand Prix",
     body: (
       <>
@@ -368,7 +369,7 @@ export default function SessionPicker() {
 
     return (
       <div
-        data-tour={isLatest ? "event" : isFuture ? undefined : "event-fallback"}
+        data-tour="event"
         className={`glass-panel overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
           isSelected && isLatest
             ? "border-f1-red ring-1 ring-f1-red/50 shadow-[0_4px_30px_rgba(225,6,0,0.15)] bg-white/5"
