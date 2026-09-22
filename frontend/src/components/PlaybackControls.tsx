@@ -3,7 +3,14 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { SPEED_OPTIONS } from "@/lib/constants";
-import { QualiPhase, QualiPhaseInfo, type FrameLapsRleSegment, type LapStart } from "@/hooks/useReplaySocket";
+import {
+  QualiPhase,
+  QualiPhaseInfo,
+  type FrameLapsRleSegment,
+  type LapStart,
+  type TimelineChapter,
+  type TimelineMarker,
+} from "@/hooks/useReplaySocket";
 import { Maximize, Minimize, MoreHorizontal } from "lucide-react";
 
 const SKIP_OPTIONS = [
@@ -321,6 +328,30 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
   );
 }
 
+const EMPTY_CHAPTERS: TimelineChapter[] = [];
+const EMPTY_MARKERS: TimelineMarker[] = [];
+
+/** Timeline chapter look per track status. Outlined = virtual (VSC): hollow pill, same hue as the SC. */
+const CHAPTER_STYLE: Record<TimelineChapter["kind"], { label: string; rgb: string; outlined?: boolean }> = {
+  yellow: { label: "Yellow flag", rgb: "250,204,21" },
+  sc: { label: "Safety Car", rgb: "255,145,0" },
+  vsc: { label: "Virtual Safety Car", rgb: "255,145,0", outlined: true },
+  red: { label: "Red flag", rgb: "255,48,48" },
+};
+
+function chapterFill(rgb: string, played: boolean, outlined?: boolean): string {
+  if (outlined) return played ? `rgba(${rgb},0.55)` : `rgba(${rgb},0.12)`;
+  return played ? `rgb(${rgb})` : `rgba(${rgb},0.35)`;
+}
+
+type HighlightLayer = { key: string; played: boolean; fill?: string; stroke?: string; width?: number; glow?: string };
+const HIGHLIGHT_LAYERS: HighlightLayer[] = [
+  { key: "fill", played: false, fill: "rgba(255,255,255,0.10)" },
+  { key: "line", played: false, stroke: "rgba(255,255,255,0.32)", width: 1.25 },
+  { key: "played-fill", played: true, fill: "rgba(225,6,0,0.55)" },
+  { key: "played-line", played: true, stroke: "#FF2A1F", width: 1.75, glow: "drop-shadow(0 0 3px rgba(225,6,0,0.75))" },
+];
+
 interface Props {
   playing: boolean;
   speed: number;
@@ -350,6 +381,12 @@ interface Props {
   totalFrames?: number;
   frameLapsRle?: FrameLapsRleSegment[];
   replaySampleInterval?: number;
+  /** 0..1 action intensity per equal-width time bin, drawn above the bar. */
+  highlights?: number[];
+  /** Non-green track status periods, drawn as coloured chapters on the bar. */
+  chapters?: TimelineChapter[];
+  /** Incidents / retirements, shown as ticks above the bar with hover labels. */
+  markers?: TimelineMarker[];
 }
 
 export default function PlaybackControls({
@@ -379,6 +416,9 @@ export default function PlaybackControls({
   totalFrames = 0,
   frameLapsRle = EMPTY_FRAME_LAPS_RLE,
   replaySampleInterval = 0.5,
+  highlights,
+  chapters = EMPTY_CHAPTERS,
+  markers = EMPTY_MARKERS,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
@@ -748,14 +788,167 @@ export default function PlaybackControls({
     </button>
   );
 
+  const highlightsPath = useMemo(() => {
+    if (!highlights || highlights.length < 2) return null;
+    const last = highlights.length - 1;
+    // Small floor keeps quiet stretches visible as a hairline instead of vanishing.
+    const pts = highlights.map((v, i) => [(i / last) * 100, 100 - (4 + v * 92)] as const);
+    const clampY = (y: number) => Math.min(100, Math.max(0, y));
+    // Catmull-Rom → cubic Bézier for a smooth curve through every bin.
+    let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < last; i++) {
+      const p0 = pts[i - 1] ?? pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] ?? p2;
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+      const c1y = clampY(p1[1] + (p2[1] - p0[1]) / 6);
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const c2y = clampY(p2[1] - (p3[1] - p1[1]) / 6);
+      d += ` C${c1x.toFixed(2)},${c1y.toFixed(1)} ${c2x.toFixed(2)},${c2y.toFixed(1)} ${p2[0].toFixed(2)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+  }, [highlights]);
+
+  /** Mouse hover position over the bar, in % — drives the chapter/marker tooltip. */
+  const [hoverPct, setHoverPct] = useState<number | null>(null);
+
+  const chapterBands = useMemo(() => {
+    if (totalTime <= 0) return [];
+    return chapters.map((c) => ({
+      chapter: c,
+      left: (c.start / totalTime) * 100,
+      width: ((c.end - c.start) / totalTime) * 100,
+    }));
+  }, [chapters, totalTime]);
+
+  const hoverInfo = useMemo(() => {
+    if (hoverPct == null || totalTime <= 0) return null;
+    const t = (hoverPct / 100) * totalTime;
+    const chapter = chapters.find((c) => t >= c.start && t <= c.end) ?? null;
+    // ponytail: linear scans; fine for the few dozen events a session has
+    const tolerance = totalTime * 0.006;
+    const near = markers.filter((m) => Math.abs(m.t - t) <= tolerance).slice(0, 3);
+    const lap = isRace && totalLaps > 0 ? lapAtSessionTime(t, lapStarts, totalTime, totalLaps, currentLap) : null;
+    return { t, chapter, near, lap };
+  }, [hoverPct, totalTime, chapters, markers, isRace, totalLaps, lapStarts, currentLap]);
+
+  function chapterRangeText(c: TimelineChapter): string {
+    const duration = formatTime(c.end - c.start);
+    if (!isRace || c.lap_start == null || c.lap_end == null) return duration;
+    const laps = c.lap_start === c.lap_end ? `Lap ${c.lap_start}` : `Laps ${c.lap_start}–${c.lap_end}`;
+    return `${laps} · ${duration}`;
+  }
+
+  const onBarHover = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    setHoverPct(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+  };
+
   const progressBarSection = (
-    <div className="w-full overflow-visible">
+    <div className="w-full overflow-visible" data-tour="timeline">
       {/* Outer wrapper: enlarged touch/hit area via py-2 -my-2, group for hover state */}
       <div
         className="relative w-full cursor-pointer select-none group py-2 -my-2"
         style={{ touchAction: "none" }}
         onPointerDown={startScrub}
+        onPointerMove={onBarHover}
+        onPointerLeave={() => setHoverPct(null)}
       >
+        {hoverInfo && !isScrubbing && (hoverInfo.chapter || hoverInfo.near.length > 0 || highlightsPath) && (
+          <div
+            className="pointer-events-none absolute z-[70] -translate-x-1/2"
+            style={{ left: `clamp(7.5rem, ${hoverPct}%, calc(100% - 7.5rem))`, bottom: "calc(50% + 3.6rem)" }}
+          >
+            <div className="w-max max-w-[15rem] rounded-lg border border-white/10 bg-[#1a1a26]/95 bg-glass-gradient px-2.5 py-1.5 shadow-2xl shadow-black/50 ring-1 ring-inset ring-white/[0.05] backdrop-blur-xl">
+              <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                <span className="text-[11px] font-bold leading-none text-white">{formatTime(hoverInfo.t)}</span>
+                {hoverInfo.lap != null && hoverInfo.lap > 0 && (
+                  <span className="text-[10px] font-semibold leading-none text-f1-muted">Lap {hoverInfo.lap}</span>
+                )}
+              </div>
+              {hoverInfo.chapter && (
+                <div className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-[2px]"
+                    style={{ background: `rgb(${CHAPTER_STYLE[hoverInfo.chapter.kind].rgb})` }}
+                  />
+                  <span className="text-[11px] font-bold leading-none text-white">
+                    {CHAPTER_STYLE[hoverInfo.chapter.kind].label}
+                  </span>
+                  <span className="text-[10px] font-medium leading-none text-f1-muted">
+                    {chapterRangeText(hoverInfo.chapter)}
+                  </span>
+                </div>
+              )}
+              {hoverInfo.near.map((m) => (
+                <div key={`${m.kind}-${m.t}-${m.label}`} className="mt-1.5 flex items-start gap-1.5">
+                  <span
+                    className={`mt-[3px] h-1.5 w-1.5 shrink-0 rotate-45 ${m.kind === "incident" ? "bg-white" : "bg-f1-muted"}`}
+                  />
+                  <span className="text-[10.5px] font-medium leading-snug text-white/85">{m.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {highlightsPath && (
+          <div
+            className={`pointer-events-none absolute inset-x-0 bottom-[calc(50%+7px)] h-10 transition-[opacity,transform] duration-300 ease-out ${
+              isScrubbing
+                ? "translate-y-0 opacity-100"
+                : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 [html[data-tour-step=timeline]_&]:translate-y-0 [html[data-tour-step=timeline]_&]:opacity-100"
+            }`}
+            aria-hidden
+          >
+            {/* Separate SVGs per layer instead of clipPath/gradient ids: this section
+                renders twice (mobile + desktop), so ids would collide. */}
+            {hoverPct != null && !isScrubbing && (
+              <div className="absolute inset-y-0 w-px bg-gradient-to-t from-white/50 to-transparent" style={{ left: `${hoverPct}%` }} />
+            )}
+            {HIGHLIGHT_LAYERS.map((layer) => (
+              <svg
+                key={layer.key}
+                className="absolute inset-0 h-full w-full overflow-visible"
+                style={{
+                  clipPath: layer.played ? `inset(-8px ${100 - fillPct}% 0 0)` : undefined,
+                  maskImage: layer.fill ? "linear-gradient(to bottom, #000 0%, rgba(0,0,0,0.12) 100%)" : undefined,
+                  filter: layer.glow,
+                }}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {layer.fill ? (
+                  <path d={`${highlightsPath} L100,100 L0,100 Z`} fill={layer.fill} />
+                ) : (
+                  <path
+                    d={highlightsPath}
+                    fill="none"
+                    stroke={layer.stroke}
+                    strokeWidth={layer.width}
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+              </svg>
+            ))}
+            {totalTime > 0 &&
+              markers.map((m) => {
+                const active = hoverInfo?.near.includes(m) ?? false;
+                return (
+                  <span
+                    key={`${m.kind}-${m.t}-${m.label}`}
+                    className={`absolute -bottom-px h-1.5 w-1.5 -translate-x-1/2 rotate-45 transition-transform duration-150 ${
+                      m.kind === "incident" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.7)]" : "bg-f1-muted/80"
+                    } ${active ? "scale-150" : ""}`}
+                    style={{ left: `${(m.t / totalTime) * 100}%` }}
+                  />
+                );
+              })}
+          </div>
+        )}
         {/* Visual track bar */}
         <div className="relative w-full h-1.5 rounded-full bg-white/10 overflow-visible z-10 transition-[height] duration-150 ease-out group-hover:h-2.5">
           <div
@@ -794,6 +987,42 @@ export default function PlaybackControls({
               </div>
             </div>
           </div>
+          {chapterBands.map(({ chapter, left, width }) => {
+            const style = CHAPTER_STYLE[chapter.kind];
+            const played = width > 0 ? Math.min(100, Math.max(0, ((fillPct - left) / width) * 100)) : 0;
+            return (
+              <div
+                key={`${chapter.kind}-${chapter.start}`}
+                className="pointer-events-none absolute inset-y-0 z-[1] overflow-hidden rounded-full"
+                style={{
+                  left: `${left}%`,
+                  width: `max(4px, ${width}%)`,
+                  background: chapterFill(style.rgb, false, style.outlined),
+                  // Dark ring = YouTube-style gap between chapters and the rest of the bar
+                  boxShadow: [
+                    "0 0 0 1.5px #11111a",
+                    played > 0 ? `0 0 10px rgba(${style.rgb},0.45)` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", "),
+                }}
+              >
+                {played > 0 && (
+                  <div
+                    className="absolute inset-y-0 left-0"
+                    style={{ width: `${played}%`, background: chapterFill(style.rgb, true, style.outlined) }}
+                  />
+                )}
+                {style.outlined && (
+                  // On top of the played fill, so the outline stays continuous
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{ boxShadow: `inset 0 0 0 1px rgba(${style.rgb},0.9)` }}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -872,7 +1101,7 @@ export default function PlaybackControls({
       <div className="overflow-visible px-3 pb-1 pt-3">
         {progressBarSection}
       </div>
-      <div className="flex items-center gap-2 px-3 py-1.5">
+      <div className="flex items-center gap-2 px-3 py-1.5" data-tour="transport">
         {playPauseBtn}
         <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-white font-mono tabular-nums-fixed">
           {displayedTimeText}
@@ -1029,7 +1258,7 @@ export default function PlaybackControls({
         </div>
 
         {/* Center Column - Absolutely Centered on Desktop (isXWide), Flex flow on narrower containers */}
-        <div className={`flex shrink-0 items-center justify-center gap-2 sm:gap-3 ${
+        <div data-tour="transport" className={`flex shrink-0 items-center justify-center gap-2 sm:gap-3 ${
           isXWide
             ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             : "relative"

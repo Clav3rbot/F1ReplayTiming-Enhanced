@@ -11,6 +11,8 @@ import Leaderboard, { type LapEntry } from "@/components/Leaderboard";
 import LapAnalysisPanel from "@/components/LapAnalysisPanel";
 import PlaybackControls from "@/components/PlaybackControls";
 import SessionLoadingScreen from "@/components/SessionLoadingScreen";
+import GuidedTour, { type TourStep } from "@/components/GuidedTour";
+import StartLights from "@/components/StartLights";
 import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
@@ -618,7 +620,7 @@ function ReplayPageInner() {
                 )}
 
                 {/* Desktop bottom controls: sectors (qualifying) + telemetry + lap analysis */}
-                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
+                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2" data-tour="panels">
                   {!isMobile && isQualifying && trackData?.sector_boundaries && (
                     <>
                       {showSectorOverlay && selectedDrivers.length === 0 && (
@@ -949,6 +951,9 @@ function ReplayPageInner() {
                 totalFrames={replay.totalFrames}
                 frameLapsRle={replay.frameLapsRle}
                 replaySampleInterval={replay.replaySampleInterval}
+                highlights={settings.showTimelineHeatmap ? replay.highlights : undefined}
+                chapters={settings.showTimelineChapters ? replay.chapters : undefined}
+                markers={settings.showTimelineMarkers ? replay.markers : undefined}
               />
             </div>
 
@@ -1195,6 +1200,9 @@ function ReplayPageInner() {
                 totalFrames={replay.totalFrames}
                 frameLapsRle={replay.frameLapsRle}
                 replaySampleInterval={replay.replaySampleInterval}
+                highlights={settings.showTimelineHeatmap ? replay.highlights : undefined}
+                chapters={settings.showTimelineChapters ? replay.chapters : undefined}
+                markers={settings.showTimelineMarkers ? replay.markers : undefined}
               />
             </div>
           </div>
@@ -1202,6 +1210,7 @@ function ReplayPageInner() {
       )}
 
       {/* Sync with photo modal */}
+      <GuidedTour id="replay" steps={REPLAY_TOUR} startDelayMs={900} onFinish={replay.play} />
       {showSyncPhoto && (
         <SyncPhoto
           year={year}
@@ -1214,6 +1223,55 @@ function ReplayPageInner() {
     </div>
   );
 }
+
+const REPLAY_TOUR: TourStep[] = [
+  {
+    title: "Welcome to the player",
+    body: "This is the session, rebuilt from official timing data. Here's what everything does.",
+  },
+  {
+    target: "track",
+    title: "Live track map",
+    body: "Every car's position, lap by lap. Drag to move the map and scroll to zoom. Flags and Safety Car periods light up the track.",
+  },
+  {
+    target: "leaderboard",
+    title: "Leaderboard",
+    body: "Positions, gaps, tyres and pit stops, updated as the session plays. Click a driver to highlight them on the map and follow their telemetry.",
+  },
+  {
+    target: "timeline",
+    padTop: 44,
+    title: "Timeline",
+    body: (
+      <>
+        Click or drag to jump anywhere. Hover it to see where the action is: the curve peaks at the busiest moments,
+        coloured sections mark yellow flags, Safety Car and red flags, and{" "}
+        <span className="inline-block h-1.5 w-1.5 rotate-45 bg-white align-middle" /> marks incidents.
+      </>
+    ),
+  },
+  {
+    target: "transport",
+    title: "Playback",
+    body: "Play or pause (Space), skip back and forward, change speed up to 20×, and jump straight to any lap.",
+  },
+  {
+    target: "panels",
+    title: "More data",
+    body: "Open live telemetry for the selected drivers, or the lap-by-lap analysis for the race.",
+  },
+  {
+    target: "settings",
+    title: "Make it yours",
+    body: "Choose leaderboard columns, weather info, map labels and timeline overlays. You can replay this tour from Settings → Other.",
+  },
+  {
+    title: "Grid is formed",
+    body: ({ finish }) => <StartLights onLightsOut={finish} />,
+    hideNext: true,
+  },
+];
 
 export default function ReplayPage() {
   return (

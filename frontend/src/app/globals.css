@@ -435,3 +435,37 @@ input, textarea, select {
 .lap-bubble {
   animation: lapBubbleIn 0.25s ease-out;
 }
+
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes light-on {
+  from {
+    transform: scale(0.7);
+    filter: brightness(2);
+  }
+  to {
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes lights-out-jolt {
+  0%, 100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(-2px) scale(1.03);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+}

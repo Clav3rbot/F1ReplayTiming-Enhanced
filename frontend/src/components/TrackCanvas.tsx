@@ -453,6 +453,7 @@ export default function TrackCanvas({
   return (
     <div
       ref={containerRef}
+      data-tour="track"
       className="w-full h-full cursor-grab bg-f1-dark overflow-hidden touch-none active:cursor-grabbing relative"
     >
       <canvas ref={canvasRef} className="h-full w-full" />

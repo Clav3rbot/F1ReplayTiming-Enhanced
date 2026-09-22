@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ReplaySettings, DEFAULTS as DEFAULT_SETTINGS } from "@/hooks/useSettings";
+import { restartTours } from "./GuidedTour";
 import { WeatherData } from "@/hooks/useReplaySocket";
 
 interface Props {
@@ -61,6 +62,12 @@ const TRACK_MAP_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showElevation", label: "Elevation" },
 ];
 
+const TIMELINE_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
+  { key: "showTimelineHeatmap", label: "Action heatmap" },
+  { key: "showTimelineChapters", label: "Flag & safety car chapters" },
+  { key: "showTimelineMarkers", label: "Incidents & retirements" },
+];
+
 const OTHER_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showSessionTime", label: "Total session time" },
   { key: "useImperial", label: "Imperial units (°F, mph)" },
@@ -82,7 +89,7 @@ export default function SessionBanner({
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Race Control" | "Other">("Leaderboard");
+  const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Timeline" | "Race Control" | "Other">("Leaderboard");
   const settingsRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -201,6 +208,7 @@ export default function SessionBanner({
           {/* Settings */}
           <div className="relative" ref={settingsRef}>
             <button
+              data-tour="settings"
               onClick={() => setSettingsOpen(!settingsOpen)}
               className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
               title="Settings"
@@ -237,7 +245,7 @@ export default function SessionBanner({
                 <div className="flex flex-1 min-h-0">
                   {/* Tab sidebar */}
                   <div className="flex flex-col border-r border-f1-border py-2 w-36 flex-shrink-0">
-                    {(["Leaderboard", "Weather", "Track Map", "Race Control", "Other"] as const).map((tab) => (
+                    {(["Leaderboard", "Weather", "Track Map", "Timeline", "Race Control", "Other"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setSettingsTab(tab)}
@@ -329,6 +337,21 @@ export default function SessionBanner({
                     ))}
                   </>)}
 
+                  {settingsTab === "Timeline" && (<>
+                    {TIMELINE_SETTINGS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => onSettingChange?.(key, !settings[key])}
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      >
+                        <span className="text-sm text-white">{label}</span>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </>)}
+
                   {settingsTab === "Race Control" && (<>
                     <button
                       onClick={() => onSettingChange?.("rcSound", !settings.rcSound)}
@@ -354,6 +377,16 @@ export default function SessionBanner({
                         </div>
                       </button>
                     ))}
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        restartTours();
+                      }}
+                      className="mt-2 w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-sm text-white">Replay tutorial</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-f1-red">Start</span>
+                    </button>
                   </>)}
                 </div>
                 </div>

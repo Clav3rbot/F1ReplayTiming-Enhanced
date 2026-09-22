@@ -1,6 +1,7 @@
 import asyncio
 import bisect
 import logging
+import math
 import os
 import re
 import time
@@ -186,6 +187,140 @@ def _get_event_name_sync(year: int, round_num: int, session_type: str) -> str:
             return ""  # don't pin a miss
         _event_names[key] = name
     return _event_names[key]
+
+
+HIGHLIGHT_BINS = 200
+_STATUS_WEIGHT = {"yellow": 3.0, "vsc": 6.0, "sc": 8.0, "red": 12.0}
+# Track-wide yellows shorter than this are blips, not worth a chapter.
+_MIN_YELLOW_CHAPTER_S = 10.0
+_INCIDENT_RE = re.compile(r"^(?:TURN (\d+) )?INCIDENT INVOLVING CARS? (.+?) NOTED(?: - (.+))?$")
+
+
+def _incident_label(message: str) -> str | None:
+    """Short label for an on-track incident report, None for anything else.
+
+    Only the first "... NOTED" report counts (steward follow-ups repeat it), and
+    only incidents located at a turn or involving contact: track limits or
+    pit-lane speeding aren't highlights.
+    """
+    msg = re.sub(r"\s*\(\d{2}:\d{2}:\d{2}\)", "", message.strip().upper())
+    m = _INCIDENT_RE.match(msg)
+    if not m:
+        return None
+    turn, cars, reason = m.groups()
+    if not turn and "COLLISION" not in (reason or ""):
+        return None
+    drivers = ", ".join(re.findall(r"\(([A-Z]{3})\)", cars))
+    parts = [f"T{turn}" if turn else None, drivers or None, reason.capitalize() if reason else None]
+    return " · ".join(p for p in parts if p)
+
+
+def _compute_timeline(frames: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[list[float], list[dict], list[dict]]:
+    """Timeline overlays for the player bar, from one pass over the frames.
+
+    - highlights: per-bin 0..1 "action" intensity (the heatmap curve)
+    - chapters: non-green track status periods (yellow / vsc / sc / red)
+    - markers: point events (on-track incidents, retirements)
+
+    Each frame is scored against the previous one: track status changes, new race
+    control messages, incidents, pit entries and retirements. Position changes are
+    compared every ~5s instead, so gap-sorted cars flickering back and forth don't count.
+    """
+    # ponytail: fixed hand-tuned weights; tune here if some session types look flat
+    n = len(frames)
+    if n < 2:
+        return [], [], []
+    raw = [0.0] * bins
+    chapters: list[dict] = []
+    markers: list[dict] = []
+    interval = float(frames[1]["timestamp"]) - float(frames[0]["timestamp"])
+    stride = max(1, round(5.0 / interval)) if interval > 0 else 10
+    prev_pos: dict[str, int] = {}
+    prev_pit: set[str] = set()
+    prev_retired: set[str] = set()
+    prev_status = "green"
+    prev_rc_ts = None
+    seen_rc: set[tuple] = set()
+    open_chapter: dict | None = None
+    for i, f in enumerate(frames):
+        t = float(f["timestamp"])
+        lap = f.get("lap")
+        score = 0.0
+        pos: dict[str, int] = {}
+        pit: set[str] = set()
+        retired: set[str] = set()
+        for d in f.get("drivers", []):
+            abbr = d.get("abbr")
+            if d.get("retired"):
+                retired.add(abbr)
+                continue
+            if d.get("knocked_out"):
+                continue
+            if d.get("in_pit"):
+                pit.add(abbr)
+            if d.get("position") is not None:
+                pos[abbr] = d["position"]
+        if i % stride == 0:
+            for abbr, p in pos.items():
+                if i and abbr not in pit and abbr in prev_pos and prev_pos[abbr] != p:
+                    score += 3.0 if min(p, prev_pos[abbr]) <= 3 else 1.0  # fights for the top matter more
+            prev_pos = pos
+        status = f.get("status") or "green"
+        rc = f.get("rc_messages") or []
+        rc_ts = rc[0].get("timestamp") if rc else None
+        if status != prev_status:
+            if open_chapter:
+                open_chapter.update(end=t, lap_end=lap)
+                chapters.append(open_chapter)
+            open_chapter = None if status == "green" else {"kind": status, "start": t, "lap_start": lap}
+        if i:
+            score += 1.0 * len(pit - prev_pit)
+            for abbr in sorted(retired - prev_retired):
+                score += 6.0
+                markers.append({"kind": "retirement", "t": t, "label": f"{abbr} · Retired", "lap": lap})
+            if status != prev_status:
+                score += _STATUS_WEIGHT.get(status, 3.0)  # back to green = restart
+            if rc_ts is not None and rc_ts != prev_rc_ts:
+                score += 2.0
+                # rc_messages is newest-first: walk back through everything new since the last frame
+                for m in rc:
+                    key = (m.get("timestamp"), m.get("message"))
+                    if key in seen_rc:
+                        break
+                    seen_rc.add(key)
+                    label = _incident_label(m.get("message") or "")
+                    if label:
+                        score += 4.0
+                        markers.append({"kind": "incident", "t": float(m["timestamp"]), "label": label, "lap": m.get("lap") or lap})
+        elif rc:
+            seen_rc.update((m.get("timestamp"), m.get("message")) for m in rc)
+        prev_pit, prev_retired, prev_status, prev_rc_ts = pit, retired, status, rc_ts
+        raw[min(i * bins // n, bins - 1)] += score
+    if open_chapter:
+        open_chapter.update(end=float(frames[-1]["timestamp"]), lap_end=frames[-1].get("lap"))
+        chapters.append(open_chapter)
+    chapters = [
+        c for c in chapters
+        if c["kind"] != "yellow" or c["end"] - c["start"] >= _MIN_YELLOW_CHAPTER_S
+    ]
+    markers.sort(key=lambda m: m["t"])
+
+    # Gaussian smoothing, then contrast: the median bin is the session's background
+    # noise (-> 0), the 97th percentile is a real highlight (-> 1, so lap 1 can't
+    # flatten the rest), and ^1.5 pushes the mid-range down so peaks stand out.
+    radius, sigma = 4, 1.8
+    kernel = [math.exp(-(k * k) / (2 * sigma * sigma)) for k in range(-radius, radius + 1)]
+    smooth = [
+        sum(raw[j] * kernel[j - b + radius] for j in range(max(0, b - radius), min(bins, b + radius + 1)))
+        for b in range(bins)
+    ]
+    ranked = sorted(smooth)
+    floor, top = ranked[bins // 2], ranked[int(bins * 0.97)]
+    highlights = (
+        [round(min(1.0, max(0.0, (v - floor) / (top - floor))) ** 1.5, 3) for v in smooth]
+        if top > floor else []
+    )
+    return highlights, chapters, markers
 
 
 def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]:
@@ -394,6 +529,8 @@ async def replay_websocket(
                     rle[-1]["count"] += 1
             frame_laps_rle = rle if rle else None
 
+        highlights, chapters, markers = await asyncio.to_thread(_compute_timeline, frames)
+
         await websocket.send_json({
             "type": "ready",
             "total_frames": len(frames),
@@ -403,6 +540,9 @@ async def replay_websocket(
             "lap_starts": lap_starts,
             "frame_laps_rle": frame_laps_rle,
             "replay_sample_interval": replay_sample_interval,
+            "highlights": highlights or None,
+            "chapters": chapters or None,
+            "markers": markers or None,
         })
 
         # Helper to send a frame with pit predictions added

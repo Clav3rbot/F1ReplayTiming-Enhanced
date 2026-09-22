@@ -132,7 +132,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
   );
 
   return (
-    <div ref={containerRef} className={`glass-panel-heavy h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
+    <div ref={containerRef} data-tour="leaderboard" className={`glass-panel-heavy h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
       <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%` }}>
 
       <div className="divide-y divide-f1-border/50">
