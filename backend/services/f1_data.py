@@ -350,24 +350,29 @@ def _data_notes(session) -> list[str]:
     """Known gaps in F1's data for this session, shown as a notice when the replay opens."""
     notes = []
     try:
-        missing = _position_missing_share(session)
-        if missing >= POSITION_MISSING_WARN:
-            notes.append(
-                f"F1's position feed is missing or frozen for {missing:.0%} of this session. "
-                "In those stretches cars are placed on the track from their lap distance, "
-                "so positions are approximate and pit lane trips are not shown."
-            )
-    except Exception as e:
-        logger.warning(f"Position coverage check failed: {e}")
-    try:
         frozen = _car_data_frozen_share(session)
-        if frozen >= CAR_DATA_FROZEN_WARN:
-            notes.append(
-                f"F1's car telemetry (speed, throttle, gear) is frozen for {frozen:.0%} of this session, "
-                "so telemetry charts and speed readouts are unreliable in those stretches."
-            )
     except Exception as e:
         logger.warning(f"Car data check failed: {e}")
+        frozen = 0.0
+    try:
+        missing = _position_missing_share(session)
+        if missing >= POSITION_MISSING_WARN:
+            # Gaps are only rebuilt on laps whose car data is live (see _fill_position_gaps).
+            how = (
+                "Where the car telemetry is live, cars are placed on the track from their lap "
+                "distance; elsewhere they can lag behind or jump."
+                if frozen >= CAR_DATA_FROZEN_WARN
+                else "In those stretches cars are placed on the track from their lap distance, "
+                "so positions are approximate and pit lane trips are not shown."
+            )
+            notes.append(f"F1's position feed is missing or frozen for {missing:.0%} of this session. {how}")
+    except Exception as e:
+        logger.warning(f"Position coverage check failed: {e}")
+    if frozen >= CAR_DATA_FROZEN_WARN:
+        notes.append(
+            f"F1's car telemetry (speed, throttle, gear) is frozen for {frozen:.0%} of this session, "
+            "so telemetry charts and speed readouts are unreliable in those stretches."
+        )
     return notes
 
 
