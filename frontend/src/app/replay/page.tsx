@@ -106,6 +106,7 @@ function ReplayPageInner() {
   const rcPanelRef = useRef<HTMLDivElement>(null);
   const rcButtonRef = useRef<HTMLButtonElement>(null);
   const telemetryPanelRef = useRef<HTMLDivElement>(null);
+  const mobileLapAnalysisRef = useRef<HTMLDivElement>(null);
   const [isIOS, setIsIOS] = useState(false);
 
   const enableTrackZoom = false; // iPad uses pinch-to-zoom gesture directly on the canvas
@@ -994,13 +995,17 @@ function ReplayPageInner() {
 
             {/* Lap Analysis section - mobile only */}
             {isMobile && isRace && lapsResponse?.laps && (
-              <div className="border-t border-f1-border" ref={(el) => {
-                if (el && mobileLapAnalysisOpen) {
-                  setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-                }
-              }}>
+              <div className="border-t border-f1-border" ref={mobileLapAnalysisRef}>
                 <button
-                  onClick={() => setMobileLapAnalysisOpen(!mobileLapAnalysisOpen)}
+                  onClick={() => {
+                    // Bring the section into view once, when it opens. (An inline ref did this
+                    // on every render, pulling the page back down on each replay frame.)
+                    const opening = !mobileLapAnalysisOpen;
+                    setMobileLapAnalysisOpen(opening);
+                    if (opening) {
+                      setTimeout(() => mobileLapAnalysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                    }
+                  }}
                   className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
                 >
                   <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Lap Analysis</span>
