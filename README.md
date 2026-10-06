@@ -1,10 +1,15 @@
+
+
+
+
+
 <h1><img src="frontend/public/logo.png" width="50" align="absmiddle" /> F1 Replay Timing Enhanced</h1>
 
 > **Disclaimer:** This project is intended for **personal, non-commercial use only**. This website is unofficial and is not associated in any way with the Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks are trade marks of Formula One Licensing B.V.
 
 A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more, both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
 
-https://github.com/user-attachments/assets/b032324a-c6f4-42df-abab-13ed9d62ae47
+https://github.com/user-attachments/assets/6a1a2093-44ca-490b-be41-f093a1a03049
 
 
 ## Features
