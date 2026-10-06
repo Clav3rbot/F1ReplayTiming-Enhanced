@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import { apiUrl } from "@/lib/api";
 import { getToken, setToken, clearToken } from "@/lib/auth";
+import Logo from "./Logo";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
@@ -105,8 +106,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-f1-dark flex items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <img src="/logo.png" alt="F1 Replay" className="w-16 h-16 rounded-lg mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-white">F1 Replay Timing</h1>
+            <Logo alt="F1 Replay" className="w-16 h-16 rounded-lg mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-ink">F1 Replay Timing</h1>
           </div>
 
           <div className="bg-f1-card border border-f1-border rounded-xl p-6">
@@ -114,7 +115,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             <p className="text-sm text-f1-muted mb-3">
               The frontend failed to reach the API server at:
             </p>
-            <code className="block text-xs text-white bg-f1-dark border border-f1-border rounded px-3 py-2 mb-4 break-all">
+            <code className="block text-xs text-ink bg-f1-dark border border-f1-border rounded px-3 py-2 mb-4 break-all">
               {typeof window !== "undefined" ? window.location.origin : ""}
             </code>
             <div className="text-xs text-f1-muted space-y-2">
@@ -145,11 +146,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-f1-dark flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="F1 Replay" className="w-16 h-16 rounded-lg mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-white">F1 Replay Timing</h1>
+          <Logo alt="F1 Replay" className="w-16 h-16 rounded-lg mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-ink">F1 Replay Timing</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass-panel-heavy border border-white/10 rounded-2xl p-6 shadow-glass backdrop-blur-md">
+        <form onSubmit={handleSubmit} className="glass-panel-heavy border border-ink/10 rounded-2xl p-6 shadow-glass backdrop-blur-md">
           <label htmlFor="passphrase" className="block text-sm font-bold text-f1-muted mb-2 tracking-wider">
             Enter passphrase to continue
           </label>
@@ -160,13 +161,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               autoFocus
-              className="w-full px-3 py-2 pr-10 bg-f1-dark border border-f1-border rounded text-white text-sm focus:outline-none focus:border-f1-red transition-colors"
+              className="w-full px-3 py-2 pr-10 bg-f1-dark border border-f1-border rounded text-ink text-sm focus:outline-none focus:border-f1-red transition-colors"
               placeholder="Passphrase"
             />
             <button
               type="button"
               onClick={() => setShowPassphrase(!showPassphrase)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-f1-muted hover:text-white transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-f1-muted hover:text-ink transition-colors"
               tabIndex={-1}
             >
               {showPassphrase ? (

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
@@ -9,17 +10,21 @@ const config: Config = {
         mono: ['var(--font-jetbrains-mono)', 'ui-monospace', 'monospace'],
       },
       colors: {
+        // Theme colors are RGB channels in globals.css, switched by the
+        // .light class on <html>. "ink" is the foreground the old "white"
+        // played: white on the dark theme, near-black on the light one.
         f1: {
-          red: "#E10600",
-          dark: "#0B0B11",
-          surface: "#13131C",
-          card: "#1A1A24",
-          border: "#2A2A3C",
-          muted: "#9EA1AC",
-          text: "#F1F5F9",
-          green: "#00FF41",
-          magenta: "#FF00FF",
+          red: "rgb(var(--f1-red) / <alpha-value>)",
+          dark: "rgb(var(--f1-dark) / <alpha-value>)",
+          surface: "rgb(var(--f1-surface) / <alpha-value>)",
+          card: "rgb(var(--f1-card) / <alpha-value>)",
+          border: "rgb(var(--f1-border) / <alpha-value>)",
+          muted: "rgb(var(--f1-muted) / <alpha-value>)",
+          text: "rgb(var(--f1-text) / <alpha-value>)",
+          green: "rgb(var(--f1-green) / <alpha-value>)",
+          magenta: "rgb(var(--f1-magenta) / <alpha-value>)",
         },
+        ink: "rgb(var(--ink) / <alpha-value>)",
         tyre: {
           soft: "#FF3333",
           medium: "#FFC906",
@@ -40,7 +45,8 @@ const config: Config = {
       }
     },
   },
-  plugins: [],
+  // light: styles that only apply on the light theme
+  plugins: [plugin(({ addVariant }) => addVariant("light", ":root.light &"))],
 };
 
 export default config;

@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import CopyProtection from "@/components/CopyProtection";
+import { ThemeSync } from "@/components/ThemeToggle";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -38,8 +39,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-f1-dark text-f1-text font-sans selection:bg-f1-red/30 selection:text-white antialiased">
+    // The inline script adds the saved theme class before first paint;
+    // suppressHydrationWarning covers that class differing from the server HTML.
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("theme")==="light")document.documentElement.classList.add("light")}catch(e){}`,
+          }}
+        />
+      </head>
+      <body className="bg-f1-dark text-f1-text font-sans selection:bg-f1-red/30 selection:text-ink antialiased">
+        <ThemeSync />
         <CopyProtection />
         <AuthGate>{children}</AuthGate>
       </body>

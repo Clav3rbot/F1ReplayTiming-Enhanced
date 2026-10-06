@@ -6,6 +6,8 @@ import Link from "next/link";
 import { ReplaySettings, DEFAULTS as DEFAULT_SETTINGS } from "@/hooks/useSettings";
 import { restartTours } from "./GuidedTour";
 import { WeatherData } from "@/hooks/useReplaySocket";
+import ThemeToggle from "./ThemeToggle";
+import Logo from "./Logo";
 
 interface Props {
   eventName: string;
@@ -163,13 +165,13 @@ export default function SessionBanner({
 
   return (
     <>
-      <div className="glass-panel-heavy border-b border-white/5 shadow-glass backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
+      <div className="glass-panel-heavy border-b border-ink/5 shadow-glass backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Link href="/" className="flex-shrink-0">
-            <img src="/logo.png" alt="Home" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg hover:opacity-80 transition-opacity" />
+            <Logo alt="Home" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg hover:opacity-80 transition-opacity" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-xs sm:text-sm font-extrabold text-white truncate">
+            <h1 className="text-xs sm:text-sm font-extrabold text-ink truncate">
               {year} {eventName}
             </h1>
             <p className="text-[10px] sm:text-xs font-bold text-f1-muted truncate">
@@ -196,7 +198,7 @@ export default function SessionBanner({
             href="/features"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            className="flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded hover:bg-ink/10 transition-colors text-f1-muted hover:text-ink"
             title="How it works"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -205,12 +207,14 @@ export default function SessionBanner({
             </svg>
           </a>
 
+          <ThemeToggle className="w-8 h-8 sm:w-9 sm:h-9 rounded hover:bg-ink/10 text-f1-muted hover:text-ink" />
+
           {/* Settings */}
           <div className="relative" ref={settingsRef}>
             <button
               data-tour="settings"
               onClick={() => setSettingsOpen(!settingsOpen)}
-              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded hover:bg-ink/10 transition-colors text-f1-muted hover:text-ink"
               title="Settings"
             >
               <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -233,8 +237,8 @@ export default function SessionBanner({
                 >
                 {/* Modal header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-f1-border">
-                  <span className="text-sm font-bold text-white">Settings</span>
-                  <button onClick={() => setSettingsOpen(false)} className="text-f1-muted hover:text-white" title="Close">
+                  <span className="text-sm font-bold text-ink">Settings</span>
+                  <button onClick={() => setSettingsOpen(false)} className="text-f1-muted hover:text-ink" title="Close">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -251,8 +255,8 @@ export default function SessionBanner({
                         onClick={() => setSettingsTab(tab)}
                         className={`px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-left transition-colors ${
                           settingsTab === tab
-                            ? "text-white bg-white/5 border-l-2 border-f1-red"
-                            : "text-f1-muted hover:text-white border-l-2 border-transparent"
+                            ? "text-ink bg-ink/5 border-l-2 border-f1-red"
+                            : "text-f1-muted hover:text-ink border-l-2 border-transparent"
                         }`}
                       >
                         {tab}
@@ -265,7 +269,7 @@ export default function SessionBanner({
                   {settingsTab === "Leaderboard" && (<>
                     <button
                       onClick={() => onSettingChange?.("showLeaderboard", !settings.showLeaderboard)}
-                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                     >
                       <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Leaderboard</span>
                       <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.showLeaderboard ? "bg-f1-red" : "bg-f1-border"}`}>
@@ -280,9 +284,9 @@ export default function SessionBanner({
                           key={key}
                           onClick={() => onSettingChange?.(key, !settings[key])}
                           disabled={disabled}
-                          className={`w-full flex items-center justify-between ${parent ? "pl-6 sm:pl-12" : "pl-4 sm:pl-10"} pr-2 sm:pr-6 py-1 hover:bg-white/5 transition-colors ${disabled ? "opacity-30 pointer-events-none grayscale" : ""}`}
+                          className={`w-full flex items-center justify-between ${parent ? "pl-6 sm:pl-12" : "pl-4 sm:pl-10"} pr-2 sm:pr-6 py-1 hover:bg-ink/5 transition-colors ${disabled ? "opacity-30 pointer-events-none grayscale" : ""}`}
                         >
-                          <span className={`${parent ? "text-xs text-f1-muted" : "text-sm text-white"} flex items-center gap-2`}>
+                          <span className={`${parent ? "text-xs text-f1-muted" : "text-sm text-ink"} flex items-center gap-2`}>
                             {label}
                             {badge && <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-f1-red/20 text-f1-red leading-none">{badge}</span>}
                             {key === "showTeamAbbr" && mobileTeamAbbrHidden && (
@@ -300,7 +304,7 @@ export default function SessionBanner({
                   {settingsTab === "Weather" && (<>
                     <button
                       onClick={() => onSettingChange?.("showWeather", !settings.showWeather)}
-                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                     >
                       <span className="text-xs font-bold text-f1-muted uppercase tracking-wider">Show Weather</span>
                       <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.showWeather ? "bg-f1-red" : "bg-f1-border"}`}>
@@ -312,9 +316,9 @@ export default function SessionBanner({
                         key={key}
                         onClick={() => onSettingChange?.(key, !settings[key])}
                         disabled={!settings.showWeather}
-                        className={`w-full flex items-center justify-between pl-4 sm:pl-10 pr-2 sm:pr-6 py-1 hover:bg-white/5 transition-colors ${!settings.showWeather ? "opacity-30 pointer-events-none grayscale" : ""}`}
+                        className={`w-full flex items-center justify-between pl-4 sm:pl-10 pr-2 sm:pr-6 py-1 hover:bg-ink/5 transition-colors ${!settings.showWeather ? "opacity-30 pointer-events-none grayscale" : ""}`}
                       >
-                        <span className="text-sm text-white">{label}</span>
+                        <span className="text-sm text-ink">{label}</span>
                         <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
@@ -327,9 +331,9 @@ export default function SessionBanner({
                       <button
                         key={key}
                         onClick={() => onSettingChange?.(key, !settings[key])}
-                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                       >
-                        <span className="text-sm text-white">{label}</span>
+                        <span className="text-sm text-ink">{label}</span>
                         <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
@@ -342,9 +346,9 @@ export default function SessionBanner({
                       <button
                         key={key}
                         onClick={() => onSettingChange?.(key, !settings[key])}
-                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                       >
-                        <span className="text-sm text-white">{label}</span>
+                        <span className="text-sm text-ink">{label}</span>
                         <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
@@ -355,9 +359,9 @@ export default function SessionBanner({
                   {settingsTab === "Race Control" && (<>
                     <button
                       onClick={() => onSettingChange?.("rcSound", !settings.rcSound)}
-                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                     >
-                      <span className="text-sm text-white">Notification sound</span>
+                      <span className="text-sm text-ink">Notification sound</span>
                       <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings.rcSound ? "bg-f1-red" : "bg-f1-border"}`}>
                         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings.rcSound ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                       </div>
@@ -369,9 +373,9 @@ export default function SessionBanner({
                       <button
                         key={key}
                         onClick={() => onSettingChange?.(key, !settings[key])}
-                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                       >
-                        <span className="text-sm text-white">{label}</span>
+                        <span className="text-sm text-ink">{label}</span>
                         <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                         </div>
@@ -382,9 +386,9 @@ export default function SessionBanner({
                         setSettingsOpen(false);
                         restartTours();
                       }}
-                      className="mt-2 w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-white/5 transition-colors"
+                      className="mt-2 w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
                     >
-                      <span className="text-sm text-white">Replay tutorial</span>
+                      <span className="text-sm text-ink">Replay tutorial</span>
                       <span className="text-[11px] font-bold uppercase tracking-wider text-f1-red">Start</span>
                     </button>
                   </>)}

@@ -114,13 +114,13 @@ export default function SessionLoadingScreen({ exiting = false }: SessionLoading
       aria-busy={!exiting}
     >
       <div className="flex w-full max-w-md flex-col items-center">
-        <h1 className="text-center text-lg font-bold tracking-tight text-white sm:text-xl">
+        <h1 className="text-center text-lg font-bold tracking-tight text-ink sm:text-xl">
           Loading session data
         </h1>
 
         <p className="mt-6 text-center text-sm leading-relaxed text-f1-muted">
           First load may take up to{" "}
-          <span className="font-mono tabular-nums text-white/80">60</span>s while
+          <span className="font-mono tabular-nums text-ink/80">60</span>s while
           frames and track data are fetched.
         </p>
 
@@ -139,11 +139,11 @@ export default function SessionLoadingScreen({ exiting = false }: SessionLoading
       </div>
 
       {/* Larga quasi tutto lo schermo: citazione su una riga, senza taglio con ellissi */}
-      <div className="mt-8 w-full max-w-[min(100vw-1.5rem,72rem)] border-t border-white/[0.06] px-3 pt-6 sm:px-4">
+      <div className="mt-8 w-full max-w-[min(100vw-1.5rem,72rem)] border-t border-ink/[0.06] px-3 pt-6 sm:px-4">
         {active ? (
           <figure key={quoteKey} className="session-loading-quote text-center">
             <div className="session-loading-quote-line overflow-x-auto overflow-y-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <blockquote className="inline-block max-w-none whitespace-nowrap text-[0.78rem] italic leading-snug text-white/90 sm:text-[0.9rem] md:text-base">
+              <blockquote className="inline-block max-w-none whitespace-nowrap text-[0.78rem] italic leading-snug text-ink/90 sm:text-[0.9rem] md:text-base">
                 &ldquo;{active.quote}&rdquo;
               </blockquote>
             </div>

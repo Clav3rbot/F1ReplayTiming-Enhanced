@@ -35,8 +35,8 @@ export default function PiPWindow({
     pipWin.document.title = "F1 Replay — PiP";
     pipWin.document.body.style.margin = "0";
     pipWin.document.body.style.padding = "0";
-    pipWin.document.body.style.backgroundColor = "#0B0B11";
-    pipWin.document.body.style.color = "#e5e7eb";
+    pipWin.document.body.style.backgroundColor = "rgb(var(--f1-dark))";
+    pipWin.document.body.style.color = "rgb(var(--f1-text))";
     pipWin.document.body.style.overflow = "hidden";
 
     // Add base tag so relative URLs (fonts, images) resolve correctly
@@ -79,6 +79,12 @@ export default function PiPWindow({
     });
     headObserver.observe(document.head, { childList: true });
 
+    // Follow theme switches made in the main window
+    const themeObserver = new MutationObserver(() => {
+      if (pipWin && !pipWin.closed) pipWin.document.documentElement.className = document.documentElement.className;
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
     const mount = pipWin.document.createElement("div");
     mount.id = "pip-root";
     mount.style.width = "100%";
@@ -109,6 +115,7 @@ export default function PiPWindow({
     return () => {
       closedRef.current = true;
       headObserver.disconnect();
+      themeObserver.disconnect();
       window.removeEventListener("beforeunload", handleMainUnload);
       window.removeEventListener("pagehide", handleMainUnload);
       if (pipWin && !pipWin.closed) {

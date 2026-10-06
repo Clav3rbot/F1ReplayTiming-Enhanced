@@ -15,8 +15,10 @@ const ELEVATION_STOPS: { t: number; rgb: [number, number, number] }[] = [
   { t: 0.5, rgb: [0x6f, 0xb7, 0xd6] },
   { t: 1.0, rgb: [0xff, 0xff, 0xff] },
 ];
+// White vanishes on the light theme's background: top out at bright blue
+const ELEVATION_TOP_LIGHT: [number, number, number] = [0x14, 0x9c, 0xe8];
 
-export function elevationColor(t: number): string {
+export function elevationColor(t: number, light = false): string {
   const c = Math.max(0, Math.min(1, t));
   let lo = ELEVATION_STOPS[0];
   let hi = ELEVATION_STOPS[ELEVATION_STOPS.length - 1];
@@ -29,6 +31,7 @@ export function elevationColor(t: number): string {
   }
   const span = hi.t - lo.t || 1;
   const f = (c - lo.t) / span;
+  if (light && hi.t === 1) hi = { t: 1, rgb: ELEVATION_TOP_LIGHT };
   const r = Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * f);
   const g = Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * f);
   const b = Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * f);
@@ -72,8 +75,55 @@ export interface SectorOverlay {
 // DEFAULT_SECTOR the replay page passes. Skipped when layering over elevation.
 const DEFAULT_SECTOR_HEX = "#3A3A4A";
 
+// Canvas can't read CSS variables, so the map keeps its own palette per
+// theme. The light map draws pale asphalt with a darker rim, and gives the
+// car markers a white ring and soft shadow so every team colour stands out.
+interface MapPalette {
+  asphalt: string;
+  rim: string | null;
+  centre: string;
+  finish: string;
+  text: string;
+  halo: string | null;
+  corner: string;
+  cornerHalo: string;
+  markerRing: string | null;
+  flagBacking: string;
+}
+
+const MAP_DARK: MapPalette = {
+  asphalt: DEFAULT_SECTOR_HEX,
+  rim: null,
+  centre: "#4A4A5A",
+  finish: "#FFFFFF",
+  text: "#FFFFFF",
+  halo: null,
+  corner: "rgba(255, 255, 255, 0.95)",
+  cornerHalo: "rgba(0, 0, 0, 0.7)",
+  markerRing: null,
+  flagBacking: "rgba(0, 0, 0, 0.6)",
+};
+
+const MAP_LIGHT: MapPalette = {
+  asphalt: "#CDD0D9",
+  rim: "#A9ADBA",
+  centre: "rgba(255, 255, 255, 0.9)",
+  finish: "#15151E",
+  text: "#15151E",
+  halo: "rgba(255, 255, 255, 0.92)",
+  corner: "#4A4E5C",
+  cornerHalo: "rgba(255, 255, 255, 0.92)",
+  markerRing: "#FFFFFF",
+  flagBacking: "rgba(255, 255, 255, 0.92)",
+};
+
+// ownerDocument, not document: the map also renders in the PiP window
+function mapPalette(ctx: CanvasRenderingContext2D): MapPalette {
+  return ctx.canvas.ownerDocument.documentElement.classList.contains("light") ? MAP_LIGHT : MAP_DARK;
+}
+
+// Green (and anything unknown) draws as plain asphalt
 const TRACK_STATUS_COLORS: Record<string, string> = {
-  green: "#3A3A4A",
   yellow: "#F5C518",
   sc: "#F5C518",
   vsc: "#F5C518",
@@ -169,6 +219,24 @@ export function drawTrack(
   // Elevation colouring needs per-point heights; only active when requested
   // and the data is present.
   const elevationActive = showElevation && points.some((p) => typeof p.z === "number");
+  const pal = mapPalette(ctx);
+  const light = pal === MAP_LIGHT;
+
+  // Whole lap as one path: rim (light theme) and centre line reuse it
+  const lap = new Path2D();
+  rotated.forEach((p, i) => {
+    const [px, py] = toScreen(p);
+    if (i === 0) lap.moveTo(px, py);
+    else lap.lineTo(px, py);
+  });
+  lap.closePath();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (pal.rim) {
+    ctx.strokeStyle = pal.rim;
+    ctx.lineWidth = 15;
+    ctx.stroke(lap);
+  }
 
   // Draw track outline. Priority: elevation > sector overlay > track status.
   if (elevationActive) {
@@ -190,7 +258,7 @@ export function drawTrack(
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (let level = 0; level < STOPS; level++) {
-      ctx.strokeStyle = elevationColor((level + 0.5) / STOPS);
+      ctx.strokeStyle = elevationColor((level + 0.5) / STOPS, light);
       ctx.stroke(buckets[level]);
     }
 
@@ -226,7 +294,7 @@ export function drawTrack(
     ];
     // Draw base track first (so gaps between segments aren't visible)
     ctx.beginPath();
-    ctx.strokeStyle = "#3A3A4A";
+    ctx.strokeStyle = pal.asphalt;
     ctx.lineWidth = 12;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -239,10 +307,10 @@ export function drawTrack(
     ctx.closePath();
     ctx.stroke();
 
-    // Draw colored sector segments on top
+    // Draw colored sector segments on top; un-timed ones take the asphalt
     for (const seg of segments) {
       ctx.beginPath();
-      ctx.strokeStyle = seg.color;
+      ctx.strokeStyle = seg.color.toUpperCase() === DEFAULT_SECTOR_HEX ? pal.asphalt : seg.color;
       ctx.lineWidth = 12;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -257,7 +325,7 @@ export function drawTrack(
   } else {
     ctx.beginPath();
     const effectiveStatus = (sectorFlags && sectorFlags.length > 0 && (trackStatus === "yellow")) ? "green" : trackStatus;
-    ctx.strokeStyle = TRACK_STATUS_COLORS[effectiveStatus] || "#3A3A4A";
+    ctx.strokeStyle = TRACK_STATUS_COLORS[effectiveStatus] ?? pal.asphalt;
     ctx.lineWidth = 12;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -273,17 +341,9 @@ export function drawTrack(
   }
 
   // Draw track center line
-  ctx.beginPath();
-  ctx.strokeStyle = "#4A4A5A";
+  ctx.strokeStyle = pal.centre;
   ctx.lineWidth = 2;
-  const [sx, sy] = toScreen(rotated[0]);
-  ctx.moveTo(sx, sy);
-  for (let i = 1; i < rotated.length; i++) {
-    const [px, py] = toScreen(rotated[i]);
-    ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.stroke();
+  ctx.stroke(lap);
 
   // Start/finish marker  - drawn perpendicular to track direction
   const [fx, fy] = toScreen(rotated[0]);
@@ -294,7 +354,7 @@ export function drawTrack(
   ctx.beginPath();
   ctx.moveTo(fx - Math.cos(perpAngle) * markerLen, fy - Math.sin(perpAngle) * markerLen);
   ctx.lineTo(fx + Math.cos(perpAngle) * markerLen, fy + Math.sin(perpAngle) * markerLen);
-  ctx.strokeStyle = "#FFFFFF";
+  ctx.strokeStyle = pal.finish;
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
   ctx.stroke();
@@ -316,10 +376,10 @@ export function drawTrack(
 
       const label = c.letter ? `${c.number}${c.letter}` : `${c.number}`;
 
-      ctx.lineWidth = compact ? 3 : 2;
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.lineWidth = light ? 3 : compact ? 3 : 2;
+      ctx.strokeStyle = pal.cornerHalo;
       ctx.strokeText(label, lx, ly);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = pal.corner;
       ctx.fillText(label, lx, ly);
     }
   }
@@ -348,10 +408,8 @@ export function drawTrack(
 
       ctx.beginPath();
       ctx.arc(screenX, screenY, radius + 2, 0, Math.PI * 2);
-      ctx.fillStyle = "#000000";
-      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = pal.flagBacking;
       ctx.fill();
-      ctx.globalAlpha = 1.0;
 
       ctx.beginPath();
       ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
@@ -367,7 +425,12 @@ export function drawTrack(
       }
 
       if (sf.driver) {
-        ctx.fillStyle = "#FFFFFF";
+        if (pal.halo) {
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = pal.halo;
+          ctx.strokeText(sf.driver, screenX, screenY + radius + 10);
+        }
+        ctx.fillStyle = pal.text;
         ctx.fillText(sf.driver, screenX, screenY + radius + 10);
       }
     }
@@ -395,6 +458,7 @@ export function drawDrivers(
     trackPoints, width, height, rotation, compact, zoom, panX, panY,
   );
 
+  const pal = mapPalette(ctx);
   const highlightedSet = new Set(highlightedDrivers);
   for (const drv of drivers) {
     const rp = rotate(drv.x, drv.y);
@@ -415,17 +479,29 @@ export function drawDrivers(
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, Math.PI * 2);
     ctx.fillStyle = drv.color;
-    ctx.strokeStyle = drv.color;
-    ctx.lineWidth = 1;
+    if (pal.markerRing) {
+      ctx.shadowColor = "rgba(21, 21, 30, 0.35)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+    }
     ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = pal.markerRing ?? drv.color;
+    ctx.lineWidth = pal.markerRing ? 1.5 : 1;
     ctx.stroke();
 
     ctx.restore();
 
     if (showNames) {
       ctx.font = isHighlighted ? "800 12px system-ui, -apple-system, sans-serif" : "800 10px system-ui, -apple-system, sans-serif";
-      ctx.fillStyle = "#FFFFFF";
       ctx.textAlign = "center";
+      if (pal.halo) {
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = pal.halo;
+        ctx.strokeText(drv.abbr, sx, sy - radius - 4);
+      }
+      ctx.fillStyle = pal.text;
       ctx.fillText(drv.abbr, sx, sy - radius - 4);
     }
   }

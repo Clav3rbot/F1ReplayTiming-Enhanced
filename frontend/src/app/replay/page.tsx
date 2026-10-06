@@ -445,7 +445,7 @@ function ReplayPageInner() {
               <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Track Map</span>
               <ChevronToggle open={mobileTrackOpen} />
             </button>
-            <div className={`flex-1 relative bg-black/40 overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
+            <div className={`flex-1 relative bg-[rgb(var(--bg-edge)/0.4)] overflow-hidden transition-all duration-300 ${!mobileTrackOpen ? "hidden" : "block"}`}>
               <TrackCanvas
                 trackPoints={trackPoints}
                 rotation={rotation}
@@ -482,7 +482,7 @@ function ReplayPageInner() {
             >
               {/* Desktop Left Column */}
               <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden relative">
-                <div className="flex-1 min-h-0 relative bg-black/40 overflow-hidden">
+                <div className="flex-1 min-h-0 relative bg-[rgb(var(--bg-edge)/0.4)] overflow-hidden">
                 {/* RC toggle */}
                 <div className="absolute top-3 right-3 z-10">
                   <button
@@ -499,7 +499,7 @@ function ReplayPageInner() {
                       }
                     }}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors ${
-                      rcPanelOpen || rcPinned ? "bg-orange-500 text-white" : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                      rcPanelOpen || rcPinned ? "bg-orange-500 text-white" : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
                     }`}
                     title="Race Control Messages"
                   >
@@ -535,7 +535,7 @@ function ReplayPageInner() {
                             key={size}
                             onClick={() => setRcPanelSize(size)}
                             className={`w-5 h-4 flex items-center justify-center rounded text-[8px] font-bold transition-colors ${
-                              rcPanelSize === size ? "bg-f1-muted/30 text-white" : "text-f1-muted hover:text-white"
+                              rcPanelSize === size ? "bg-f1-muted/30 text-ink" : "text-f1-muted hover:text-ink"
                             }`}
                             title={size === "sm" ? "Compact" : size === "md" ? "Medium" : "Expanded"}
                           >
@@ -553,7 +553,7 @@ function ReplayPageInner() {
                             setRcPanelOpen(false);
                             setRcPosition(null);
                           }}
-                          className="text-f1-muted hover:text-white ml-1"
+                          className="text-f1-muted hover:text-ink ml-1"
                           title="Collapse to button"
                         >
                           <ArrowUpRight className="w-3.5 h-3.5" />
@@ -574,7 +574,7 @@ function ReplayPageInner() {
                                   isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                                 }`} />
                                 <div className="min-w-0">
-                                  <p className="text-[11px] text-white leading-tight">{rc.message}</p>
+                                  <p className="text-[11px] text-ink leading-tight">{rc.message}</p>
                                   {rc.lap && <span className="text-[9px] text-f1-muted">Lap {rc.lap}</span>}
                                 </div>
                               </div>
@@ -642,7 +642,7 @@ function ReplayPageInner() {
                             className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
                               isActive
                                 ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
-                                : "bg-f1-card border-f1-border text-f1-muted hover:text-white"
+                                : "bg-f1-card border-f1-border text-f1-muted hover:text-ink"
                             }`}
                           >
                             <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: drv?.color }} />
@@ -655,7 +655,7 @@ function ReplayPageInner() {
                         className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
                           showSectorOverlay
                             ? "bg-purple-500/20 border-purple-500/50 text-purple-300 hover:text-purple-200"
-                            : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                            : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
                         }`}
                       >
                         {showSectorOverlay ? "Hide" : "Show"} Sectors
@@ -665,7 +665,7 @@ function ReplayPageInner() {
                   <button
                     onClick={() => setShowTelemetry(!showTelemetry)}
                     className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
-                      showTelemetry ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-white" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                      showTelemetry ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-ink" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
                     }`}
                   >
                     {showTelemetry ? "Hide" : "Show"} Telemetry
@@ -676,7 +676,7 @@ function ReplayPageInner() {
                       className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                         lapAnalysisOpen
                           ? "bg-f1-red text-white"
-                          : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-white backdrop-blur-sm"
+                          : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
                       }`}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -722,14 +722,14 @@ function ReplayPageInner() {
                           setTelemetryPosition("left");
                         }
                       }}
-                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-ink border border-f1-border rounded transition-colors"
                     >
                       {telemetryPosition === "left" ? "Move to bottom" : "Move to left"}
                     </button>
                   )}
                   <button
                     onClick={() => setShowTelemetry(false)}
-                    className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors ml-auto"
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-ink border border-f1-border rounded transition-colors ml-auto"
                   >
                     Hide
                   </button>
@@ -792,7 +792,7 @@ function ReplayPageInner() {
                 }`}>
                   <button
                     onClick={() => { setRcPinned(true); setRcPanelOpen(false); setRcPosition(null); }}
-                    className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                    className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-ink border border-f1-border rounded transition-colors"
                   >
                     Show Race Control
                   </button>
@@ -804,7 +804,7 @@ function ReplayPageInner() {
                         setRcPosition({ x: Math.max(0, rect.right - 320), y: Math.max(8, rect.top - approxH - 4) });
                         setRcPanelOpen(true);
                       }}
-                      className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                      className="px-2 py-1 text-[9px] font-bold text-f1-muted hover:text-ink border border-f1-border rounded transition-colors"
                     >
                       Open Popup
                     </button>
@@ -823,7 +823,7 @@ function ReplayPageInner() {
                     <span className="text-[10px] font-bold text-f1-muted uppercase">Race Control</span>
                     <button
                       onClick={() => setRcPinned(false)}
-                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-white border border-f1-border rounded transition-colors"
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-f1-muted hover:text-ink border border-f1-border rounded transition-colors"
                     >
                       Hide
                     </button>
@@ -841,7 +841,7 @@ function ReplayPageInner() {
                                 isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                               }`} />
                               <div className="min-w-0">
-                                <p className="text-[11px] text-white leading-tight">{rc.message}</p>
+                                <p className="text-[11px] text-ink leading-tight">{rc.message}</p>
                                 {rc.lap && <span className="text-[9px] text-f1-muted">Lap {rc.lap}</span>}
                               </div>
                             </div>
@@ -886,7 +886,7 @@ function ReplayPageInner() {
                           isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                         }`} />
                         <div className="min-w-0">
-                          <p className="text-[11px] text-white leading-tight">{latest.message}</p>
+                          <p className="text-[11px] text-ink leading-tight">{latest.message}</p>
                           {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
                         </div>
                       </div>
@@ -1127,7 +1127,7 @@ function ReplayPageInner() {
                         isPenalty ? "bg-red-500" : isInvestigation ? "bg-orange-400" : isCleared ? "bg-green-500" : "bg-f1-muted"
                       }`} />
                       <div className="min-w-0">
-                        <p className="text-xs font-mono tracking-tight text-white leading-tight">{latest.message}</p>
+                        <p className="text-xs font-mono tracking-tight text-ink leading-tight">{latest.message}</p>
                         {latest.lap && <span className="text-[9px] text-f1-muted">Lap {latest.lap}</span>}
                       </div>
                     </div>
@@ -1262,7 +1262,7 @@ const REPLAY_TOUR: TourStep[] = [
       <>
         Click or drag to jump anywhere. Hover it to see where the action is: the curve peaks at the busiest moments,
         coloured sections mark yellow flags, Safety Car and red flags, and{" "}
-        <span className="inline-block h-1.5 w-1.5 rotate-45 bg-white align-middle" /> marks incidents.
+        <span className="inline-block h-1.5 w-1.5 rotate-45 bg-ink align-middle" /> marks incidents.
       </>
     ),
   },

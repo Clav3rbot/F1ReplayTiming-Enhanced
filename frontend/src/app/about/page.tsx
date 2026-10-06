@@ -5,7 +5,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-f1-dark text-f1-text relative">
       {/* Persistent Radial Glow Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-f1-surface via-f1-dark to-[rgb(var(--bg-edge))]"></div>
 
       <DocPageHeader title="About" />
 
@@ -21,7 +21,7 @@ export default function AboutPage() {
         </div>
 
         <div className="glass-panel p-6 rounded-xl">
-          <h2 className="text-lg font-bold text-white mb-3">What is this?</h2>
+          <h2 className="text-lg font-bold text-ink mb-3">What is this?</h2>
           <p className="text-f1-text leading-relaxed">
             F1 Replay Timing is an independent project that lets you replay past Formula 1 sessions
             with track visualisation, driver positions, and timing data. It is built purely for educational and
@@ -30,7 +30,7 @@ export default function AboutPage() {
         </div>
 
         <div className="glass-panel p-6 rounded-xl">
-          <h2 className="text-lg font-bold text-white mb-3">Data Sources</h2>
+          <h2 className="text-lg font-bold text-ink mb-3">Data Sources</h2>
           <p className="text-f1-text leading-relaxed mb-4">
             All data is sourced from publicly available APIs. No proprietary or restricted data is used.
           </p>
@@ -50,7 +50,7 @@ export default function AboutPage() {
         </div>
 
         <div className="text-center pt-4">
-          <Link href="/" className="text-f1-muted hover:text-white transition-colors text-sm">
+          <Link href="/" className="text-f1-muted hover:text-ink transition-colors text-sm">
             Back to session picker
           </Link>
         </div>

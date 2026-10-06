@@ -62,7 +62,7 @@ function ResultsPageInner() {
 
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">Race Results</h2>
+          <h2 className="text-xl font-bold text-ink">Race Results</h2>
           <a
             href={`/replay?year=${year}&round=${round}&type=${sessionType}`}
             className="px-4 py-2 bg-f1-red text-white text-sm font-bold rounded hover:bg-red-700 transition-colors"
@@ -94,8 +94,8 @@ function ResultsPageInner() {
                       ? r.grid_position - r.position
                       : null;
                   return (
-                    <tr key={r.abbreviation} className="hover:bg-white/5">
-                      <td className="px-4 py-3 font-bold text-white">
+                    <tr key={r.abbreviation} className="hover:bg-ink/5">
+                      <td className="px-4 py-3 font-bold text-ink">
                         {r.position ?? "-"}
                       </td>
                       <td className="px-4 py-3">
@@ -104,7 +104,7 @@ function ResultsPageInner() {
                             className="w-1 h-5 rounded-full"
                             style={{ backgroundColor: r.team_color }}
                           />
-                          <span className="font-bold text-white">
+                          <span className="font-bold text-ink">
                             {r.abbreviation}
                           </span>
                           <span className="text-f1-muted text-sm">
@@ -132,7 +132,7 @@ function ResultsPageInner() {
                       <td className="px-4 py-3 text-sm text-f1-muted">
                         {r.status}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-white">
+                      <td className="px-4 py-3 text-right font-bold text-ink">
                         {r.points}
                       </td>
                     </tr>
@@ -144,7 +144,7 @@ function ResultsPageInner() {
         )}
 
         <div className="mt-6 text-center">
-          <a href="/" className="text-f1-muted hover:text-white transition-colors text-sm">
+          <a href="/" className="text-f1-muted hover:text-ink transition-colors text-sm">
             Back to session picker
           </a>
         </div>

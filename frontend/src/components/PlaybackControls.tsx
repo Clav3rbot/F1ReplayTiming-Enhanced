@@ -84,10 +84,10 @@ const EMPTY_LAP_STARTS: LapStart[] = [];
 const EMPTY_FRAME_LAPS_RLE: FrameLapsRleSegment[] = [];
 
 const PLAYBAR_ICON_BTN =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink/10 bg-ink/5 text-f1-muted shadow-sm transition-colors hover:border-ink/15 hover:bg-ink/10 hover:text-ink active:bg-ink/[0.12]";
 
 const DESKTOP_TOOL_BTN =
-  "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12]";
+  "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-ink/10 bg-ink/5 px-3 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-ink/15 hover:bg-ink/10 hover:text-ink active:bg-ink/[0.12]";
 
 type QualiPhaseDropdownProps = {
   qualiPhases: QualiPhaseInfo[];
@@ -144,7 +144,7 @@ function QualiPhaseDropdown({ qualiPhases, qualiPhase, onJump }: QualiPhaseDropd
     createPortal(
       <div
         ref={popupRef}
-        className="fixed z-[300] w-max overflow-hidden rounded-xl border border-white/10 bg-[#1a1a26] py-1 shadow-2xl backdrop-blur-xl"
+        className="fixed z-[300] w-max overflow-hidden rounded-xl border border-ink/10 bg-f1-card py-1 shadow-2xl backdrop-blur-xl"
         style={{ left: coords.left, top: coords.top, transform: "translate(-50%, calc(-100% - 8px))" }}
         onClick={(e) => e.stopPropagation()}
         role="menu"
@@ -156,8 +156,8 @@ function QualiPhaseDropdown({ qualiPhases, qualiPhase, onJump }: QualiPhaseDropd
               key={qp.phase}
               type="button"
               role="menuitem"
-              className={`flex w-full items-center px-4 py-2.5 text-left text-sm font-bold transition-colors hover:bg-white/10 ${
-                isActive ? "text-f1-red" : "text-f1-muted hover:text-white"
+              className={`flex w-full items-center px-4 py-2.5 text-left text-sm font-bold transition-colors hover:bg-ink/10 ${
+                isActive ? "text-f1-red" : "text-f1-muted hover:text-ink"
               }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -179,8 +179,8 @@ function QualiPhaseDropdown({ qualiPhases, qualiPhase, onJump }: QualiPhaseDropd
         ref={btnRef}
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-bold shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12] ${
-          open ? "border-white/20 bg-white/10 text-white" : activePhase ? "text-f1-red" : "text-f1-muted"
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-ink/10 bg-ink/5 px-3 text-[11px] font-bold shadow-sm transition-colors hover:border-ink/15 hover:bg-ink/10 hover:text-ink active:bg-ink/[0.12] ${
+          open ? "border-ink/20 bg-ink/10 text-ink" : activePhase ? "text-f1-red" : "text-f1-muted"
         }`}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -188,6 +188,169 @@ function QualiPhaseDropdown({ qualiPhases, qualiPhase, onJump }: QualiPhaseDropd
       >
         {activePhase ?? "Phase"}
         <svg className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {portal}
+    </div>
+  );
+}
+
+const LAP_GRID_COLS = 6;
+const LAP_MENU_WIDTH = 248;
+
+type LapDropdownProps = {
+  currentLap: number;
+  displayLap: string;
+  totalLaps: number;
+  onSeekToLap?: (lap: number) => void;
+};
+
+/** Lap picker: a grid of laps in the playbar's popup style (replaces a native select). */
+function LapDropdown({ currentLap, displayLap, totalLaps, onSeekToLap }: LapDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    // Centred on the button, but kept inside the viewport on narrow screens
+    const half = LAP_MENU_WIDTH / 2 + 8;
+    const left = Math.min(Math.max(r.left + r.width / 2, half), window.innerWidth - half);
+    setCoords({ left, top: r.top });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) { setCoords(null); return; }
+    updatePosition();
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (popupRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [open]);
+
+  // Once placed, bring the current lap into view and give it focus
+  const placed = coords !== null;
+  useEffect(() => {
+    if (!placed) return;
+    const list = popupRef.current?.querySelector<HTMLElement>('[role="listbox"]');
+    const active = list?.querySelector<HTMLButtonElement>('[aria-selected="true"]');
+    // Scroll only the list (scrollIntoView would also move the page)
+    if (list && active) list.scrollTop = active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
+    active?.focus({ preventScroll: true });
+  }, [placed]);
+
+  const close = () => {
+    setOpen(false);
+    btnRef.current?.focus();
+  };
+
+  // Arrow keys move through the grid, Escape closes
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") { e.preventDefault(); close(); return; }
+    const steps: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: LAP_GRID_COLS, ArrowUp: -LAP_GRID_COLS };
+    const focused = Number((document.activeElement as HTMLElement | null)?.dataset.lap) || currentLap;
+    const next = e.key === "Home" ? 1 : e.key === "End" ? totalLaps : e.key in steps ? focused + steps[e.key] : null;
+    if (next == null) return;
+    e.preventDefault();
+    popupRef.current?.querySelector<HTMLButtonElement>(`[data-lap="${Math.min(totalLaps, Math.max(1, next))}"]`)?.focus();
+  };
+
+  const portal =
+    open &&
+    coords &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={popupRef}
+        className="fixed z-[300] overflow-hidden rounded-xl border border-ink/10 bg-f1-card shadow-2xl backdrop-blur-xl"
+        style={{ left: coords.left, top: coords.top, width: LAP_MENU_WIDTH, transform: "translate(-50%, calc(-100% - 8px))" }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+      >
+        <div className="px-3 pb-1.5 pt-2.5 text-[10px] font-extrabold uppercase tracking-wider text-f1-muted">Jump to lap</div>
+        <div
+          role="listbox"
+          aria-label="Lap"
+          className="relative grid max-h-[min(55vh,360px)] gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5"
+          style={{ gridTemplateColumns: `repeat(${LAP_GRID_COLS}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
+            <button
+              key={lap}
+              type="button"
+              role="option"
+              aria-selected={lap === currentLap}
+              data-lap={lap}
+              tabIndex={lap === currentLap ? 0 : -1}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSeekToLap?.(lap);
+                close();
+              }}
+              className={`h-10 rounded-lg font-mono text-sm font-bold tabular-nums transition-colors focus-visible:outline-none md:h-8 md:text-xs ${
+                lap === currentLap
+                  ? "bg-f1-red text-white"
+                  : "text-f1-muted hover:bg-ink/10 hover:text-ink focus-visible:bg-ink/10 focus-visible:text-ink"
+              }`}
+            >
+              {lap}
+            </button>
+          ))}
+        </div>
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div className="relative min-w-0 shrink-0" ref={wrapRef}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className={`group flex h-9 min-w-0 shrink-0 items-center justify-center gap-0.5 rounded-lg border px-1.5 shadow-sm transition-colors hover:border-ink/15 hover:bg-ink/10 active:bg-ink/[0.12] sm:gap-1 sm:px-2 ${
+          open ? "border-ink/20 bg-ink/10" : "border-ink/10 bg-ink/5"
+        }`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Lap ${currentLap} of ${totalLaps}, select lap`}
+        title="Select lap"
+      >
+        <span className="px-0.5 text-[8px] font-extrabold uppercase leading-none tracking-tight text-f1-muted/90 sm:text-[9px]">
+          Lap
+        </span>
+        <span className="flex items-baseline gap-px font-mono tabular-nums">
+          <span className="inline-block w-[2ch] text-right text-[10px] font-extrabold leading-none text-ink sm:text-[11px]">{displayLap}</span>
+          <span className="text-[9px] font-semibold leading-none text-f1-muted/80 light:text-f1-muted sm:text-[10px]">/{totalLaps}</span>
+        </span>
+        <svg
+          className={`h-2.5 w-2.5 shrink-0 text-f1-muted/70 transition-[color,transform] group-hover:text-ink/80 sm:h-3 sm:w-3 ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -255,7 +418,7 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
     createPortal(
       <div
         ref={popupRef}
-        className="fixed z-[300] min-w-[220px] overflow-hidden rounded-xl border border-white/10 bg-[#1a1a26] py-1 shadow-2xl backdrop-blur-xl"
+        className="fixed z-[300] min-w-[220px] overflow-hidden rounded-xl border border-ink/10 bg-f1-card py-1 shadow-2xl backdrop-blur-xl"
         style={{
           left: coords.left,
           top: coords.top,
@@ -268,7 +431,7 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
           <button
             type="button"
             role="menuitem"
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white"
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink"
             onClick={(e) => {
               e.stopPropagation();
               onSyncPhoto();
@@ -285,8 +448,8 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
           <button
             type="button"
             role="menuitem"
-            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-bold transition-colors hover:bg-white/10 hover:text-white ${
-              pipActive ? "bg-f1-red/15 text-white" : "text-f1-muted"
+            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-bold transition-colors hover:bg-ink/10 hover:text-ink ${
+              pipActive ? "bg-f1-red/15 text-ink" : "text-f1-muted"
             }`}
             onClick={(e) => {
               e.stopPropagation();
@@ -315,7 +478,7 @@ function RaceExtrasMenuCluster({ onSyncPhoto, onPiP, pipActive }: RaceExtrasMenu
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className={`${PLAYBAR_ICON_BTN} relative ${open ? "border-white/20 bg-white/10 text-white" : ""} ${pipActive ? "ring-1 ring-f1-red/35" : ""}`}
+        className={`${PLAYBAR_ICON_BTN} relative ${open ? "border-ink/20 bg-ink/10 text-ink" : ""} ${pipActive ? "ring-1 ring-f1-red/35" : ""}`}
         title="Sync, Picture-in-Picture…"
         aria-label="More race tools"
         aria-expanded={open}
@@ -351,10 +514,11 @@ function chapterFill(rgb: string, played: boolean, outlined?: boolean): string {
 
 type HighlightLayer = { key: string; played: boolean; fill?: string; stroke?: string; width?: number; glow?: string };
 const HIGHLIGHT_LAYERS: HighlightLayer[] = [
-  { key: "fill", played: false, fill: "rgba(255,255,255,0.10)" },
-  { key: "line", played: false, stroke: "rgba(255,255,255,0.32)", width: 1.25 },
-  { key: "played-fill", played: true, fill: "rgba(225,6,0,0.55)" },
-  { key: "played-line", played: true, stroke: "#FF2A1F", width: 1.75, glow: "drop-shadow(0 0 3px rgba(225,6,0,0.75))" },
+  { key: "fill", played: false, fill: "rgb(var(--ink) / 0.10)" },
+  { key: "line", played: false, stroke: "rgb(var(--ink) / 0.32)", width: 1.25 },
+  // Played colours are theme variables (globals.css): softer on the light theme
+  { key: "played-fill", played: true, fill: "var(--hl-fill)" },
+  { key: "played-line", played: true, stroke: "var(--hl-line)", width: 1.75, glow: "var(--hl-glow)" },
 ];
 
 interface Props {
@@ -728,62 +892,7 @@ export default function PlaybackControls({
 
   const desktopToolIconBtn = PLAYBAR_ICON_BTN;
   const lapSelector = isRace && (
-    <div
-      className="group relative flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1.5 shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-f1-red/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14141f] sm:gap-1 sm:px-2"
-      title="Select lap"
-    >
-      {/* Visual Overlay — compatto per restare sulla stessa riga degli altri tool */}
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5 px-0.5 pointer-events-none sm:gap-1">
-        <span className="text-[8px] font-extrabold uppercase leading-none tracking-tight text-f1-muted/90 sm:text-[9px]">
-          Lap
-        </span>
-        <div className="flex items-baseline gap-px font-mono tabular-nums">
-          <span className="inline-block w-[2ch] text-right text-[10px] font-extrabold leading-none text-white sm:text-[11px]">{displayLapTwoDigits}</span>
-          <span className="text-[9px] font-semibold leading-none text-f1-muted/80 sm:text-[10px]">/{totalLaps}</span>
-        </div>
-        <svg
-          className="h-2.5 w-2.5 shrink-0 text-f1-muted/70 transition-colors group-hover:text-white/80 sm:h-3 sm:w-3"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-
-      {/* Hidden Select - Covers the entire box to make everything clickable */}
-      <select
-        value={currentLap}
-        onFocus={(e) => {
-          e.currentTarget.setAttribute("data-was-focused", "true");
-        }}
-        onBlur={(e) => {
-          e.currentTarget.removeAttribute("data-was-focused");
-        }}
-        onClick={(e) => {
-          if (e.currentTarget.getAttribute("data-was-focused") === "already") {
-            e.currentTarget.blur();
-          } else {
-            e.currentTarget.setAttribute("data-was-focused", "already");
-          }
-        }}
-        onChange={(e) => {
-          const lap = Number(e.target.value);
-          if (onSeekToLap) onSeekToLap(lap);
-          e.currentTarget.blur();
-        }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 lap-select"
-        title="Click to select lap"
-        aria-label="Select lap"
-      >
-        {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-          <option key={lap} value={lap} className="bg-f1-card text-white">
-            {lap}
-          </option>
-        ))}
-      </select>
-    </div>
+    <LapDropdown currentLap={currentLap} displayLap={displayLapTwoDigits} totalLaps={totalLaps} onSeekToLap={onSeekToLap} />
   );
 
   /* ─── Shared sub-components ─── */
@@ -890,9 +999,9 @@ export default function PlaybackControls({
             className="pointer-events-none absolute z-[70] -translate-x-1/2"
             style={{ left: `clamp(7.5rem, ${infoPct}%, calc(100% - 7.5rem))`, bottom: "calc(50% + 3.6rem)" }}
           >
-            <div className="w-max max-w-[15rem] rounded-lg border border-white/10 bg-[#1a1a26]/95 bg-glass-gradient px-2.5 py-1.5 shadow-2xl shadow-black/50 ring-1 ring-inset ring-white/[0.05] backdrop-blur-xl">
+            <div className="w-max max-w-[15rem] rounded-lg border border-ink/10 bg-f1-card/95 bg-glass-gradient px-2.5 py-1.5 shadow-2xl shadow-black/50 ring-1 ring-inset ring-ink/[0.05] backdrop-blur-xl">
               <div className="flex items-baseline gap-2 font-mono tabular-nums">
-                <span className="text-[11px] font-bold leading-none text-white">{formatTime(hoverInfo.t)}</span>
+                <span className="text-[11px] font-bold leading-none text-ink">{formatTime(hoverInfo.t)}</span>
                 {hoverInfo.lap != null && hoverInfo.lap > 0 && (
                   <span className="text-[10px] font-semibold leading-none text-f1-muted">Lap {hoverInfo.lap}</span>
                 )}
@@ -903,7 +1012,7 @@ export default function PlaybackControls({
                     className="h-2 w-2 shrink-0 rounded-[2px]"
                     style={{ background: `rgb(${CHAPTER_STYLE[hoverInfo.chapter.kind].rgb})` }}
                   />
-                  <span className="text-[11px] font-bold leading-none text-white">
+                  <span className="text-[11px] font-bold leading-none text-ink">
                     {CHAPTER_STYLE[hoverInfo.chapter.kind].label}
                   </span>
                   <span className="text-[10px] font-medium leading-none text-f1-muted">
@@ -914,9 +1023,9 @@ export default function PlaybackControls({
               {hoverInfo.near.map((m) => (
                 <div key={`${m.kind}-${m.t}-${m.label}`} className="mt-1.5 flex items-start gap-1.5">
                   <span
-                    className={`mt-[3px] h-1.5 w-1.5 shrink-0 rotate-45 ${m.kind === "incident" ? "bg-white" : "bg-f1-muted"}`}
+                    className={`mt-[3px] h-1.5 w-1.5 shrink-0 rotate-45 ${m.kind === "incident" ? "bg-ink" : "bg-f1-muted"}`}
                   />
-                  <span className="text-[10.5px] font-medium leading-snug text-white/85">{m.label}</span>
+                  <span className="text-[10.5px] font-medium leading-snug text-ink/85">{m.label}</span>
                 </div>
               ))}
             </div>
@@ -934,7 +1043,7 @@ export default function PlaybackControls({
             {/* Separate SVGs per layer instead of clipPath/gradient ids: this section
                 renders twice (mobile + desktop), so ids would collide. */}
             {hoverPct != null && !isScrubbing && (
-              <div className="absolute inset-y-0 w-px bg-gradient-to-t from-white/50 to-transparent" style={{ left: `${hoverPct}%` }} />
+              <div className="absolute inset-y-0 w-px bg-gradient-to-t from-ink/50 to-transparent" style={{ left: `${hoverPct}%` }} />
             )}
             {HIGHLIGHT_LAYERS.map((layer) => (
               <svg
@@ -949,12 +1058,12 @@ export default function PlaybackControls({
                 preserveAspectRatio="none"
               >
                 {layer.fill ? (
-                  <path d={`${highlightsPath} L100,100 L0,100 Z`} fill={layer.fill} />
+                  <path d={`${highlightsPath} L100,100 L0,100 Z`} style={{ fill: layer.fill }} />
                 ) : (
                   <path
                     d={highlightsPath}
                     fill="none"
-                    stroke={layer.stroke}
+                    style={{ stroke: layer.stroke }}
                     strokeWidth={layer.width}
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
@@ -969,7 +1078,7 @@ export default function PlaybackControls({
                   <span
                     key={`${m.kind}-${m.t}-${m.label}`}
                     className={`absolute -bottom-px h-1.5 w-1.5 -translate-x-1/2 rotate-45 transition-transform duration-150 ${
-                      m.kind === "incident" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.7)]" : "bg-f1-muted/80"
+                      m.kind === "incident" ? "bg-ink shadow-[0_0_6px_rgba(255,255,255,0.7)]" : "bg-f1-muted/80"
                     } ${active ? "scale-150" : ""}`}
                     style={{ left: `${(m.t / totalTime) * 100}%` }}
                   />
@@ -978,9 +1087,9 @@ export default function PlaybackControls({
           </div>
         )}
         {/* Visual track bar */}
-        <div className="relative w-full h-1.5 rounded-full bg-white/10 overflow-visible z-10 transition-[height] duration-150 ease-out group-hover:h-2.5">
+        <div className="relative w-full h-1.5 rounded-full bg-ink/10 overflow-visible z-10 transition-[height] duration-150 ease-out group-hover:h-2.5">
           <div
-            className="relative h-full rounded-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.3)]"
+            className="relative h-full rounded-full bg-[var(--hl-bar)] shadow-[var(--hl-bar-glow)]"
             style={{ width: `${fillPct}%`, transition: phaseJumping && !isScrubbing ? "width 0.5s ease-out" : "none" }}
           >
             {/* Pallino + etichetta giro allineati: label sopra il centro del thumb */}
@@ -992,13 +1101,13 @@ export default function PlaybackControls({
                     role="status"
                     aria-live="polite"
                   >
-                    <div className="session-scrub-lap-bubble rounded-lg border border-white/10 bg-[#1a1a26] bg-glass-gradient px-2.5 py-1 shadow-2xl shadow-black/45 backdrop-blur-xl ring-1 ring-inset ring-white/[0.05]">
+                    <div className="session-scrub-lap-bubble rounded-lg border border-ink/10 bg-f1-card bg-glass-gradient px-2.5 py-1 shadow-2xl shadow-black/45 backdrop-blur-xl ring-1 ring-inset ring-ink/[0.05]">
                       <div className="flex items-baseline gap-1.5 whitespace-nowrap">
                         <span className="text-[9px] font-semibold uppercase tracking-wider text-f1-muted sm:text-[10px]">
                           Lap
                         </span>
                         <div className="flex items-baseline gap-px font-mono tabular-nums">
-                          <span className="text-[11px] font-bold leading-none text-white sm:text-xs">{scrubLapDisplay}</span>
+                          <span className="text-[11px] font-bold leading-none text-ink sm:text-xs">{scrubLapDisplay}</span>
                           <span className="text-[10px] font-semibold leading-none text-f1-muted/75 sm:text-[11px]">
                             /{totalLaps}
                           </span>
@@ -1008,7 +1117,7 @@ export default function PlaybackControls({
                   </div>
                 )}
                 <div
-                  className={`h-3 w-3 shrink-0 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-opacity ${
+                  className={`h-3 w-3 shrink-0 rounded-full bg-ink shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-opacity ${
                     isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                   }`}
                 />
@@ -1028,7 +1137,7 @@ export default function PlaybackControls({
                   background: chapterFill(style.rgb, false, style.outlined),
                   // Dark ring = YouTube-style gap between chapters and the rest of the bar
                   boxShadow: [
-                    "0 0 0 1.5px #11111a",
+                    "0 0 0 1.5px rgb(var(--f1-dark))",
                     played > 0 ? `0 0 10px rgba(${style.rgb},0.45)` : null,
                   ]
                     .filter(Boolean)
@@ -1064,7 +1173,7 @@ export default function PlaybackControls({
     createPortal(
       <div
         ref={speedPopupRef}
-        className="fixed z-[300] min-w-[128px] overflow-hidden rounded-xl border border-white/10 bg-[#1a1a26] shadow-2xl backdrop-blur-xl"
+        className="fixed z-[300] min-w-[128px] overflow-hidden rounded-xl border border-ink/10 bg-f1-card shadow-2xl backdrop-blur-xl"
         style={{
           left: speedMenuCoords.left,
           top: speedMenuCoords.top,
@@ -1083,7 +1192,7 @@ export default function PlaybackControls({
                 setSpeedMenuOpen(false);
               }}
               className={`w-full rounded-lg px-4 py-2 text-left text-sm font-bold transition-colors sm:py-2 ${
-                speed === s ? "bg-f1-red text-white" : "text-f1-muted hover:bg-white/10 hover:text-white"
+                speed === s ? "bg-f1-red text-white" : "text-f1-muted hover:bg-ink/10 hover:text-ink"
               }`}
             >
               {s}x
@@ -1103,12 +1212,12 @@ export default function PlaybackControls({
           e.stopPropagation();
           setSpeedMenuOpen((o) => !o);
         }}
-        className={`flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white active:bg-white/[0.12] touch-manipulation select-none ${isWide ? "gap-1 px-2.5" : "px-2"}`}
+        className={`flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-ink/10 bg-ink/5 text-[11px] font-bold text-f1-muted shadow-sm transition-colors hover:border-ink/15 hover:bg-ink/10 hover:text-ink active:bg-ink/[0.12] touch-manipulation select-none ${isWide ? "gap-1 px-2.5" : "px-2"}`}
       >
         <svg className="h-3.5 w-3.5 text-f1-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span className="tabular-nums text-white">{speed}x</span>
+        <span className="tabular-nums text-ink">{speed}x</span>
         <svg
           className={`h-3 w-3 opacity-70 transition-transform ${speedMenuOpen ? "rotate-180" : ""}`}
           fill="none"
@@ -1131,7 +1240,7 @@ export default function PlaybackControls({
       </div>
       <div className="flex items-center gap-2 px-3 py-1.5" data-tour="transport">
         {playPauseBtn}
-        <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-white font-mono tabular-nums-fixed">
+        <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-ink font-mono tabular-nums-fixed">
           {displayedTimeText}
           {isRace && displayLap > 0 && <span className="ml-2 font-mono tabular-nums-fixed text-f1-muted">Lap {displayLap}</span>}
         </span>
@@ -1146,7 +1255,7 @@ export default function PlaybackControls({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-f1-muted transition-colors hover:bg-white/10"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-f1-muted transition-colors hover:bg-ink/10"
           aria-expanded={expanded}
           aria-label={expanded ? "Nascondi controlli extra" : "Mostra controlli extra"}
         >
@@ -1157,14 +1266,14 @@ export default function PlaybackControls({
       </div>
 
       {expanded && (
-        <div className="space-y-2 border-t border-white/5 px-3 pb-2 pt-2">
+        <div className="space-y-2 border-t border-ink/5 px-3 pb-2 pt-2">
           <div className="flex flex-wrap items-center justify-center gap-1">
             {[...SKIP_OPTIONS].reverse().map(({ label, seconds }) => (
               <button
                 key={`back-${label}`}
                 type="button"
                 onClick={() => skip(-seconds)}
-                className="rounded bg-white/5 px-2.5 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink"
               >
                 -{label}
               </button>
@@ -1175,7 +1284,7 @@ export default function PlaybackControls({
                 key={`fwd-${label}`}
                 type="button"
                 onClick={() => skip(seconds)}
-                className="rounded bg-white/5 px-2.5 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink"
               >
                 +{label}
               </button>
@@ -1186,7 +1295,7 @@ export default function PlaybackControls({
             const N = qualiPhases.length;
             return (
               <div className="flex items-center justify-center gap-2">
-                <div className="relative flex h-8 shrink-0 rounded-xl bg-white/[0.06] p-1">
+                <div className="relative flex h-8 shrink-0 rounded-xl bg-ink/[0.06] p-1">
                   {activeIdx >= 0 && (
                     <div
                       className="pointer-events-none absolute top-1 bottom-1 rounded-lg bg-f1-red/25 shadow-sm transition-transform duration-300 ease-out"
@@ -1199,7 +1308,7 @@ export default function PlaybackControls({
                       type="button"
                       onClick={() => jumpToPhase(qp.timestamp)}
                       className={`relative z-10 h-full min-w-[36px] flex-1 px-3 text-xs font-bold transition-colors ${
-                        i === activeIdx ? "text-f1-red" : "text-f1-muted hover:text-white"
+                        i === activeIdx ? "text-f1-red" : "text-f1-muted hover:text-ink"
                       }`}
                     >
                       {qp.phase}
@@ -1220,28 +1329,12 @@ export default function PlaybackControls({
                 <button
                   type="button"
                   onClick={onSyncPhoto}
-                  className="rounded border border-white/10 px-3 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white"
+                  className="rounded border border-ink/10 px-3 py-1.5 text-xs font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink"
                 >
                   Sync
                 </button>
               )}
-              {onSeekToLap && (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-extrabold text-white">Lap</span>
-                  <select
-                    value={currentLap}
-                    onChange={(e) => onSeekToLap(Number(e.target.value))}
-                    className="cursor-pointer rounded bg-white/10 px-2 py-1 text-xs font-extrabold text-white outline-none"
-                  >
-                    {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
-                      <option key={lap} value={lap} className="bg-f1-card text-white">
-                        {lap}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-xs font-extrabold text-white">/{totalLaps}</span>
-                </div>
-              )}
+              {onSeekToLap && lapSelector}
             </div>
           )}
         </div>
@@ -1265,7 +1358,7 @@ export default function PlaybackControls({
         <div className={`flex shrink-0 min-w-0 items-center gap-4 ${
           isWide ? "justify-start" : "justify-center"
         }`}>
-          <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-white">
+          <span className="whitespace-nowrap font-mono text-sm font-extrabold tabular-nums-fixed tracking-tight text-ink">
             <span className="inline-block text-right" style={{ width: `${currentTimeWidthCh}ch` }}>
               {displayedTimeText}
             </span>
@@ -1300,7 +1393,7 @@ export default function PlaybackControls({
                     key={`back-${label}`}
                     type="button"
                     onClick={() => skip(-seconds)}
-                    className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white ${skipVisibility(label)}`}
+                    className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink ${skipVisibility(label)}`}
                     title={`Back ${label}`}
                   >
                     <span>{t.full}</span>
@@ -1318,7 +1411,7 @@ export default function PlaybackControls({
                 key={`fwd-${label}`}
                 type="button"
                 onClick={() => skip(seconds)}
-                className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-white/10 hover:text-white ${skipVisibility(label)}`}
+                className={`shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-f1-muted transition-colors hover:bg-ink/10 hover:text-ink ${skipVisibility(label)}`}
                 title={`Forward ${label}`}
               >
                 <span>{isWide ? t.full : t.compact}</span>
@@ -1381,7 +1474,7 @@ export default function PlaybackControls({
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible overflow-y-visible bg-f1-dark/95 border-t border-white/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:overflow-y-visible sm:rounded-xl sm:border sm:border-white/[0.08] sm:bg-[rgba(20,20,30,0.75)] sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] sm:backdrop-blur-2xl"
+      className="fixed bottom-0 left-0 right-0 z-50 min-w-0 max-w-full overflow-x-visible overflow-y-visible bg-f1-dark/95 border-t border-ink/5 backdrop-blur-xl sm:relative sm:z-auto sm:flex-shrink-0 sm:mx-3 sm:mb-3 sm:overflow-x-visible sm:overflow-y-visible sm:rounded-xl sm:border sm:border-ink/[0.08] sm:bg-f1-surface/75 sm:shadow-[0_0_40px_rgba(0,0,0,0.6)] light:sm:shadow-[0_8px_30px_rgba(0,0,0,0.08)] sm:backdrop-blur-2xl"
     >
       {mobileLayout}
       {desktopLayout}

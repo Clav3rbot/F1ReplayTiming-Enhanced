@@ -175,7 +175,7 @@ export default function LapNotifications({
           className="lap-bubble flex items-center gap-3 whitespace-nowrap pl-2 pr-4 py-2 rounded-lg glass-panel shadow-glass"
         >
           <span className="w-1.5 h-6 rounded-sm flex-shrink-0" style={{ backgroundColor: b.teamColor }} />
-          <span className="text-base font-extrabold text-white tracking-wide flex-shrink-0">{b.abbr}</span>
+          <span className="text-base font-extrabold text-ink tracking-wide flex-shrink-0">{b.abbr}</span>
           <span className={`text-base font-bold tabular-nums flex-shrink-0 ${b.colorClass}`}>{b.lapTime}</span>
           <SectorMarkers sectors={b.sectors} className="flex-shrink-0" />
         </div>

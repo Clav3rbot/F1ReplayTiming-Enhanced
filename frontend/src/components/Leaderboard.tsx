@@ -163,18 +163,18 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
             <button
               key={drv.abbr}
               onClick={() => onDriverClick(drv.abbr)}
-              className={`w-full flex items-center px-2 py-1 hover:bg-white/10 transition-colors duration-200 text-left relative ${
-                isHighlighted ? "bg-white/10 shadow-[inset_3px_0_0_rgba(255,255,255,0.8)]" : "border-l-[3px] border-transparent"
+              className={`w-full flex items-center px-2 py-1 hover:bg-ink/10 transition-colors duration-200 text-left relative ${
+                isHighlighted ? "bg-ink/10 shadow-[inset_3px_0_0_rgb(var(--ink)/0.8)]" : "border-l-[3px] border-transparent"
               } ${drv.no_timing ? "opacity-40" : drv.knocked_out ? "opacity-50" : ""}`}
             >
-              {isHighlighted && <div className="absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent pointer-events-none" />}
+              {isHighlighted && <div className="absolute inset-0 bg-gradient-to-r from-ink/[0.05] to-transparent pointer-events-none" />}
               {/* Position - 24px */}
               {isLeader ? (
                 <span className="w-6 h-6 flex items-center justify-center rounded bg-f1-red text-white text-sm font-extrabold flex-shrink-0 font-mono tabular-nums-fixed shadow-glow shadow-f1-red/30 relative z-10">
                   {drv.position}
                 </span>
               ) : (
-                <span className="w-6 text-[13px] font-extrabold pb-0.5 text-white text-right flex-shrink-0 font-mono tabular-nums-fixed relative z-10">
+                <span className="w-6 text-[13px] font-extrabold pb-0.5 text-ink text-right flex-shrink-0 font-mono tabular-nums-fixed relative z-10">
                   {drv.position ?? "-"}
                 </span>
               )}
@@ -193,7 +193,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               )}
 
               {/* Driver abbreviation - 30px */}
-              <span className="w-[30px] text-sm font-extrabold text-white flex-shrink-0 relative z-10 tracking-wide">
+              <span className="w-[30px] text-sm font-extrabold text-ink flex-shrink-0 relative z-10 tracking-wide">
                 {drv.abbr}
               </span>
 
@@ -201,8 +201,8 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               {!isRace && (
                 <span className="w-[13px] ml-2 -mr-1 flex-shrink-0 flex items-center justify-center">
                   {drv.in_pit && (
-                    <span className="w-[13px] h-[13px] bg-white rounded-[2px] flex items-center justify-center">
-                      <span className="text-[8px] font-extrabold text-black leading-none">P</span>
+                    <span className="w-[13px] h-[13px] bg-ink rounded-[2px] flex items-center justify-center">
+                      <span className="text-[8px] font-extrabold text-f1-dark leading-none">P</span>
                     </span>
                   )}
                 </span>
@@ -213,7 +213,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               <span className="w-6 flex-shrink-0 text-center" title="Grid position change">
                 {!drv.retired && currentTime >= 10 && (
                   drv.pit_start ? (
-                    <span className="text-[10px] font-bold text-white">Pit</span>
+                    <span className="text-[10px] font-bold text-ink">Pit</span>
                   ) : drv.grid_position != null && drv.position != null && (() => {
                     const delta = drv.grid_position - drv.position;
                     if (delta > 0) return (
@@ -251,7 +251,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Best lap time (practice/qualifying only) */}
               {!isRace && settings.showBestLapTime && (
-                <span className={`w-[60px] flex-shrink-0 text-[11px] font-bold text-right font-mono tabular-nums-fixed relative z-10 ${drv.position === 1 ? "text-f1-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.6)]" : "text-white"}`} title="Best lap time">
+                <span className={`w-[60px] flex-shrink-0 text-[11px] font-bold text-right font-mono tabular-nums-fixed relative z-10 ${drv.position === 1 ? "text-f1-magenta drop-shadow-[0_0_8px_rgba(255,0,255,0.6)]" : "text-ink"}`} title="Best lap time">
                   {drv.retired ? "Out" : (drv.best_lap_time || (drv.position === 1 ? formatGap(drv.gap) : null) || "")}
                 </span>
               )}
@@ -263,7 +263,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     className="w-14 flex-shrink-0 flex justify-start"
                     onClick={(e) => { e.stopPropagation(); setShowInterval(!showInterval); }}
                   >
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white cursor-pointer hover:bg-white/20 transition-colors">
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-ink/10 text-ink cursor-pointer hover:bg-ink/20 transition-colors">
                       {showInterval ? "Interval" : "Leader"}
                     </span>
                   </span>
@@ -330,7 +330,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                   {drv.finished ? (
                     <img src="/chequered-flag.png" alt="Finished" className="w-5 h-5 object-contain" />
                   ) : drv.pit_stops > 0 ? (
-                    <span className="w-5 h-5 border border-f1-muted rounded-sm flex items-center justify-center text-[10px] font-extrabold text-white">
+                    <span className="w-5 h-5 border border-f1-muted rounded-sm flex items-center justify-center text-[10px] font-extrabold text-ink">
                       {drv.pit_stops}
                     </span>
                   ) : null}
@@ -395,11 +395,10 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                     return (
                       <span
                         key={i}
-                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50"
+                        className="tyre-badge w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50"
                         style={{
                           borderColor: hColor,
                           color: hColor,
-                          backgroundColor: "transparent",
                         }}
                       >
                         {hLabel}
@@ -413,11 +412,10 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               {settings.showTyreType && (
                 <span className="w-5 flex-shrink-0 flex items-center justify-center ml-1" title="Current tyre">
                   <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2"
+                    className="tyre-badge w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2"
                     style={{
                       borderColor: tyreColor || "#555",
                       color: tyreColor || "#555",
-                      backgroundColor: "transparent",
                     }}
                   >
                     {tyreLabel || ""}
@@ -427,7 +425,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Tyre age - 20px */}
               {settings.showTyreAge && (
-                <span className="w-5 flex-shrink-0 text-xs font-extrabold text-white text-right" title="Tyre age (laps)">
+                <span className="w-5 flex-shrink-0 text-xs font-extrabold text-ink text-right" title="Tyre age (laps)">
                   {drv.tyre_life ?? ""}
                 </span>
               )}

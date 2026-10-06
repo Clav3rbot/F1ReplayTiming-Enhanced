@@ -220,15 +220,15 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-lg max-h-[85vh] flex flex-col">
-        <div className="p-6 pb-4 border-b border-white/10">
-          <h3 className="text-white font-bold text-lg">Storage</h3>
+        <div className="p-6 pb-4 border-b border-ink/10">
+          <h3 className="text-ink font-bold text-lg">Storage</h3>
           {loading ? (
             <p className="text-f1-muted text-sm mt-1">Reading usage…</p>
           ) : (
             <p className="text-f1-muted text-sm mt-1">
               {data?.session_count || 0} session{data?.session_count === 1 ? "" : "s"} stored
               {" · "}
-              <span className="text-white font-bold">{formatSize(data?.total_bytes)}</span>
+              <span className="text-ink font-bold">{formatSize(data?.total_bytes)}</span>
             </p>
           )}
         </div>
@@ -236,20 +236,20 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
         {/* Retention policy — hidden until usage is known, so the threshold
             can't be set against a total that hasn't loaded yet. */}
         {loading ? (
-          <div className="p-6 py-8 border-b border-white/10 flex items-center justify-center gap-3">
+          <div className="p-6 py-8 border-b border-ink/10 flex items-center justify-center gap-3">
             <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
             <span className="text-f1-muted text-sm">Calculating current storage…</span>
           </div>
         ) : (
-        <div className="p-6 py-4 border-b border-white/10 overflow-y-auto min-h-0">
+        <div className="p-6 py-4 border-b border-ink/10 overflow-y-auto min-h-0">
           <button
             onClick={() => setEnabled(!enabled)}
             className="flex items-center gap-3 w-full text-left mb-3"
           >
-            <div className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors ${enabled ? "bg-f1-red" : "bg-white/10"}`}>
+            <div className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors ${enabled ? "bg-f1-red" : "bg-ink/10"}`}>
               <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${enabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
             </div>
-            <span className="text-white text-sm font-bold">
+            <span className="text-ink text-sm font-bold">
               Automatically delete old sessions
             </span>
           </button>
@@ -266,12 +266,12 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
                 onFocus={(e) => e.target.select()}
                 onBlur={() => { if (!amount) setAmount("1"); }}
                 aria-label="Age threshold"
-                className="w-14 px-2 py-1.5 bg-white/5 border border-white/10 rounded-md text-white text-sm text-center focus:outline-none focus:border-f1-red/50 transition-colors"
+                className="w-14 px-2 py-1.5 bg-ink/5 border border-ink/10 rounded-md text-ink text-sm text-center focus:outline-none focus:border-f1-red/50 transition-colors"
               />
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value as Unit)}
-                className="px-2 py-1.5 bg-white/5 border border-white/10 rounded-md text-white text-sm focus:outline-none focus:border-f1-red/50 transition-colors"
+                className="px-2 py-1.5 bg-ink/5 border border-ink/10 rounded-md text-ink text-sm focus:outline-none focus:border-f1-red/50 transition-colors"
               >
                 <option value="weeks">weeks</option>
                 <option value="months">months</option>
@@ -303,7 +303,7 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
 
           {confirm && (
             <div className="mt-3 p-3 glass-panel rounded-lg">
-              <p className="text-white text-sm mb-2">
+              <p className="text-ink text-sm mb-2">
                 Deletes <span className="font-bold">{confirm.count}</span> session
                 {confirm.count === 1 ? "" : "s"} now, freeing{" "}
                 <span className="font-bold">{formatSize(confirm.freed_bytes)}</span>. Runs
@@ -312,13 +312,13 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
               </p>
 
               {!!confirm.sessions?.length && (
-                <div className="max-h-40 overflow-y-auto mb-3 border border-white/10 rounded-md">
+                <div className="max-h-40 overflow-y-auto mb-3 border border-ink/10 rounded-md">
                   {confirm.sessions.map((s) => (
                     <div
                       key={`${s.year}_${s.round}_${s.type}`}
-                      className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs border-b border-white/5 last:border-0"
+                      className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs border-b border-ink/5 last:border-0"
                     >
-                      <span className="text-white truncate">
+                      <span className="text-ink truncate">
                         {s.event_name}
                         <span className="text-f1-muted ml-1.5">{s.type}</span>
                       </span>
@@ -332,7 +332,7 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirm(null)}
-                  className="px-3 py-1.5 bg-white/5 text-white text-xs font-bold rounded-md border border-white/10 hover:bg-white/10 transition-all duration-300"
+                  className="px-3 py-1.5 bg-ink/5 text-ink text-xs font-bold rounded-md border border-ink/10 hover:bg-ink/10 transition-all duration-300"
                 >
                   Cancel
                 </button>
@@ -351,11 +351,11 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
             <div className="mt-3 p-3 glass-panel rounded-lg">
               <div className="flex items-center gap-3 mb-2">
                 <span className="w-4 h-4 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
-                <span className="text-white text-sm">{progress.message}</span>
+                <span className="text-ink text-sm">{progress.message}</span>
               </div>
               {progress.total > 0 && (
                 <>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-ink/10 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-f1-red transition-all duration-200"
                       style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
@@ -377,7 +377,7 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
         <div className="p-6 pt-4 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
+            className="px-4 py-2 bg-ink/5 text-ink text-sm font-bold rounded-md border border-ink/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
           >
             Close
           </button>

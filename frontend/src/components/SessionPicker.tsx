@@ -8,6 +8,8 @@ import { apiUrl } from "@/lib/api";
 import RaceCountdown from "./RaceCountdown";
 import StorageManager from "./StorageManager";
 import GuidedTour, { type TourStep } from "./GuidedTour";
+import ThemeToggle from "./ThemeToggle";
+import Logo from "./Logo";
 
 const HOME_TOUR: TourStep[] = [
   {
@@ -39,7 +41,7 @@ const HOME_TOUR: TourStep[] = [
   {
     target: "nav",
     title: "Learn more",
-    body: "Features explains everything the player can do. Storage shows which sessions are saved on the server.",
+    body: "Features explains everything the player can do. Storage shows which sessions are saved on the server. The sun and moon button switches between dark and light theme.",
   },
   {
     title: "You're all set",
@@ -179,7 +181,7 @@ function StatusPill({ status }: { status: Event["status"] }) {
       );
     case "future":
       return (
-        <span className="w-20 inline-flex items-center justify-center py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-white/5 text-f1-muted border border-white/10">
+        <span className="w-20 inline-flex items-center justify-center py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-ink/5 text-f1-muted border border-ink/10">
           Upcoming
         </span>
       );
@@ -321,7 +323,7 @@ export default function SessionPicker() {
 
   const displayEvents = events;
   const hasLive = !!liveSession && liveSession.year === year;
-  const dividerRule = hasLive ? "bg-gradient-to-r from-transparent to-f1-red/50" : "bg-white/[0.07]";
+  const dividerRule = hasLive ? "bg-gradient-to-r from-transparent to-f1-red/50" : "bg-ink/[0.07]";
 
   const nextRaceDate = useMemo(() => {
     const now = new Date();
@@ -372,14 +374,14 @@ export default function SessionPicker() {
         data-tour="event"
         className={`glass-panel overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
           isSelected && isLatest
-            ? "border-f1-red ring-1 ring-f1-red/50 shadow-[0_4px_30px_rgba(225,6,0,0.15)] bg-white/5"
+            ? "border-f1-red ring-1 ring-f1-red/50 shadow-[0_4px_30px_rgba(225,6,0,0.15)] bg-ink/5"
             : isSelected
-              ? "border-white/30 ring-1 ring-white/20 shadow-glass bg-white/5"
+              ? "border-ink/30 ring-1 ring-ink/20 shadow-glass bg-ink/5"
               : isLatest
                 ? "border-f1-red/50 hover:border-f1-red hover:shadow-[0_4px_20px_rgba(225,6,0,0.2)]"
               : isFuture
-                ? "opacity-50 hover:opacity-70 border-white/5"
-                : "hover:border-white/20 hover:shadow-[0_8px_30px_rgba(0,0,0,0.25)] hover:bg-white/[0.02]"
+                ? "opacity-50 hover:opacity-70 light:opacity-60 light:hover:opacity-80 border-ink/5"
+                : "hover:border-ink/20 hover:shadow-[0_8px_30px_rgba(0,0,0,0.25)] hover:bg-ink/[0.02]"
         } rounded-xl`}
       >
         {/* Compact header row */}
@@ -389,7 +391,7 @@ export default function SessionPicker() {
         >
           <span className="text-xs font-bold text-f1-muted w-8 flex-shrink-0">R{evt.round_number}</span>
           <div className="flex-1 min-w-0">
-            <span className="text-white font-bold text-sm">
+            <span className="text-ink font-bold text-sm">
               {COUNTRY_CODES[evt.country] && (
                 <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[evt.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[evt.country]}.png 2x`} width="16" alt={evt.country} className="mr-1.5 inline-block rounded-sm shadow-sm" />
               )}
@@ -419,7 +421,7 @@ export default function SessionPicker() {
           className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isSelected ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
         >
           <div className="overflow-hidden">
-            <div className="px-4 pb-3 flex flex-wrap gap-3 border-t border-white/10 pt-3" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 pb-3 flex flex-wrap gap-3 border-t border-ink/10 pt-3" onClick={(e) => e.stopPropagation()}>
               {evt.sessions.map((session) => {
               const code = SESSION_LABELS[session.name];
               if (!code) return null;
@@ -476,11 +478,11 @@ export default function SessionPicker() {
                       onTouchEnd={() => { if (longPressRef.current) clearTimeout(longPressRef.current); }}
                       onTouchMove={() => { if (longPressRef.current) clearTimeout(longPressRef.current); }}
                       title={tooltip}
-                      className="px-3 py-1.5 bg-white/5 text-white/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-white/10 hover:border-f1-red/50 transition-all duration-300 flex items-center gap-1.5 select-none"
+                      className="px-3 py-1.5 bg-ink/5 text-ink/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-ink/10 hover:border-f1-red/50 transition-all duration-300 flex items-center gap-1.5 select-none"
                     >
                       {session.name}
                       {busy ? (
-                        <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" aria-label="Reprocessing" />
+                        <span className="w-3 h-3 border-2 border-ink/30 border-t-ink rounded-full animate-spin flex-shrink-0" aria-label="Reprocessing" />
                       ) : session.precomputed ? (
                         <span
                           className="w-1.5 h-1.5 rounded-full bg-f1-green shadow-[0_0_6px_rgba(0,255,65,0.6)] flex-shrink-0"
@@ -494,12 +496,12 @@ export default function SessionPicker() {
               return (
                 <div key={session.name} className="flex flex-col items-center">
                   {localTime && (
-                    <span className="text-[10px] text-f1-muted/50 mb-1 text-center leading-tight">
+                    <span className="text-[10px] text-f1-muted/50 light:text-f1-muted/80 mb-1 text-center leading-tight">
                       {localTime.dayDate}<br />{localTime.time}
                     </span>
                   )}
                   <span
-                    className="px-3 py-1.5 bg-black/20 text-f1-muted/40 text-xs font-bold rounded-md cursor-not-allowed border border-white/5"
+                    className="px-3 py-1.5 bg-black/20 light:bg-ink/[0.04] text-f1-muted/40 light:text-f1-muted/70 text-xs font-bold rounded-md cursor-not-allowed border border-ink/5"
                   >
                     {session.name}
                   </span>
@@ -520,7 +522,7 @@ export default function SessionPicker() {
     <div className="min-h-screen bg-f1-dark text-f1-text relative">
       <GuidedTour id="home" steps={HOME_TOUR} />
       {/* Persistent Radial Glow Background (Old version restored and made fixed) */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-f1-surface via-f1-dark to-[rgb(var(--bg-edge))]"></div>
 
       {/* Session context menu (right-click / long-press) */}
       {ctxMenu && (
@@ -531,26 +533,26 @@ export default function SessionPicker() {
         >
           <button
             onClick={() => { window.location.href = ctxMenu.href; }}
-            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+            className="block w-full text-left px-4 py-2 text-ink hover:bg-ink/5 transition-colors"
           >
             Open
           </button>
           <button
             onClick={() => { window.open(ctxMenu.href, "_blank", "noopener,noreferrer"); setCtxMenu(null); }}
-            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+            className="block w-full text-left px-4 py-2 text-ink hover:bg-ink/5 transition-colors"
           >
             Open in new tab
           </button>
           <button
             onClick={() => { window.open(ctxMenu.href, "_blank", "noopener,noreferrer,width=1280,height=820"); setCtxMenu(null); }}
-            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+            className="block w-full text-left px-4 py-2 text-ink hover:bg-ink/5 transition-colors"
           >
             Open in new window
           </button>
-          <div className="my-1 border-t border-white/10" />
+          <div className="my-1 border-t border-ink/10" />
           <button
             onClick={() => reprocess(ctxMenu)}
-            className="block w-full text-left px-4 py-2 text-white hover:bg-white/5 transition-colors"
+            className="block w-full text-left px-4 py-2 text-ink hover:bg-ink/5 transition-colors"
           >
             ↻ Reprocess
           </button>
@@ -568,7 +570,7 @@ export default function SessionPicker() {
                 });
                 setCtxMenu(null);
               }}
-              className="block w-full text-left px-4 py-2 text-f1-red hover:bg-white/5 transition-colors"
+              className="block w-full text-left px-4 py-2 text-f1-red hover:bg-ink/5 transition-colors"
             >
               Delete data{ctxMenu.sizeBytes ? ` (${formatSize(ctxMenu.sizeBytes)})` : ""}
             </button>
@@ -582,7 +584,7 @@ export default function SessionPicker() {
       {deleteModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-sm p-6">
-            <h3 className="text-white font-bold text-base mb-1">
+            <h3 className="text-ink font-bold text-base mb-1">
               {deleteModal.state === "done" ? "Data deleted" : `Delete ${deleteModal.label} data?`}
             </h3>
             {deleteModal.state === "confirm" && (
@@ -595,7 +597,7 @@ export default function SessionPicker() {
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => setDeleteModal(null)}
-                    className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-white/10 transition-all duration-300"
+                    className="px-4 py-2 bg-ink/5 text-ink text-sm font-bold rounded-md border border-ink/10 hover:bg-ink/10 transition-all duration-300"
                   >
                     Cancel
                   </button>
@@ -611,7 +613,7 @@ export default function SessionPicker() {
             {deleteModal.state === "deleting" && (
               <div className="flex items-center gap-3 mt-3">
                 <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
-                <span className="text-white text-sm">Deleting…</span>
+                <span className="text-ink text-sm">Deleting…</span>
               </div>
             )}
             {(deleteModal.state === "done" || deleteModal.state === "error") && (
@@ -625,7 +627,7 @@ export default function SessionPicker() {
                       setDeleteModal(null);
                       if (deleteModal.state === "done") window.location.reload();
                     }}
-                    className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
+                    className="px-4 py-2 bg-ink/5 text-ink text-sm font-bold rounded-md border border-ink/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
                   >
                     Close
                   </button>
@@ -640,7 +642,7 @@ export default function SessionPicker() {
       {reprocessModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-sm p-6">
-            <h3 className="text-white font-bold text-base mb-1">Reprocessing {reprocessModal.label}</h3>
+            <h3 className="text-ink font-bold text-base mb-1">Reprocessing {reprocessModal.label}</h3>
             {reprocessModal.state === "running" && (
               <>
                 <p className="text-f1-muted text-sm mb-4">
@@ -648,7 +650,7 @@ export default function SessionPicker() {
                 </p>
                 <div className="flex items-center gap-3">
                   <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
-                  <span className="text-white text-sm">{reprocessModal.message}</span>
+                  <span className="text-ink text-sm">{reprocessModal.message}</span>
                 </div>
               </>
             )}
@@ -661,7 +663,7 @@ export default function SessionPicker() {
             <div className="flex justify-end mt-5">
               <button
                 onClick={() => setReprocessModal(null)}
-                className="px-4 py-2 bg-white/5 text-white text-sm font-bold rounded-md border border-white/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
+                className="px-4 py-2 bg-ink/5 text-ink text-sm font-bold rounded-md border border-ink/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
               >
                 {reprocessModal.state === "running" ? "Hide" : "Close"}
               </button>
@@ -670,12 +672,12 @@ export default function SessionPicker() {
         </div>
       )}
 
-      <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-white/5">
+      <div className="glass-panel-heavy border-b-0 sticky top-0 z-40 border-b border-ink/5">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 relative flex items-center justify-between gap-4 header-container-desktop">
           <div className="flex items-center gap-3 sm:gap-5 header-logo-title-absolute">
-            <img src="/logo.png" alt="F1 Replay" className="w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg" />
+            <Logo alt="F1 Replay" className="w-12 h-12 sm:w-[56px] sm:h-[56px] rounded-lg" />
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-3xl font-extrabold text-white tracking-tight mb-0.5 sm:mb-1">
+              <h1 className="text-xl sm:text-3xl font-extrabold text-ink tracking-tight mb-0.5 sm:mb-1">
                 F1 Replay Timing
               </h1>
               <p className="text-f1-muted text-xs sm:text-sm font-medium tracking-wide">Select a session to replay</p>
@@ -693,27 +695,28 @@ export default function SessionPicker() {
             {/* Desktop: text buttons */}
             <Link
               href="/features"
-              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+              className="hidden sm:block px-4 py-2 bg-ink/5 text-f1-text text-sm font-bold rounded-md hover:bg-ink/10 hover:text-ink transition-colors border border-transparent hover:border-ink/10"
             >
               Features
             </Link>
             <Link
               href="/about"
-              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+              className="hidden sm:block px-4 py-2 bg-ink/5 text-f1-text text-sm font-bold rounded-md hover:bg-ink/10 hover:text-ink transition-colors border border-transparent hover:border-ink/10"
             >
               About
             </Link>
             <button
               onClick={() => setStorageOpen(true)}
-              className="hidden sm:block px-4 py-2 bg-white/5 text-f1-text text-sm font-bold rounded-md hover:bg-white/10 hover:text-white transition-colors border border-transparent hover:border-white/10"
+              className="hidden sm:block px-4 py-2 bg-ink/5 text-f1-text text-sm font-bold rounded-md hover:bg-ink/10 hover:text-ink transition-colors border border-transparent hover:border-ink/10"
             >
               Storage
             </button>
+            <ThemeToggle />
           {/* Mobile: hamburger menu */}
           <div className="relative sm:hidden" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="w-9 h-9 flex items-center justify-center rounded bg-f1-border text-f1-muted hover:text-white transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded bg-f1-border text-f1-muted hover:text-ink transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -723,19 +726,19 @@ export default function SessionPicker() {
               <div className="absolute right-0 top-11 w-40 bg-f1-card border border-f1-border rounded-lg shadow-xl z-50 py-1">
                 <Link
                   href="/features"
-                  className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
+                  className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-ink hover:bg-ink/5 transition-colors"
                 >
                   Features
                 </Link>
                 <Link
                   href="/about"
-                  className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
+                  className="block px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-ink hover:bg-ink/5 transition-colors"
                 >
                   About
                 </Link>
                 <button
                   onClick={() => { setMenuOpen(false); setStorageOpen(true); }}
-                  className="block w-full text-left px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-white hover:bg-white/5 transition-colors"
+                  className="block w-full text-left px-4 py-2.5 text-sm font-bold text-f1-muted hover:text-ink hover:bg-ink/5 transition-colors"
                 >
                   Storage
                 </button>
@@ -756,7 +759,7 @@ export default function SessionPicker() {
               className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
                 year === s
                   ? "bg-f1-red text-white shadow-[0_4px_15px_rgba(225,6,0,0.4)] scale-105"
-                  : "glass-panel text-f1-muted hover:text-white hover:bg-white/10"
+                  : "glass-panel text-f1-muted hover:text-ink hover:bg-ink/10"
               }`}
             >
               {s}
@@ -784,7 +787,7 @@ export default function SessionPicker() {
                     <div className="flex-1 min-w-0 px-4 sm:px-5 py-4 flex items-center gap-4 bg-gradient-to-r from-red-950/20 to-transparent">
                       <span className="text-xs font-bold text-red-500/70 w-8 flex-shrink-0 tabular-nums">R{liveSession.round_number}</span>
                       <div className="flex-1 min-w-0 flex items-center gap-3 overflow-hidden">
-                        <span className="text-white font-bold truncate">
+                        <span className="text-ink font-bold truncate">
                           {COUNTRY_CODES[liveSession.country] && (
                             <img src={`https://flagcdn.com/w20/${COUNTRY_CODES[liveSession.country]}.png`} srcSet={`https://flagcdn.com/w40/${COUNTRY_CODES[liveSession.country]}.png 2x`} width="16" alt={liveSession.country} className="mr-2 inline-block rounded-sm shadow-sm" />
                           )}
