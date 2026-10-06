@@ -218,13 +218,13 @@ export default function SyncPhoto({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="glass-panel border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-md w-full backdrop-blur-3xl" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-panel border border-ink/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-md w-full backdrop-blur-3xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-          <h2 className="text-lg font-bold text-white">Sync with TV Replay</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ink/5">
+          <h2 className="text-lg font-bold text-ink">Sync with TV Replay</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-f1-muted hover:text-white"
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-ink/10 transition-colors text-f1-muted hover:text-ink"
             title="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -240,8 +240,8 @@ export default function SyncPhoto({
               onClick={() => { setTab("photo"); resetToStart(); }}
               className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
                 tab === "photo"
-                  ? "text-white border-b-2 border-f1-red"
-                  : "text-f1-muted hover:text-white"
+                  ? "text-ink border-b-2 border-f1-red"
+                  : "text-f1-muted hover:text-ink"
               }`}
             >
               Photo
@@ -250,8 +250,8 @@ export default function SyncPhoto({
               onClick={() => { setTab("manual"); resetToStart(); }}
               className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
                 tab === "manual"
-                  ? "text-white border-b-2 border-f1-red"
-                  : "text-f1-muted hover:text-white"
+                  ? "text-ink border-b-2 border-f1-red"
+                  : "text-f1-muted hover:text-ink"
               }`}
             >
               Manual Entry
@@ -275,7 +275,7 @@ export default function SyncPhoto({
                       <span className="w-6 h-6 rounded-full bg-f1-red flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         1
                       </span>
-                      <p className="text-sm text-white">
+                      <p className="text-sm text-ink">
                         Pause the TV on a frame where the leaderboard is clearly visible
                       </p>
                     </div>
@@ -283,7 +283,7 @@ export default function SyncPhoto({
                       <span className="w-6 h-6 rounded-full bg-f1-red flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         2
                       </span>
-                      <p className="text-sm text-white">
+                      <p className="text-sm text-ink">
                         Make sure the lap number and at least the top 5 drivers with
                         their gap times are visible
                       </p>
@@ -292,7 +292,7 @@ export default function SyncPhoto({
                       <span className="w-6 h-6 rounded-full bg-f1-red flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         3
                       </span>
-                      <p className="text-sm text-white">
+                      <p className="text-sm text-ink">
                         Take a photo and we will match it to the exact moment in the race
                       </p>
                     </div>
@@ -328,7 +328,7 @@ export default function SyncPhoto({
 
                   <button
                     onClick={handleUpload}
-                    className="w-full py-3 bg-f1-border hover:bg-white/20 rounded-lg text-f1-muted hover:text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-f1-border hover:bg-ink/20 rounded-lg text-f1-muted hover:text-ink font-bold text-sm transition-colors flex items-center justify-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -343,9 +343,9 @@ export default function SyncPhoto({
                   </div>
 
                   <p className="text-center text-sm text-f1-muted">
-                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">{isMac ? "⌘" : "Ctrl"}</kbd>{" "}
+                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-ink">{isMac ? "⌘" : "Ctrl"}</kbd>{" "}
                     +{" "}
-                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-white">V</kbd>{" "}
+                    <kbd className="px-1.5 py-0.5 bg-f1-border rounded text-xs font-mono text-ink">V</kbd>{" "}
                     to paste from clipboard
                   </p>
 
@@ -367,7 +367,7 @@ export default function SyncPhoto({
 
                   <button
                     onClick={() => setStep("instructions")}
-                    className="w-full text-sm text-f1-muted hover:text-white transition-colors"
+                    className="w-full text-sm text-f1-muted hover:text-ink transition-colors"
                   >
                     Back
                   </button>
@@ -378,7 +378,7 @@ export default function SyncPhoto({
               {step === "processing" && (
                 <div className="text-center py-6">
                   <div className="inline-block w-10 h-10 border-3 border-f1-muted border-t-f1-red rounded-full animate-spin mb-4" />
-                  <p className="text-sm text-white font-bold">Analysing leaderboard...</p>
+                  <p className="text-sm text-ink font-bold">Analysing leaderboard...</p>
                   <p className="text-xs text-f1-muted mt-1">
                     Extracting positions and gap times
                   </p>
@@ -388,16 +388,16 @@ export default function SyncPhoto({
               {/* Result */}
               {step === "result" && result && (
                 <div className="space-y-4">
-                  <div className="bg-white/5 rounded-lg px-4 py-3 space-y-2">
+                  <div className="bg-ink/5 rounded-lg px-4 py-3 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-f1-muted">Matched to</span>
-                      <span className="text-sm font-extrabold text-white">
+                      <span className="text-sm font-extrabold text-ink">
                         Lap {result.lap} - {formatTime(result.timestamp)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-f1-muted">Detected</span>
-                      <span className="text-sm text-white">
+                      <span className="text-sm text-ink">
                         {result.extracted.drivers.length} drivers, Lap{" "}
                         {result.extracted.lap}
                       </span>
@@ -414,7 +414,7 @@ export default function SyncPhoto({
                         <span className="w-5 text-right font-bold text-f1-muted">
                           P{d.position}
                         </span>
-                        <span className="font-extrabold text-white">{d.abbr}</span>
+                        <span className="font-extrabold text-ink">{d.abbr}</span>
                         <span className="text-f1-muted ml-auto">
                           {d.gap || "Leader"}
                         </span>
@@ -441,7 +441,7 @@ export default function SyncPhoto({
                       setResult(null);
                       setStep("instructions");
                     }}
-                    className="w-full text-sm text-f1-muted hover:text-white transition-colors"
+                    className="w-full text-sm text-f1-muted hover:text-ink transition-colors"
                   >
                     Try again
                   </button>
@@ -474,7 +474,7 @@ export default function SyncPhoto({
                   value={manualLap}
                   onChange={(e) => setManualLap(e.target.value)}
                   placeholder="e.g. 23"
-                  className="w-full bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
+                  className="w-full bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
                 />
               </div>
 
@@ -488,7 +488,7 @@ export default function SyncPhoto({
                     type="button"
                     onClick={() => setManualGapMode("interval")}
                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
-                      manualGapMode === "interval" ? "bg-f1-red text-white" : "bg-f1-dark text-f1-muted hover:text-white"
+                      manualGapMode === "interval" ? "bg-f1-red text-white" : "bg-f1-dark text-f1-muted hover:text-ink"
                     }`}
                   >
                     Interval
@@ -497,7 +497,7 @@ export default function SyncPhoto({
                     type="button"
                     onClick={() => setManualGapMode("leader")}
                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
-                      manualGapMode === "leader" ? "bg-f1-red text-white" : "bg-f1-dark text-f1-muted hover:text-white"
+                      manualGapMode === "leader" ? "bg-f1-red text-white" : "bg-f1-dark text-f1-muted hover:text-ink"
                     }`}
                   >
                     Leader
@@ -522,14 +522,14 @@ export default function SyncPhoto({
                     value={manualP1.abbr}
                     onChange={(e) => setManualP1({ ...manualP1, abbr: e.target.value })}
                     placeholder="VER"
-                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
+                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
                   />
                   <span className="text-xs text-f1-muted flex-1 text-right">{manualGapMode === "interval" ? "Interval" : "Leader"}</span>
                 </div>
 
                 {/* P2 */}
                 <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded bg-f1-border flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  <span className="w-7 h-7 rounded bg-f1-border flex items-center justify-center text-ink text-xs font-bold flex-shrink-0">
                     2
                   </span>
                   <input
@@ -538,7 +538,7 @@ export default function SyncPhoto({
                     value={manualP2.abbr}
                     onChange={(e) => setManualP2({ ...manualP2, abbr: e.target.value })}
                     placeholder="NOR"
-                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
+                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
                   />
                   <div className="flex-1 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-f1-muted">+</span>
@@ -547,14 +547,14 @@ export default function SyncPhoto({
                       value={manualP2.gap}
                       onChange={(e) => setManualP2({ ...manualP2, gap: e.target.value })}
                       placeholder="0.6"
-                      className="w-full bg-f1-dark border border-f1-border rounded-lg pl-6 pr-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
+                      className="w-full bg-f1-dark border border-f1-border rounded-lg pl-6 pr-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
                     />
                   </div>
                 </div>
 
                 {/* P3 */}
                 <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded bg-f1-border flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  <span className="w-7 h-7 rounded bg-f1-border flex items-center justify-center text-ink text-xs font-bold flex-shrink-0">
                     3
                   </span>
                   <input
@@ -563,7 +563,7 @@ export default function SyncPhoto({
                     value={manualP3.abbr}
                     onChange={(e) => setManualP3({ ...manualP3, abbr: e.target.value })}
                     placeholder="LEC"
-                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
+                    className="w-20 bg-f1-dark border border-f1-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red uppercase"
                   />
                   <div className="flex-1 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-f1-muted">+</span>
@@ -572,7 +572,7 @@ export default function SyncPhoto({
                       value={manualP3.gap}
                       onChange={(e) => setManualP3({ ...manualP3, gap: e.target.value })}
                       placeholder="1.1"
-                      className="w-full bg-f1-dark border border-f1-border rounded-lg pl-6 pr-3 py-2 text-sm text-white placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
+                      className="w-full bg-f1-dark border border-f1-border rounded-lg pl-6 pr-3 py-2 text-sm text-ink placeholder:text-f1-muted/50 focus:outline-none focus:border-f1-red"
                     />
                   </div>
                 </div>

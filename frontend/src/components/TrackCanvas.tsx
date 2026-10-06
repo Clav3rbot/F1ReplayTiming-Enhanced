@@ -463,7 +463,7 @@ export default function TrackCanvas({
             <span className="text-[9px] text-f1-muted leading-none mb-1">{ELEVATION_FULL_SCALE_M}m</span>
             <div
               className="w-2 h-20 rounded-sm border border-black/30"
-              style={{ background: "linear-gradient(to top, #33384a, #6fb7d6, #ffffff)" }}
+              style={{ background: "linear-gradient(to top, #33384a, #6fb7d6, rgb(var(--elev-top)))" }}
             />
             <span className="text-[9px] text-f1-muted leading-none mt-1">0m</span>
           </div>

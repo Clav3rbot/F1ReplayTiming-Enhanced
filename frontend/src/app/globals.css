@@ -4,12 +4,86 @@
 
 :root {
   /* Native controls (select popups, scrollbars, date pickers) follow the app's
-     dark palette instead of the browser's default light chrome. */
+     palette instead of the browser's default chrome. */
   color-scheme: dark;
 
-  --background: #0B0B11;
-  --foreground: #F1F5F9;
+  /* Theme tokens as RGB channels so Tailwind can add alpha (bg-f1-card/90).
+     Dark is the default; the .light class on <html> swaps them. */
+  --f1-red: 225 6 0;
+  --f1-dark: 11 11 17;
+  --f1-surface: 19 19 28;
+  --f1-card: 26 26 36;
+  --f1-border: 42 42 60;
+  --f1-muted: 158 161 172;
+  --f1-text: 241 245 249;
+  --f1-green: 0 255 65;
+  --f1-magenta: 255 0 255;
+  --ink: 255 255 255;
+  --bg-edge: 5 5 8;
+  --elev-top: 255 255 255;
+
+  --background: rgb(var(--f1-dark));
+  --foreground: rgb(var(--f1-text));
 }
+
+:root.light {
+  color-scheme: light;
+
+  --f1-dark: 242 242 245;
+  --f1-surface: 250 250 252;
+  --f1-card: 255 255 255;
+  --f1-border: 218 219 228;
+  --f1-muted: 71 76 89;
+  --f1-text: 21 21 30;
+  --f1-green: 21 115 55;
+  --f1-magenta: 190 0 190;
+  --ink: 21 21 30;
+  --bg-edge: 228 228 234;
+  --elev-top: 20 156 232;
+}
+
+/* Timeline played section (PlaybackControls): the neon red and glow that
+   suit the dark bar turn into a flat, heavy block on white, so the light
+   theme uses a deeper racing red, a quiet wash, a crisp line and no glow. */
+:root {
+  --hl-fill: rgba(225, 6, 0, 0.55);
+  --hl-line: #FF2A1F;
+  --hl-glow: drop-shadow(0 0 3px rgba(225, 6, 0, 0.75));
+  --hl-bar: rgb(var(--f1-red));
+  --hl-bar-glow: 0 0 10px rgba(225, 6, 0, 0.3);
+}
+
+:root.light {
+  --hl-fill: rgba(181, 18, 27, 0.1);
+  --hl-line: rgba(181, 18, 27, 0.8);
+  --hl-glow: none;
+  --hl-bar: #B5121B;
+  --hl-bar-glow: none;
+}
+
+/* Light logo tile (Logo.tsx): hairline edge and soft shadow lift it off white */
+:root.light img[src="/logo-light.png"] {
+  box-shadow: 0 0 0 1px rgba(21, 21, 30, 0.08), 0 2px 10px rgba(21, 21, 30, 0.14);
+}
+
+/* Tyre compound badges: coloured ring and letter. On the light theme they
+   sit on a black chip, like the rubber they stand for, so yellow mediums
+   and white hards stay readable on a white page. */
+:root.light .tyre-badge { background-color: #15151E; }
+
+/* Tailwind's stock 300/400 tints are tuned for a dark ground and wash out on
+   white; darken the ones the app uses for text. */
+:root.light .text-red-400 { color: #dc2626; }
+:root.light .text-red-500 { color: #c81e1e; }
+:root.light .text-green-400 { color: #15803d; }
+:root.light .text-yellow-400,
+:root.light .text-yellow-500 { color: #a16207; }
+:root.light .text-orange-400 { color: #c2410c; }
+:root.light .text-purple-200,
+:root.light .text-purple-300,
+:root.light .text-purple-400 { color: #7e22ce; }
+:root.light .text-blue-300,
+:root.light .text-blue-400 { color: #1d4ed8; }
 
 html,
 body {
@@ -41,26 +115,26 @@ textarea:focus-visible {
 }
 
 /* Chrome paints the native option list from the select's own background, so a
-   translucent one (bg-white/5) composites over white and the popup comes out
+   translucent one (bg-ink/5) composites over white and the popup comes out
    light however color-scheme is set. Give the options an opaque dark base. */
 option {
-  background-color: #1A1A24;
-  color: #F1F5F9;
+  background-color: rgb(var(--f1-card));
+  color: rgb(var(--f1-text));
 }
 
 /* Glass panel utility */
 .glass-panel {
-  background: rgba(26, 26, 36, 0.6);
+  background: rgb(var(--f1-card) / 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgb(var(--ink) / 0.05);
 }
 
 .glass-panel-heavy {
-  background: rgba(19, 19, 28, 0.85);
+  background: rgb(var(--f1-surface) / 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgb(var(--ink) / 0.08);
 }
 
 /* Scrollbar styling (general) */
@@ -74,34 +148,16 @@ option {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgb(var(--ink) / 0.12);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgb(var(--ink) / 0.22);
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
-}
-
-/* Scrollbar styling for lap selector dropdown (darker grey track) */
-.lap-select::-webkit-scrollbar {
-  width: 6px;
-}
-
-.lap-select::-webkit-scrollbar-track {
-  background: #1f1f2a;
-}
-
-.lap-select::-webkit-scrollbar-thumb {
-  background: #4b4b5a;
-  border-radius: 999px;
-}
-
-.lap-select::-webkit-scrollbar-thumb:hover {
-  background: #6b6b7a;
 }
 
 /* Typography styles to apply perfectly fixed tabular numbers in monospaced areas */
@@ -344,6 +400,7 @@ input, textarea, select {
 
 .race-countdown {
   --color-background: #111118;
+  --color-crease: var(--color-background);
   --color-border-1: rgba(255, 255, 255, 0.12);
   --color-border-2: rgba(0, 0, 0, 0.6);
 
@@ -356,7 +413,7 @@ input, textarea, select {
 }
 
 .race-countdown [data-split-flap-character]::after {
-  background-color: var(--color-background);
+  background-color: var(--color-crease);
   content: "";
   display: block;
   height: var(--split-flap-crease);
@@ -405,6 +462,36 @@ input, textarea, select {
   color: rgba(158, 161, 172, 0.55);
 }
 
+/* Light theme: a white departure board. The lower flap sits a shade darker
+   and the crease reads as a thin shadowed slit, as on a lit physical board. */
+:root.light .race-countdown-filter {
+  filter: drop-shadow(0 2px 6px rgba(21, 21, 30, 0.1));
+}
+
+:root.light .race-countdown-label {
+  color: rgba(200, 6, 0, 0.85);
+}
+
+:root.light .race-countdown {
+  --color-background: #F1F2F6;
+  --color-crease: #C9CCD6;
+  --color-border-1: rgba(21, 21, 30, 0.12);
+  --color-border-2: rgba(21, 21, 30, 0.05);
+  color: #15151E;
+}
+
+:root.light .race-countdown [data-split-flap-character] > [data-split-flap-flap="top"] {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7F8FA 100%);
+  box-shadow:
+    inset 0 1px 0 #FFFFFF,
+    inset 0 0 2px 0.75px var(--color-border-2),
+    inset 0 0 0 1px var(--color-border-1);
+}
+
+:root.light .race-countdown [data-char=":"] > [data-split-flap-flap] {
+  color: rgba(71, 76, 89, 0.85);
+}
+
 /* Header absolute alignment at min-width 1200px to perfectly match content boundaries */
 @media (min-width: 1000px) {
   .header-container-desktop {
@@ -419,8 +506,8 @@ input, textarea, select {
   }
   .header-buttons-absolute {
     position: absolute !important;
-    /* Keeps the 274px Features/About/Storage group 32px inside the viewport below 1380px */
-    right: max(0px, calc(690px - 50vw)) !important;
+    /* Keeps the 318px Features/About/Storage/theme group 32px inside the viewport below 1468px */
+    right: max(0px, calc(734px - 50vw)) !important;
     top: 50% !important;
     transform: translate(100%, -50%) !important;
   }
@@ -469,4 +556,74 @@ input, textarea, select {
   60% {
     transform: translateY(1px);
   }
+}
+
+/* ─── Theme toggle (ThemeToggle.tsx) ─── */
+/* Icon: sun ↔ moon morph. Keyframes rather than transitions, because
+   transitions are off while the theme switches and the svg remounts on
+   every change. The delay lets the opening band reach the header first. */
+.tt-icon {
+  overflow: visible;
+  --tt-delay: 0.3s;
+}
+
+.tt-core,
+.tt-rays {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.tt-icon.is-sun .tt-core { transform: scale(0.55); }
+.tt-icon.is-sun .tt-bite { transform: translate(10px, -10px); }
+.tt-icon.is-moon .tt-rays { transform: scale(0) rotate(-60deg); opacity: 0; }
+
+.tt-icon.is-sun { animation: tt-spin-sun 0.6s var(--tt-delay) cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.tt-icon.is-sun .tt-core { animation: tt-core-sun 0.6s var(--tt-delay) cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.tt-icon.is-sun .tt-bite { animation: tt-bite-sun 0.45s var(--tt-delay) cubic-bezier(0.65, 0, 0.35, 1) backwards; }
+.tt-icon.is-sun .tt-rays { animation: tt-rays-sun 0.6s calc(var(--tt-delay) + 0.12s) cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+
+.tt-icon.is-moon { animation: tt-spin-moon 0.6s var(--tt-delay) cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.tt-icon.is-moon .tt-core { animation: tt-core-moon 0.6s var(--tt-delay) cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.tt-icon.is-moon .tt-bite { animation: tt-bite-moon 0.5s calc(var(--tt-delay) + 0.08s) cubic-bezier(0.65, 0, 0.35, 1) backwards; }
+.tt-icon.is-moon .tt-rays { animation: tt-rays-moon 0.3s var(--tt-delay) cubic-bezier(0.65, 0, 0.35, 1) backwards; }
+
+@keyframes tt-spin-sun { from { transform: rotate(-90deg); } }
+@keyframes tt-core-sun { from { transform: scale(1); } }
+@keyframes tt-bite-sun { from { transform: translate(0, 0); } }
+@keyframes tt-rays-sun { from { transform: scale(0) rotate(-60deg); opacity: 0; } }
+
+@keyframes tt-spin-moon { from { transform: rotate(90deg); } }
+@keyframes tt-core-moon { from { transform: scale(0.55); } }
+@keyframes tt-bite-moon { from { transform: translate(10px, -10px); } }
+@keyframes tt-rays-moon { from { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* Speed streaks: flash behind the icon and blow away to the left */
+.tt-streaks line {
+  opacity: 0;
+  animation: tt-streak 0.45s var(--tt-delay) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes tt-streak {
+  0% { opacity: 0; transform: translateX(8px) scaleX(0.3); }
+  35% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(-4px) scaleX(1); }
+}
+
+.tt-icon.tt-static,
+.tt-icon.tt-static * {
+  animation: none !important;
+}
+
+/* Theme switch: ThemeToggle drives the reveal of the new snapshot with a
+   chequered clip-path; the browser's default cross-fade is switched off. */
+:root.theme-switching *,
+:root.theme-switching *::before,
+:root.theme-switching *::after {
+  transition: none !important;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }

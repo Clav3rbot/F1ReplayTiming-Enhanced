@@ -240,10 +240,10 @@ export default function GuidedTour({ id, steps, startDelayMs = 700, onFinish }: 
       <div
         ref={cardRef}
         key={index}
-        className="absolute w-[min(22rem,calc(100vw-2rem))] animate-[tour-in_0.35s_cubic-bezier(0.22,1,0.36,1)] overflow-hidden rounded-2xl border border-white/10 bg-[#161620]/95 bg-glass-gradient shadow-2xl shadow-black/60 ring-1 ring-inset ring-white/[0.05] backdrop-blur-xl transition-[top,left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="absolute w-[min(22rem,calc(100vw-2rem))] animate-[tour-in_0.35s_cubic-bezier(0.22,1,0.36,1)] overflow-hidden rounded-2xl border border-ink/10 bg-f1-surface/95 bg-glass-gradient shadow-2xl shadow-black/60 ring-1 ring-inset ring-ink/[0.05] backdrop-blur-xl transition-[top,left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={cardPos ?? { top: -9999, left: -9999 }}
       >
-        <div className="h-[2px] bg-white/[0.06]">
+        <div className="h-[2px] bg-ink/[0.06]">
           <div
             className="h-full bg-f1-red shadow-[0_0_10px_rgba(225,6,0,0.6)] transition-[width] duration-500"
             style={{ width: `${((index + 1) / steps.length) * 100}%` }}
@@ -257,13 +257,13 @@ export default function GuidedTour({ id, steps, startDelayMs = 700, onFinish }: 
             {!last && (
               <button
                 onClick={close}
-                className="text-[11px] font-bold uppercase tracking-wider text-f1-muted transition-colors hover:text-white"
+                className="text-[11px] font-bold uppercase tracking-wider text-f1-muted transition-colors hover:text-ink"
               >
                 Skip
               </button>
             )}
           </div>
-          <h3 id="guided-tour-title" className="text-base font-extrabold tracking-tight text-white">
+          <h3 id="guided-tour-title" className="text-base font-extrabold tracking-tight text-ink">
             {step.title}
           </h3>
           <div className="mt-1.5 text-sm leading-relaxed text-f1-muted">
@@ -275,7 +275,7 @@ export default function GuidedTour({ id, steps, startDelayMs = 700, onFinish }: 
                 <span
                   key={i}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === index ? "w-4 bg-f1-red" : i < index ? "w-1.5 bg-white/40" : "w-1.5 bg-white/15"
+                    i === index ? "w-4 bg-f1-red" : i < index ? "w-1.5 bg-ink/40" : "w-1.5 bg-ink/15"
                   }`}
                 />
               ))}
@@ -284,7 +284,7 @@ export default function GuidedTour({ id, steps, startDelayMs = 700, onFinish }: 
               {index > 0 && (
                 <button
                   onClick={() => go(-1)}
-                  className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-white/10"
+                  className="rounded-full border border-ink/10 bg-ink/5 px-3.5 py-1.5 text-xs font-bold text-ink transition-colors hover:bg-ink/10"
                 >
                   Back
                 </button>
@@ -293,7 +293,7 @@ export default function GuidedTour({ id, steps, startDelayMs = 700, onFinish }: 
               <button
                 onClick={() => go(1)}
                 autoFocus
-                className="rounded-full bg-f1-red px-4 py-1.5 text-xs font-bold text-white transition-shadow hover:shadow-[0_4px_15px_rgba(225,6,0,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="rounded-full bg-f1-red px-4 py-1.5 text-xs font-bold text-white transition-shadow hover:shadow-[0_4px_15px_rgba(225,6,0,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40"
               >
                 {index === 0 ? "Start" : last ? "Got it" : "Next"}
               </button>

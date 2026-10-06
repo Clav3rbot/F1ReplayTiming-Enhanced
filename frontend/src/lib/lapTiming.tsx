@@ -82,7 +82,7 @@ export function SectorMarkers({ sectors, className = "" }: { sectors?: SectorInf
           ? sec.color === "purple" ? "bg-f1-magenta shadow-[0_0_8px_rgba(255,0,255,0.6)]"
           : sec.color === "green" ? "bg-f1-green shadow-[0_0_8px_rgba(0,255,65,0.6)]"
           : "bg-yellow-400"
-          : "bg-white/10";
+          : "bg-ink/10";
         return <span key={sn} className={`w-[6px] h-[14px] rounded-[1px] ${bg}`} />;
       })}
     </span>

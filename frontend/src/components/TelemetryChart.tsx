@@ -129,7 +129,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
             className="w-1 h-4 rounded-sm shrink-0"
             style={{ backgroundColor: driver.color }}
           />
-          <span className="text-[10px] font-extrabold text-white">
+          <span className="text-[10px] font-extrabold text-ink">
             {driver.abbr}
           </span>
         </div>
@@ -153,7 +153,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         {/* Speed */}
         <div className="w-[50px] sm:w-[85px] flex items-center shrink-0">
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto tracking-wider">Spd</span>
-          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+          <span className="text-[13px] font-extrabold text-ink font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {speed}
           </span>
           {!sidebar && <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>}
@@ -175,7 +175,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         <div className="w-[26px] sm:w-[42px] flex items-center gap-[3px] shrink-0">
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[10px] sm:hidden tracking-wider">G</span>
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">Gear</span>
-          <span className="text-[13px] font-extrabold text-white font-mono tabular-nums-fixed w-[12px] text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+          <span className="text-[13px] font-extrabold text-ink font-mono tabular-nums-fixed w-[12px] text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {gear === 0 ? "N" : gear}
           </span>
         </div>
@@ -183,7 +183,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         {/* RPM */}
         <div className={`min-w-0 flex items-center gap-[4px] ${hasDrs ? "w-[68px] sm:w-[92px]" : ""}`}>
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">RPM</span>
-          <span className="text-[11px] font-extrabold text-white font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+          <span className="text-[11px] font-extrabold text-ink font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {rpmDisplay}
           </span>
           <BarPips value={rpm} max={15000} color="#F59E0B" />

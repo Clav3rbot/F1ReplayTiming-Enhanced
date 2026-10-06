@@ -14,7 +14,7 @@ export default function DataNotice({ notes, onClose }: Props) {
       aria-modal="true"
       aria-labelledby="data-notice-title"
     >
-      <div className="w-[min(26rem,100%)] animate-[tour-in_0.35s_cubic-bezier(0.22,1,0.36,1)] overflow-hidden rounded-2xl border border-white/10 bg-[#161620]/95 bg-glass-gradient shadow-2xl shadow-black/60 ring-1 ring-inset ring-white/[0.05] backdrop-blur-xl">
+      <div className="w-[min(26rem,100%)] animate-[tour-in_0.35s_cubic-bezier(0.22,1,0.36,1)] overflow-hidden rounded-2xl border border-ink/10 bg-f1-surface/95 bg-glass-gradient shadow-2xl shadow-black/60 ring-1 ring-inset ring-ink/[0.05] backdrop-blur-xl">
         <div className="h-[2px] bg-yellow-400/80 shadow-[0_0_10px_rgba(245,197,24,0.5)]" />
         <div className="p-5">
           <div className="mb-2 flex items-center gap-2">
@@ -23,7 +23,7 @@ export default function DataNotice({ notes, onClose }: Props) {
             </svg>
             <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-yellow-400">Incomplete data</span>
           </div>
-          <h2 id="data-notice-title" className="mb-2 text-base font-extrabold text-white">
+          <h2 id="data-notice-title" className="mb-2 text-base font-extrabold text-ink">
             Some of this session&apos;s data is missing
           </h2>
           <ul className="space-y-2">

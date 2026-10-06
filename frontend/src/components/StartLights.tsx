@@ -302,7 +302,7 @@ export default function StartLights({ onLightsOut }: { onLightsOut: () => void }
   return (
     <div className="mb-1 mt-2 flex flex-col items-center gap-3">
       <div
-        className={`flex gap-1.5 rounded-lg border border-white/10 bg-black/60 p-1.5 shadow-inner ${
+        className={`flex gap-1.5 rounded-lg border border-ink/10 bg-black/60 p-1.5 shadow-inner ${
           out ? "animate-[lights-out-jolt_0.35s_ease-out]" : ""
         }`}
         aria-hidden
@@ -310,7 +310,7 @@ export default function StartLights({ onLightsOut }: { onLightsOut: () => void }
         {[1, 2, 3, 4, 5].map((i) => {
           const on = !out && phase !== "idle" && lit >= i;
           return (
-            <div key={i} className="flex flex-col gap-1 rounded-md bg-[#0a0a0f] px-1.5 py-1.5 ring-1 ring-inset ring-white/[0.06]">
+            <div key={i} className="flex flex-col gap-1 rounded-md bg-[#0a0a0f] px-1.5 py-1.5 ring-1 ring-inset ring-ink/[0.06]">
               {[0, 1].map((row) => (
                 <span
                   key={`${row}-${on}`}
@@ -330,7 +330,7 @@ export default function StartLights({ onLightsOut }: { onLightsOut: () => void }
         key={caption}
         className={`animate-[tour-in_0.3s_ease-out] text-center ${
           out
-            ? "text-[11px] font-extrabold uppercase tracking-[0.2em] text-white"
+            ? "text-[11px] font-extrabold uppercase tracking-[0.2em] text-ink"
             : "text-xs font-medium text-f1-muted"
         }`}
         role="status"

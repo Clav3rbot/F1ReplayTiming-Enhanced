@@ -68,7 +68,7 @@ function DriverDropdown({ value, onChange, drivers, placeholder, getColor }: {
         {selected ? (
           <>
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selected.color }} />
-            <span className="text-xs font-bold text-white">{selected.abbr}</span>
+            <span className="text-xs font-bold text-ink">{selected.abbr}</span>
             <span className="text-[10px] text-f1-muted truncate">{selected.team}</span>
           </>
         ) : (
@@ -83,7 +83,7 @@ function DriverDropdown({ value, onChange, drivers, placeholder, getColor }: {
           {value && (
             <button
               onClick={() => { onChange(null); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-f1-muted hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-f1-muted hover:bg-ink/5 transition-colors"
             >
               Clear
             </button>
@@ -92,13 +92,13 @@ function DriverDropdown({ value, onChange, drivers, placeholder, getColor }: {
             <button
               key={d.abbr}
               onClick={() => { onChange(d.abbr); setOpen(false); }}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 transition-colors ${
-                d.abbr === value ? "bg-white/10" : ""
+              className={`w-full flex items-center gap-2 px-2 py-1.5 hover:bg-ink/5 transition-colors ${
+                d.abbr === value ? "bg-ink/10" : ""
               }`}
             >
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
               <span className="text-[10px] font-bold text-f1-muted w-4 text-right">{d.position}</span>
-              <span className="text-xs font-bold text-white">{d.abbr}</span>
+              <span className="text-xs font-bold text-ink">{d.abbr}</span>
               <span className="text-[10px] text-f1-muted truncate">{d.team}</span>
             </button>
           ))}
@@ -338,7 +338,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
       {onClose && (
         <div className="px-3 py-2 border-b border-f1-border flex-shrink-0 flex items-center justify-between">
           <span className="text-[10px] font-bold text-f1-muted uppercase tracking-wider">Lap Analysis</span>
-          <button onClick={onClose} className="px-2 py-0.5 bg-f1-card/90 border border-f1-border rounded text-[9px] font-bold text-f1-muted hover:text-white transition-colors">
+          <button onClick={onClose} className="px-2 py-0.5 bg-f1-card/90 border border-f1-border rounded text-[9px] font-bold text-f1-muted hover:text-ink transition-colors">
             Hide
           </button>
         </div>
@@ -381,7 +381,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                       className={`px-2 py-0.5 rounded text-[9px] font-bold transition-colors ${
                         lapRange === value
                           ? "bg-f1-red text-white"
-                          : "bg-f1-dark border border-f1-border text-f1-muted hover:text-white"
+                          : "bg-f1-dark border border-f1-border text-f1-muted hover:text-ink"
                       }`}
                     >
                       {label}
@@ -417,8 +417,8 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                         const bandType = point._bandType as string | null;
                         const bandLabel = bandType === "pit" ? "Pit Stop" : bandType === "slow" ? "Yellow Flag / Slow Lap" : bandType === "lap1" ? "Formation / Lap 1" : null;
                         return (
-                          <div className="bg-[#1A1A26] border border-f1-border rounded-md px-2.5 py-1.5 text-[11px] shadow-xl">
-                            <div className="font-bold text-white mb-0.5">Lap {label}</div>
+                          <div className="bg-f1-card border border-f1-border rounded-md px-2.5 py-1.5 text-[11px] shadow-xl">
+                            <div className="font-bold text-ink mb-0.5">Lap {label}</div>
                             {bandLabel && (
                               <div className={`font-bold mb-0.5 ${bandType === "slow" ? "text-yellow-400" : "text-f1-muted"}`}>
                                 {bandLabel}
@@ -431,7 +431,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                                 <div key={abbr} className="flex items-center gap-1.5">
                                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getDriverColor(abbr) }} />
                                   <span className="text-f1-muted">{abbr}:</span>
-                                  <span className={lineVal != null ? "text-white" : "text-f1-muted"}>
+                                  <span className={lineVal != null ? "text-ink" : "text-f1-muted"}>
                                     {time != null ? formatSeconds(time) : "—"}
                                   </span>
                                 </div>
@@ -511,7 +511,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                     setLapOrder(next);
                     try { localStorage.setItem("f1replay_lap_order", next); } catch {}
                   }}
-                  className="w-8 text-[9px] font-bold text-f1-muted hover:text-white transition-colors flex items-center gap-0.5"
+                  className="w-8 text-[9px] font-bold text-f1-muted hover:text-ink transition-colors flex items-center gap-0.5"
                   title={lapOrder === "asc" ? "Show latest first" : "Show earliest first"}
                 >
                   LAP
@@ -550,7 +550,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                   rows.push(
                     <div
                       key={lap}
-                      className={`flex items-center gap-1 py-0.5 ${lap === currentLap ? "bg-white/5" : ""}`}
+                      className={`flex items-center gap-1 py-0.5 ${lap === currentLap ? "bg-ink/5" : ""}`}
                     >
                       <span className="w-8 text-[10px] font-bold text-f1-muted tabular-nums">{lap}</span>
                       {activeDrivers.map((abbr) => {
@@ -565,7 +565,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                           <div key={abbr} className="flex-1 flex items-center gap-1">
                             <span
                               className={`text-[10px] tabular-nums ${
-                                isPit ? "text-yellow-400" : "text-white"
+                                isPit ? "text-yellow-400" : "text-ink"
                               }`}
                             >
                               {entry?.lap_time || "—"}
@@ -575,7 +575,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                             )}
                             {tyreLabel && (
                               <span
-                                className="w-3 h-3 rounded-full flex items-center justify-center text-[6px] font-extrabold leading-none border flex-shrink-0"
+                                className="tyre-badge w-3 h-3 rounded-full flex items-center justify-center text-[6px] font-extrabold leading-none border flex-shrink-0"
                                 style={{ borderColor: tyreColor, color: tyreColor }}
                               >
                                 {tyreLabel}

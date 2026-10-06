@@ -5,7 +5,7 @@ export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-f1-dark text-f1-text relative">
       {/* Persistent Radial Glow Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#13131c] via-[#0b0b11] to-[#050508]"></div>
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-f1-surface via-f1-dark to-[rgb(var(--bg-edge))]"></div>
 
       <DocPageHeader title="Features" />
 
@@ -15,7 +15,7 @@ export default function FeaturesPage() {
         {/* Session Picker */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Session Picker</h2>
+            <h2 className="text-lg font-bold text-ink">Session Picker</h2>
             <span className="text-xs text-f1-muted">Home page</span>
           </div>
           <p className="text-f1-text leading-relaxed">
@@ -30,7 +30,7 @@ export default function FeaturesPage() {
         {/* Track Map & Car Positions */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Track Map</h2>
+            <h2 className="text-lg font-bold text-ink">Track Map</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed">
@@ -44,7 +44,7 @@ export default function FeaturesPage() {
         {/* Track Elevation */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Track Elevation</h2>
+            <h2 className="text-lg font-bold text-ink">Track Elevation</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-4">
@@ -55,7 +55,7 @@ export default function FeaturesPage() {
             <span className="text-xs text-f1-muted">Low</span>
             <div
               className="h-3 flex-1 max-w-xs rounded-sm border border-black/30"
-              style={{ background: "linear-gradient(to right, #33384a, #6fb7d6, #ffffff)" }}
+              style={{ background: "linear-gradient(to right, #33384a, #6fb7d6, rgb(var(--elev-top)))" }}
             />
             <span className="text-xs text-f1-muted">High</span>
           </div>
@@ -69,7 +69,7 @@ export default function FeaturesPage() {
         {/* Driver Leaderboard */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Driver Leaderboard</h2>
+            <h2 className="text-lg font-bold text-ink">Driver Leaderboard</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-4">
@@ -83,7 +83,7 @@ export default function FeaturesPage() {
               <span className="w-24 flex-shrink-0 text-sm font-bold text-f1-muted">Position</span>
               <span className="flex items-center gap-2 flex-shrink-0">
                 <span className="w-6 h-6 flex items-center justify-center rounded bg-f1-red text-white text-sm font-extrabold">1</span>
-                <span className="w-6 text-sm font-extrabold text-white text-right">2</span>
+                <span className="w-6 text-sm font-extrabold text-ink text-right">2</span>
               </span>
               <span className="text-sm text-f1-text">Current race or session position. The leader is highlighted with a red badge.</span>
             </div>
@@ -131,7 +131,7 @@ export default function FeaturesPage() {
             {/* Pit stops */}
             <div className="flex items-center gap-3">
               <span className="w-24 flex-shrink-0 text-sm font-bold text-f1-muted">Pit stops</span>
-              <span className="w-5 h-5 border border-f1-muted rounded-sm flex items-center justify-center text-[10px] font-extrabold text-white flex-shrink-0">
+              <span className="w-5 h-5 border border-f1-muted rounded-sm flex items-center justify-center text-[10px] font-extrabold text-ink flex-shrink-0">
                 2
               </span>
               <span className="text-sm text-f1-text">Number of pit stops completed so far. Race only.</span>
@@ -155,9 +155,9 @@ export default function FeaturesPage() {
             <div className="flex items-center gap-3">
               <span className="w-24 flex-shrink-0 text-sm font-bold text-f1-muted">Tyre compound</span>
               <span className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#E80020", color: "#E80020" }}>S</span>
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#FFC800", color: "#FFC800" }}>M</span>
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#FFFFFF", color: "#FFFFFF" }}>H</span>
+                <span className="tyre-badge w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#E80020", color: "#E80020" }}>S</span>
+                <span className="tyre-badge w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#FFC800", color: "#FFC800" }}>M</span>
+                <span className="tyre-badge w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold leading-none border-2" style={{ borderColor: "#FFFFFF", color: "#FFFFFF" }}>H</span>
               </span>
               <span className="text-sm text-f1-text">The current tyre compound shown as a colour-coded circle.</span>
             </div>
@@ -165,7 +165,7 @@ export default function FeaturesPage() {
             {/* Tyre age */}
             <div className="flex items-center gap-3">
               <span className="w-24 flex-shrink-0 text-sm font-bold text-f1-muted">Tyre age</span>
-              <span className="text-xs font-extrabold text-white flex-shrink-0">12</span>
+              <span className="text-xs font-extrabold text-ink flex-shrink-0">12</span>
               <span className="text-sm text-f1-text">Number of laps on the current set of tyres.</span>
             </div>
 
@@ -173,8 +173,8 @@ export default function FeaturesPage() {
             <div className="flex items-center gap-3">
               <span className="w-24 flex-shrink-0 text-sm font-bold text-f1-muted">Tyre history</span>
               <span className="flex items-center gap-0.5 flex-shrink-0">
-                <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50" style={{ borderColor: "#E80020", color: "#E80020" }}>S</span>
-                <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50" style={{ borderColor: "#FFC800", color: "#FFC800" }}>M</span>
+                <span className="tyre-badge w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50" style={{ borderColor: "#E80020", color: "#E80020" }}>S</span>
+                <span className="tyre-badge w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-extrabold leading-none border opacity-50" style={{ borderColor: "#FFC800", color: "#FFC800" }}>M</span>
               </span>
               <span className="text-sm text-f1-text">The last two tyre compounds used, shown as smaller icons. Race only.</span>
             </div>
@@ -196,7 +196,7 @@ export default function FeaturesPage() {
         {/* Starting Grid */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Starting Grid</h2>
+            <h2 className="text-lg font-bold text-ink">Starting Grid</h2>
             <span className="text-xs text-f1-muted">Race only</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -213,7 +213,7 @@ export default function FeaturesPage() {
         {/* Data Availability */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Data Availability</h2>
+            <h2 className="text-lg font-bold text-ink">Data Availability</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed">
@@ -227,7 +227,7 @@ export default function FeaturesPage() {
         {/* Pit Position Prediction */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Pit Position Prediction</h2>
+            <h2 className="text-lg font-bold text-ink">Pit Position Prediction</h2>
             <span className="text-xs text-f1-muted">Race only</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -246,7 +246,7 @@ export default function FeaturesPage() {
             (73% of the green flag loss), reflecting the lower relative time cost of pitting
             under caution. Predictions appear from lap 5 onwards.
           </p>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Confidence indicator
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -259,7 +259,7 @@ export default function FeaturesPage() {
             <li><span className="text-yellow-400 font-bold">Yellow</span>: 1s to 2.5s margin, a slower pit stop could cost a position</li>
             <li><span className="text-red-400 font-bold">Red</span>: less than 1s margin, very tight</li>
           </ul>
-          <h3 className="text-sm font-bold text-white mt-4 mb-2">
+          <h3 className="text-sm font-bold text-ink mt-4 mb-2">
             Pit gaps
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -273,7 +273,7 @@ export default function FeaturesPage() {
         {/* Race Control Messages */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Race Control Messages</h2>
+            <h2 className="text-lg font-bold text-ink">Race Control Messages</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -290,7 +290,7 @@ export default function FeaturesPage() {
             <li><span className="text-green-400 font-bold">Green</span>: cleared / no further action</li>
             <li><span className="text-f1-muted font-bold">Grey</span>: other messages (DRS, flags, etc.)</li>
           </ul>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Driver indicators
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -306,7 +306,7 @@ export default function FeaturesPage() {
         {/* Broadcast Sync */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Broadcast Sync</h2>
+            <h2 className="text-lg font-bold text-ink">Broadcast Sync</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -315,7 +315,7 @@ export default function FeaturesPage() {
           </p>
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-bold text-white mb-1">Photo Sync</h3>
+              <h3 className="text-sm font-bold text-ink mb-1">Photo Sync</h3>
               <p className="text-sm text-f1-text leading-relaxed">
                 Take a screenshot of the broadcast showing the leaderboard, then upload it. A vision model
                 reads the driver positions and gap times from the image and finds the matching point in the
@@ -323,7 +323,7 @@ export default function FeaturesPage() {
               </p>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white mb-1">Manual Sync</h3>
+              <h3 className="text-sm font-bold text-ink mb-1">Manual Sync</h3>
               <p className="text-sm text-f1-text leading-relaxed">
                 Enter the gap times for the top two drivers as shown on the broadcast. The replay searches
                 for the closest matching frame based on those gaps and syncs to it.
@@ -335,7 +335,7 @@ export default function FeaturesPage() {
         {/* Telemetry */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Telemetry</h2>
+            <h2 className="text-lg font-bold text-ink">Telemetry</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -368,7 +368,7 @@ export default function FeaturesPage() {
         {/* Weather */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Weather</h2>
+            <h2 className="text-lg font-bold text-ink">Weather</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed">
@@ -381,14 +381,14 @@ export default function FeaturesPage() {
         {/* Track Status */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Track Status &amp; Flags</h2>
+            <h2 className="text-lg font-bold text-ink">Track Status &amp; Flags</h2>
             <span className="text-xs text-f1-muted">Replay</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Flag conditions are shown on the track map at marshal sector level, giving you a precise
             view of where incidents are occurring rather than just a global status.
           </p>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Marshal sector flags
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -401,7 +401,7 @@ export default function FeaturesPage() {
             <li><span className="text-yellow-400 font-bold">Yellow circle with outer ring</span>: double yellow flag (more serious, drivers must slow significantly)</li>
             <li><span className="text-red-400 font-bold">Red circle</span>: red flag at that location</li>
           </ul>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Full track colouring
           </h3>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -420,7 +420,7 @@ export default function FeaturesPage() {
         {/* Live Timing */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Live Timing</h2>
+            <h2 className="text-lg font-bold text-ink">Live Timing</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -433,7 +433,7 @@ export default function FeaturesPage() {
             subscription. These become available in replay mode once the session is processed via
             FastF1, typically 1 to 2 hours after the chequered flag.
           </p>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Broadcast delay
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -447,7 +447,7 @@ export default function FeaturesPage() {
         {/* Playback */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
-            <h2 className="text-lg font-bold text-white">Playback Controls</h2>
+            <h2 className="text-lg font-bold text-ink">Playback Controls</h2>
             <span className="text-xs text-f1-muted">All sessions</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
@@ -455,7 +455,7 @@ export default function FeaturesPage() {
             1 minute, or 5 minutes, or jump directly to any lap. A progress bar shows the current position
             within the session. For qualifying and practice, elapsed and remaining session time are displayed.
           </p>
-          <h3 className="text-sm font-bold text-white mb-2">
+          <h3 className="text-sm font-bold text-ink mb-2">
             Session time
           </h3>
           <p className="text-f1-text leading-relaxed">
@@ -465,7 +465,7 @@ export default function FeaturesPage() {
         </section>
 
         <div className="text-center pt-4">
-          <Link href="/" className="text-f1-muted hover:text-white transition-colors text-sm">
+          <Link href="/" className="text-f1-muted hover:text-ink transition-colors text-sm">
             Back to session picker
           </Link>
         </div>
