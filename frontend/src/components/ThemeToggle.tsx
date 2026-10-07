@@ -27,6 +27,28 @@ export function ThemeSync() {
 // Animate the icon only after a real switch, not on first load
 let switched = false;
 
+const REVEAL_MS = 700;
+// cubic-bezier control points of the reveal's easing
+const EASE = [0.65, 0, 0.35, 1] as const;
+// iOS Safari animates the status-bar colour itself after we change it; start
+// that much before the band has covered the screen so both end together.
+const STATUS_BAR_LEAD_MS = 200;
+
+// Time fraction at which the reveal's easing reaches progress p
+function easeTime(p: number) {
+  const [x1, y1, x2, y2] = EASE;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const s = (lo + hi) / 2;
+    const y = 3 * (1 - s) * (1 - s) * s * y1 + 3 * (1 - s) * s * s * y2 + s * s * s;
+    if (y < p) lo = s;
+    else hi = s;
+  }
+  const s = (lo + hi) / 2;
+  return 3 * (1 - s) * (1 - s) * s * x1 + 3 * (1 - s) * s * s * x2 + s * s * s;
+}
+
 // Clip-path for the theme reveal: a band slanted like "/" whose two long
 // edges are chequered-flag teeth, q px squares in two columns. lc and rc are
 // the edge positions at mid-height, t the tooth width (0 hides the teeth).
@@ -79,6 +101,12 @@ function switchTheme() {
     swap();
     return;
   }
+  // iOS Safari paints the status bar with the page's background-color (html
+  // and body, read from style on every frame; background images and the
+  // glass header are ignored). The swap flips it at once, while the reveal
+  // is still mostly the old theme. --pin-bg holds the old colour until the
+  // band has covered the screen; globals.css paints the new theme over it.
+  root.style.setProperty("--pin-bg", getComputedStyle(root).getPropertyValue("--f1-dark"));
   root.classList.add("theme-switching");
   const transition = document.startViewTransition(swap);
   transition.ready
@@ -86,10 +114,11 @@ function switchTheme() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const q = Math.round(Math.min(26, Math.max(16, Math.min(w, h) * 0.03)));
+      const halfSlant = h * 0.09; // the band's edges at the top and bottom, from flagBand
       // Far enough out that the slanted edge and its teeth clear both sides
-      const reach = h * 0.09 + 2 * q + 4;
+      const reach = halfSlant + 2 * q + 4;
       const mid = w / 2;
-      root.animate(
+      const reveal = root.animate(
         {
           clipPath: [
             flagBand(w, h, q, mid, mid, 0),
@@ -98,11 +127,24 @@ function switchTheme() {
           ],
           offset: [0, 0.08, 1],
         },
-        { duration: 700, easing: "cubic-bezier(0.65, 0, 0.35, 1)", pseudoElement: "::view-transition-new(root)" },
+        { duration: REVEAL_MS, easing: `cubic-bezier(${EASE.join(", ")})`, pseudoElement: "::view-transition-new(root)" },
       );
+      // The screen is fully covered when the left edge reaches the top-left
+      // corner (lc = -halfSlant), about 70% in; the rest is the easing tail
+      // sliding off-screen. Release the status-bar colour a little before.
+      const covered = 0.08 + (0.92 * (mid + halfSlant)) / (mid + reach);
+      const releaseAt = easeTime(covered) * REVEAL_MS - STATUS_BAR_LEAD_MS;
+      const tick = () => {
+        if (Number(reveal.currentTime ?? Infinity) >= releaseAt) root.style.removeProperty("--pin-bg");
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     })
     .catch(() => {});
-  transition.finished.finally(() => root.classList.remove("theme-switching"));
+  transition.finished.finally(() => {
+    root.classList.remove("theme-switching");
+    root.style.removeProperty("--pin-bg");
+  });
 }
 
 // Shows the theme the click leads to: sun on dark, moon on light.

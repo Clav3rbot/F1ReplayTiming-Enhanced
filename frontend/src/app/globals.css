@@ -622,6 +622,16 @@ input, textarea, select {
   transition: none !important;
 }
 
+/* iOS Safari tints the status bar from the page's background-color (html and
+   body), which would flip at the start of the reveal. ThemeToggle keeps the old
+   colour in --pin-bg until the band covers the screen; the one-colour gradient
+   paints the new theme on top, and Safari does not read background images. */
+:root.theme-switching,
+:root.theme-switching body {
+  background-color: rgb(var(--pin-bg, var(--f1-dark)));
+  background-image: linear-gradient(var(--background), var(--background));
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
