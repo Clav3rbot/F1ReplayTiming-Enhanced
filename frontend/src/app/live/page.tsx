@@ -186,8 +186,11 @@ function LivePageInner() {
     `/api/sessions/${year}/${round}?type=${sessionType}`,
   );
 
+  // A weekend nobody has processed yet has no outline until the backend draws
+  // one from an earlier season (~1 min); keep asking until it is there.
   const { data: trackData, loading: trackLoading, error: trackError } = useApi<TrackData>(
     `/api/sessions/${year}/${round}/track?type=${sessionType}`,
+    30_000,
   );
 
   const live = useLiveSocket(year, round, sessionType, speed, delayOffset);

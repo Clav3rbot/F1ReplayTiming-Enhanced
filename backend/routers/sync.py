@@ -16,6 +16,7 @@ from fastapi import APIRouter, UploadFile, File, Query, HTTPException, Body
 register_heif_opener()
 
 from routers.replay import _get_frames  # reads from R2
+from routers.sessions import SESSION_TYPE_PATTERN
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["sync"])
@@ -240,7 +241,7 @@ def _match_frame(frames: list[dict], extracted: dict) -> dict:
 async def sync_manual(
     year: int,
     round_num: int,
-    type: str = Query("R"),
+    type: str = Query("R", pattern=SESSION_TYPE_PATTERN),
     body: dict = Body(...),
 ):
     """Match manual leaderboard input against replay frames."""
@@ -267,7 +268,7 @@ async def sync_manual(
 async def sync_from_photo(
     year: int,
     round_num: int,
-    type: str = Query("R"),
+    type: str = Query("R", pattern=SESSION_TYPE_PATTERN),
     photo: UploadFile = File(...),
 ):
     # Read image

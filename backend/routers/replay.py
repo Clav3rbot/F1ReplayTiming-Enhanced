@@ -39,7 +39,26 @@ router = APIRouter(tags=["replay"])
 
 # In-memory cache for replay frames loaded from R2
 _replay_cache: dict[str, list[dict]] = {}
+# Race control messages per cached session: (oldest-first list, their timestamps).
+# Stored once per session; each frame gets its window attached when sent.
+_rc_cache: dict[str, tuple[list[dict], list[float]]] = {}
+_RC_WINDOW = 50
 _replay_clients: dict[str, int] = {}  # key -> active WebSocket count
+
+
+def _rc_from_frames(frames: list[dict]) -> list[dict]:
+    """RC list for replay.json files that still carry rc_messages in every frame."""
+    seen: dict[tuple, dict] = {}
+    for f in frames:
+        for m in f.get("rc_messages") or []:
+            seen.setdefault((m.get("timestamp"), m.get("message")), m)
+    return sorted(seen.values(), key=lambda m: float(m.get("timestamp") or 0))
+
+
+def _rc_upto(rc: list[dict], rc_ts: list[float], t: float) -> list[dict]:
+    """The last _RC_WINDOW messages at or before replay time t, newest first."""
+    idx = bisect.bisect_right(rc_ts, t)
+    return list(reversed(rc[max(0, idx - _RC_WINDOW):idx]))
 _eviction_tasks: dict[str, asyncio.Task] = {}  # key -> pending eviction task
 
 CACHE_EVICTION_SECONDS = 300  # 5 minutes after last client disconnects
@@ -218,7 +237,7 @@ def _incident_label(message: str) -> str | None:
     return " · ".join(p for p in parts if p)
 
 
-def _compute_timeline(frames: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[list[float], list[dict], list[dict]]:
+def _compute_timeline(frames: list[dict], rc: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[list[float], list[dict], list[dict]]:
     """Timeline overlays for the player bar, from one pass over the frames.
 
     - highlights: per-bin 0..1 "action" intensity (the heatmap curve)
@@ -242,8 +261,7 @@ def _compute_timeline(frames: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[l
     prev_pit: set[str] = set()
     prev_retired: set[str] = set()
     prev_status = "green"
-    prev_rc_ts = None
-    seen_rc: set[tuple] = set()
+    rc_i = 0  # next unseen message in rc (oldest-first)
     open_chapter: dict | None = None
     for i, f in enumerate(frames):
         t = float(f["timestamp"])
@@ -269,8 +287,10 @@ def _compute_timeline(frames: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[l
                     score += 3.0 if min(p, prev_pos[abbr]) <= 3 else 1.0  # fights for the top matter more
             prev_pos = pos
         status = f.get("status") or "green"
-        rc = f.get("rc_messages") or []
-        rc_ts = rc[0].get("timestamp") if rc else None
+        new_rc: list[dict] = []
+        while rc_i < len(rc) and float(rc[rc_i].get("timestamp") or 0) <= t:
+            new_rc.append(rc[rc_i])
+            rc_i += 1
         if status != prev_status:
             if open_chapter:
                 open_chapter.update(end=t, lap_end=lap)
@@ -283,21 +303,14 @@ def _compute_timeline(frames: list[dict], bins: int = HIGHLIGHT_BINS) -> tuple[l
                 markers.append({"kind": "retirement", "t": t, "label": f"{abbr} · Retired", "lap": lap})
             if status != prev_status:
                 score += _STATUS_WEIGHT.get(status, 3.0)  # back to green = restart
-            if rc_ts is not None and rc_ts != prev_rc_ts:
+            if new_rc:
                 score += 2.0
-                # rc_messages is newest-first: walk back through everything new since the last frame
-                for m in rc:
-                    key = (m.get("timestamp"), m.get("message"))
-                    if key in seen_rc:
-                        break
-                    seen_rc.add(key)
+                for m in new_rc:
                     label = _incident_label(m.get("message") or "")
                     if label:
                         score += 4.0
                         markers.append({"kind": "incident", "t": float(m["timestamp"]), "label": label, "lap": m.get("lap") or lap})
-        elif rc:
-            seen_rc.update((m.get("timestamp"), m.get("message")) for m in rc)
-        prev_pit, prev_retired, prev_status, prev_rc_ts = pit, retired, status, rc_ts
+        prev_pit, prev_retired, prev_status = pit, retired, status
         raw[min(i * bins // n, bins - 1)] += score
     if open_chapter:
         open_chapter.update(end=float(frames[-1]["timestamp"]), lap_end=frames[-1].get("lap"))
@@ -334,7 +347,11 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
             return []  # don't pin a transient miss in the cache
         # NaN/Infinity already come back as None from storage._loads.
         _replay_cache[key] = frames
-        logger.info(f"[memory] Cached {key} ({len(frames)} frames) — {_log_memory()}")
+        rc = get_json(f"sessions/{year}/{round_num}/{session_type}/rc_messages.json")
+        if rc is None:
+            rc = _rc_from_frames(frames)  # stored before rc_messages.json existed
+        _rc_cache[key] = (rc, [float(m.get("timestamp") or 0) for m in rc])
+        logger.info(f"[memory] Cached {key} ({len(frames)} frames, {len(rc)} RC messages) — {_log_memory()}")
     return _replay_cache[key]
 
 
@@ -350,6 +367,7 @@ async def _get_frames(year: int, round_num: int, session_type: str) -> list[dict
             if task:
                 task.cancel()
             del _replay_cache[key]
+            _rc_cache.pop(key, None)
             logger.info(f"[memory] Evicted {key} (cache cap) — {_log_memory()}")
     return frames
 
@@ -385,6 +403,7 @@ def evict_cached_session(year: int, round_num: int, session_type: str) -> None:
     task = _eviction_tasks.pop(key, None)
     if task:
         task.cancel()
+    _rc_cache.pop(key, None)
     if _replay_cache.pop(key, None) is not None:
         logger.info(f"[memory] Evicted {key} after delete — {_log_memory()}")
 
@@ -395,6 +414,7 @@ async def _evict_after_delay(key: str):
         await asyncio.sleep(CACHE_EVICTION_SECONDS)
         if _replay_clients.get(key, 0) == 0 and key in _replay_cache:
             del _replay_cache[key]
+            _rc_cache.pop(key, None)
             _eviction_tasks.pop(key, None)
             logger.info(f"[memory] Evicted {key} — {_log_memory()}")
     except asyncio.CancelledError:
@@ -532,7 +552,8 @@ async def replay_websocket(
                     rle[-1]["count"] += 1
             frame_laps_rle = rle if rle else None
 
-        highlights, chapters, markers = await asyncio.to_thread(_compute_timeline, frames)
+        rc, rc_ts = _rc_cache.get(cache_key, ([], []))
+        highlights, chapters, markers = await asyncio.to_thread(_compute_timeline, frames, rc)
 
         await websocket.send_json({
             "type": "ready",
@@ -551,6 +572,10 @@ async def replay_websocket(
         # Helper to send a frame with pit predictions added
         # Must copy: frames are shared cache objects; mutating in-place corrupts other clients
         def prepare_frame(f: dict) -> dict:
+            if rc and "rc_messages" not in f:
+                msgs = _rc_upto(rc, rc_ts, float(f["timestamp"]))
+                if msgs:
+                    f = {**f, "rc_messages": msgs}
             if is_race and pit_loss_green > 0:
                 f = {**f, "drivers": [d.copy() for d in f.get("drivers", [])]}
                 _add_pit_predictions(f, pit_loss_green, pit_loss_sc, pit_loss_vsc)

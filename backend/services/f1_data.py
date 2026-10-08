@@ -37,6 +37,13 @@ if proxy:
     import fastf1._api
     fastf1.api.base_url = proxy
     fastf1._api.base_url = proxy
+    # The worker checks a shared secret; FastF1's own HTTP sessions must send it too
+    proxy_key = os.environ.get("F1_SIGNALR_PROXY_KEY", "")
+    if proxy_key:
+        import fastf1.req
+        for _s in (fastf1.req.Cache._requests_session, fastf1.req.Cache._requests_session_cached):
+            if _s is not None:
+                _s.headers["X-Proxy-Key"] = proxy_key
 
 # LRU in-memory cache for loaded sessions (cap prevents OOM on long-running instances)
 _SESSION_CACHE_MAX = 8
@@ -315,6 +322,20 @@ def _position_missing_share(session) -> float:
     return missing / total if total else 0.0
 
 
+def _frozen_mask(t: np.ndarray, speed: np.ndarray, rpm: np.ndarray) -> np.ndarray:
+    """Samples inside a car-data freeze: speed and RPM repeating for CAR_FROZEN_MIN_S
+    or longer while the car is moving. Lets the UI grey those readouts out."""
+    v = np.nan_to_num(speed.astype(float), nan=0.0)
+    r = np.nan_to_num(rpm.astype(float), nan=0.0)
+    repeat = np.r_[False, (np.diff(v) == 0) & (np.diff(r) == 0)] & (v > STATIONARY_KMH)
+    edges = np.diff(np.r_[0, repeat.astype(int), 0])
+    out = np.zeros(len(t), dtype=bool)
+    for a, b in zip(np.where(edges == 1)[0], np.where(edges == -1)[0]):
+        if t[b - 1] - t[a - 1] >= CAR_FROZEN_MIN_S:
+            out[a:b] = True
+    return out
+
+
 def _car_data_frozen_share(session) -> float:
     """Share of drivers' lap time the car data spends frozen (speed and RPM unchanged while moving).
 
@@ -357,10 +378,12 @@ def _data_notes(session) -> list[str]:
     try:
         missing = _position_missing_share(session)
         if missing >= POSITION_MISSING_WARN:
-            # Gaps are only rebuilt on laps whose car data is live (see _fill_position_gaps).
+            # See _fill_position_gaps: lap distance where the car data is live,
+            # sector times where it is frozen too.
             how = (
-                "Where the car telemetry is live, cars are placed on the track from their lap "
-                "distance; elsewhere they can lag behind or jump."
+                "In those stretches cars are placed on the track from their lap distance, or "
+                "from their sector times where the car telemetry is frozen too, so positions "
+                "are approximate and pit lane trips are not shown."
                 if frozen >= CAR_DATA_FROZEN_WARN
                 else "In those stretches cars are placed on the track from their lap distance, "
                 "so positions are approximate and pit lane trips are not shown."
@@ -371,7 +394,7 @@ def _data_notes(session) -> list[str]:
     if frozen >= CAR_DATA_FROZEN_WARN:
         notes.append(
             f"F1's car telemetry (speed, throttle, gear) is frozen for {frozen:.0%} of this session, "
-            "so telemetry charts and speed readouts are unreliable in those stretches."
+            "the telemetry readout is greyed out in those stretches."
         )
     return notes
 
@@ -473,57 +496,144 @@ def _scan_reference_lap(session, min_points: int = MIN_OUTLINE_POSITION_POINTS) 
 POSITION_GAP_S = 2.0
 # Below this speed a repeated coordinate is a stopped car, not a stale feed.
 STATIONARY_KMH = 5.0
+# A position farther than this from the reference outline is feed junk, not a
+# car: healthy feeds stay within ~20 m (pit lane included), stale coordinates
+# sit 500 m+ away.
+OFF_TRACK_M = 100.0
+# Metres between consecutive grid slots along the track (FIA staggered grid).
+GRID_SLOT_M = 8.0
 # Share of a lap's moving car-data samples allowed to be frozen repeats before
 # its integrated distance is no longer trusted to place the car.
 LAP_FROZEN_TOLERANCE = 0.05
 
 
-def _fresh_mask(x: np.ndarray, y: np.ndarray, speed: np.ndarray | None = None) -> np.ndarray:
+def _fresh_mask(
+    x: np.ndarray, y: np.ndarray, speed: np.ndarray | None = None, bad: np.ndarray | None = None
+) -> np.ndarray:
     """Samples that carry a new position: moved since the previous one, or the car is stopped.
 
     Some feeds keep repeating the last coordinate for seconds while the car is
     moving (Hungary 2026 R, ~74% of the race), which is a gap in all but name.
+    `bad` marks samples that are junk whatever they do (see _off_track).
     """
     changed = np.r_[True, (np.diff(x) != 0) | (np.diff(y) != 0)]
-    if speed is None:
-        return changed
-    return changed | (np.nan_to_num(speed, nan=0.0) < STATIONARY_KMH)
+    if speed is not None:
+        changed |= np.nan_to_num(speed, nan=0.0) < STATIONARY_KMH
+    return changed if bad is None else changed & ~bad
+
+
+def _off_track(x: np.ndarray, y: np.ndarray, ref_x: np.ndarray, ref_y: np.ndarray) -> np.ndarray:
+    """Samples that cannot be a car on this circuit: the feed's (0, 0) null, or
+    farther than OFF_TRACK_M from the reference outline. Both show up at race
+    starts (Shanghai and Monaco 2026 R put the whole grid on one point)."""
+    from scipy.spatial import cKDTree
+
+    xy = np.c_[np.nan_to_num(x), np.nan_to_num(y)]
+    dist, _ = cKDTree(np.c_[ref_x, ref_y]).query(xy)
+    return ((xy[:, 0] == 0) & (xy[:, 1] == 0)) | (dist / 10.0 > OFF_TRACK_M)  # F1 units are 1/10 m
 
 
 def _in_position_gap(t: np.ndarray, fresh_t: np.ndarray) -> np.ndarray:
-    """True where `t` lies between fresh samples more than POSITION_GAP_S apart (or outside them all)."""
+    """True where `t` lies between fresh samples more than POSITION_GAP_S apart.
+
+    Before the first fresh sample (or after the last) only the distance to that
+    one sample counts: the lap-start row sits ~0.3 s before the first position
+    tick, and treating it as a gap put every car on the start line at t=0.
+    """
     if len(fresh_t) == 0:
         return np.ones(len(t), dtype=bool)
     j = np.searchsorted(fresh_t, t, side="right")
-    prev = np.where(j > 0, fresh_t[np.maximum(j - 1, 0)], -np.inf)
-    nxt = np.where(j < len(fresh_t), fresh_t[np.minimum(j, len(fresh_t) - 1)], np.inf)
-    return ((nxt - prev) > POSITION_GAP_S) & (t != prev)
+    prev = np.where(j > 0, fresh_t[np.maximum(j - 1, 0)], np.nan)
+    nxt = np.where(j < len(fresh_t), fresh_t[np.minimum(j, len(fresh_t) - 1)], np.nan)
+    span = np.where(np.isnan(prev), nxt - t, np.where(np.isnan(nxt), t - prev, nxt - prev))
+    return (span > POSITION_GAP_S) & (t != prev)
 
 
-def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: np.ndarray) -> tuple:
-    """X/Y for `tel`, rebuilt from lap distance wherever the position feed dropped out.
+def _sector_anchors(lap) -> np.ndarray | None:
+    """Session seconds at the lap start and the three sector ends.
+
+    Without sector splits the sectors are spread evenly, which degrades to
+    linear time over the lap. None when the lap has no start or lap time.
+    """
+    start, lap_time = lap["LapStartTime"], lap["LapTime"]
+    if pd.isna(start) or pd.isna(lap_time):
+        return None
+    t0, t3 = start.total_seconds(), (start + lap_time).total_seconds()
+    s1, s2 = lap.get("Sector1SessionTime"), lap.get("Sector2SessionTime")
+    if pd.isna(s1) or pd.isna(s2):
+        a = np.array([t0, t0 + (t3 - t0) / 3, t0 + 2 * (t3 - t0) / 3, t3])
+    else:
+        a = np.array([t0, s1.total_seconds(), s2.total_seconds(), t3])
+    return a if np.all(np.diff(a) > 0) else None
+
+
+def _sector_coordinate(t: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+    """Sectors completed plus the time fraction of the current one (0..3) at session seconds `t`."""
+    j = np.clip(np.searchsorted(anchors, t, side="right") - 1, 0, 2)
+    u = (t - anchors[j]) / (anchors[j + 1] - anchors[j])
+    return j + np.clip(u, 0.0, 1.0)
+
+
+def _ref_time_profile(ref_lap, ref_tel) -> tuple | None:
+    """How far round the outline the reference lap was at each sector-time coordinate.
+
+    Lets a car be placed from timing alone: the timing feed keeps lap and
+    sector times even when both the position and the car data streams freeze
+    (Hungary 2026 R). Returns (s, arc_fraction) for np.interp, or None.
+    """
+    if ref_tel is None or "SessionTime" not in ref_tel.columns or len(ref_tel) < 2:
+        return None
+    anchors = _sector_anchors(ref_lap)
+    if anchors is None:
+        return None
+    rx = ref_tel["X"].values.astype(float)
+    ry = ref_tel["Y"].values.astype(float)
+    arc = np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(rx), np.diff(ry)))])
+    if arc[-1] <= 0:
+        return None
+    s = _sector_coordinate(ref_tel["SessionTime"].dt.total_seconds().values, anchors)
+    s, idx = np.unique(s, return_index=True)  # np.interp wants strictly increasing x
+    return s, arc[idx] / arc[-1]
+
+
+def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_lap, ref_tel, grid_slot_m: float = 0.0) -> tuple:
+    """X/Y for `tel`, rebuilt wherever the position feed dropped out or is junk.
+
+    `grid_slot_m`: how far behind the line the car's grid slot is; the first
+    lap's distance counts from there, so a car with no usable position at the
+    start sits in its slot instead of on the line.
 
     F1's archive sometimes loses the Position stream for most of a session while
     car data keeps going (Monaco 2026 R: positions stop after lap 5), or keeps
     repeating stale coordinates (Hungary 2026 R). FastF1 then
     interpolates X/Y across the gap, which sends cars far off the map or freezes
-    them. Distance is integrated from speed, so it survives the gap: each lap's
-    distance fraction is placed on the reference outline by arc length. Checked
-    against real positions this lands within ~5 m median, ~15-25 m p90.
+    them. Two sources rebuild them, chosen per lap:
+
+    - lap distance, integrated from speed, placed on the reference outline by
+      arc length while the car data is live: ~5 m median, ~15-25 m p90
+      against real positions;
+    - sector times from the timing feed when the car data is frozen too: the
+      car moves through each sector the way the reference lap did, re-anchored
+      at every sector line. On a clean session this is as good as distance
+      (~5 m median, ~20 m p90); it is only worse where the car's pace through a
+      sector differs from the reference lap's (traffic, safety car, pit laps).
 
     Rows before the first lap starts (grid, formation) keep the feed's values.
     Returns (x, y) as raw arrays, or the originals when nothing needs filling.
     """
     x = tel["X"].values.astype(float)
     y = tel["Y"].values.astype(float)
-    if "Source" not in tel.columns or "Distance" not in tel.columns or len(ref_x) < 2:
+    if "Source" not in tel.columns or "Distance" not in tel.columns or ref_tel is None or len(ref_tel) < 2:
         return x, y
+    ref_x = ref_tel["X"].values.astype(float)
+    ref_y = ref_tel["Y"].values.astype(float)
 
     t = (tel["Date"] - tel["Date"].iloc[0]).dt.total_seconds().values
     is_pos = tel["Source"].values == "pos"
     speed = tel["Speed"].values.astype(float) if "Speed" in tel.columns else None
-    fresh = _fresh_mask(x[is_pos], y[is_pos], speed[is_pos] if speed is not None else None)
-    gap = _in_position_gap(t, t[is_pos][fresh])
+    bad = _off_track(x, y, ref_x, ref_y)
+    fresh = _fresh_mask(x[is_pos], y[is_pos], speed[is_pos] if speed is not None else None, bad[is_pos])
+    gap = _in_position_gap(t, t[is_pos][fresh]) | bad
     if not gap.any():
         return x, y
 
@@ -545,7 +655,13 @@ def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: n
     k = np.searchsorted(starts, t, side="right") - 1
     on_lap = k >= 0
     kk = np.clip(k, 0, len(starts) - 1)
-    frac = np.clip((d - d_start[kk]) / np.maximum(d_end[kk] - d_start[kk], 1.0), 0.0, 0.99999)
+    # The first lap starts on the grid, grid_slot_m behind the line: its distance
+    # counts from there and the car sits behind the line (wrapping round the
+    # outline) until it has covered that much.
+    slot = np.where(kk == 0, grid_slot_m, 0.0)
+    span = np.maximum(d_end[kk] - d_start[kk] - slot, 1.0)
+    frac = np.clip((d - d_start[kk] - slot) / span, -0.25, 0.99999)
+    frac = np.where(frac < 0, 1.0 + frac, frac)
 
     seg = np.hypot(np.diff(ref_x), np.diff(ref_y))
     arc = np.concatenate([[0.0], np.cumsum(seg)])
@@ -553,7 +669,7 @@ def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: n
         return x, y
     # Distance only places the car when the car data behind it is live: when it
     # is frozen too (Hungary 2026 R) the integrated distance drifts 10-15% per
-    # lap, worse than the stale positions it would replace.
+    # lap, so those laps are placed from sector times instead.
     is_car = tel["Source"].values == "car"
     car_frozen = np.zeros(len(t), dtype=bool)
     car_moving = np.zeros(len(t), dtype=bool)
@@ -565,13 +681,32 @@ def _fill_position_gaps(tel: pd.DataFrame, drv_laps, ref_x: np.ndarray, ref_y: n
     moving_per_lap = np.bincount(kk[on_lap & car_moving], minlength=len(starts))
     frozen_per_lap = np.bincount(kk[on_lap & car_frozen], minlength=len(starts))
     lap_ok = frozen_per_lap <= LAP_FROZEN_TOLERANCE * np.maximum(moving_per_lap, 1)
+    slot_frac = grid_slot_m * 10.0 / arc[-1]  # F1 units are 1/10 m
     arc /= arc[-1]
 
-    fill = gap & on_lap & lap_ok[kk]
     x = x.copy()
     y = y.copy()
-    x[fill] = np.interp(frac[fill], arc, ref_x)
-    y[fill] = np.interp(frac[fill], arc, ref_y)
+    by_dist = gap & on_lap & lap_ok[kk]
+    x[by_dist] = np.interp(frac[by_dist], arc, ref_x)
+    y[by_dist] = np.interp(frac[by_dist], arc, ref_y)
+
+    profile = _ref_time_profile(ref_lap, ref_tel)
+    by_time = gap & on_lap & ~lap_ok[kk]
+    if profile is None or "SessionTime" not in tel.columns or not by_time.any():
+        return x, y
+    ts = tel["SessionTime"].dt.total_seconds().values
+    for k, (_, lap) in enumerate(laps_sorted.iloc[: len(starts)].iterrows()):
+        rows = by_time & (kk == k)
+        if not rows.any():
+            continue
+        anchors = _sector_anchors(lap)
+        if anchors is None:
+            continue
+        f = np.interp(_sector_coordinate(ts[rows], anchors), profile[0], profile[1])
+        if k == 0:  # standing start: the lap begins in the grid slot, behind the line
+            f = np.where(f < slot_frac, 1.0 + f - slot_frac, f - slot_frac)
+        x[rows] = np.interp(f, arc, ref_x)
+        y[rows] = np.interp(f, arc, ref_y)
     return x, y
 
 
@@ -582,6 +717,172 @@ def _session_ids(session) -> tuple[int, int, str]:
         int(session.event["RoundNumber"]),
         SESSION_NAME_TO_TYPE.get(str(session.name), str(session.name)),
     )
+
+
+# One session's per-driver telemetry, merged once and shared by the replay
+# builder, laps.json and every per-lap chart slice. Merging pos+car data is
+# ~0.5 s per driver; doing it per lap (as get_telemetry() on a Lap does) cost
+# ~300 ms a lap, i.e. 5-8 minutes per race just for the charts.
+# ponytail: holds one session; two sessions processed at once just rebuild.
+_tel_memo: dict = {"key": None, "merged": {}, "car": {}}
+_tel_memo_lock = threading.Lock()
+
+
+def _memo_tel(session, drv: str, kind: str):
+    key = _cache_key(*_session_ids(session))
+    with _tel_memo_lock:
+        if _tel_memo["key"] != key:
+            _tel_memo.update(key=key, merged={}, car={})
+        if drv in _tel_memo[kind]:
+            return _tel_memo[kind][drv]
+    drv_laps = session.laps.pick_drivers(drv)
+    try:
+        if kind == "merged":
+            tel = drv_laps.get_telemetry()
+        else:
+            tel = drv_laps.get_car_data().add_distance()
+        if tel is None or len(tel) == 0:
+            tel = None
+    except Exception:
+        tel = None
+    with _tel_memo_lock:
+        if _tel_memo["key"] == key:
+            _tel_memo[kind][drv] = tel
+    return tel
+
+
+def _driver_telemetry(session, drv: str):
+    """Merged position+car telemetry over all of `drv`'s laps, or None when the position feed is absent."""
+    return _memo_tel(session, drv, "merged")
+
+
+def _driver_car_telemetry(session, drv: str):
+    """Car data alone (always present) with Distance, for charts when positions are missing."""
+    return _memo_tel(session, drv, "car")
+
+
+def clear_telemetry_memo() -> None:
+    """Drop the merged telemetry once a session is fully processed (a race holds ~300 MB)."""
+    with _tel_memo_lock:
+        _tel_memo.update(key=None, merged={}, car={})
+
+
+def _lap_telemetry(session, driver: str, lap_number: int):
+    """One lap cut from the driver's merged trace, Distance restarting at the lap start."""
+    drv_laps = session.laps.pick_drivers(driver)
+    row = drv_laps[drv_laps["LapNumber"] == lap_number]
+    if len(row) == 0:
+        return None
+    lap = row.iloc[0]
+    start = lap["LapStartTime"]
+    if pd.isna(start):
+        return None
+    end = start + lap["LapTime"] if pd.notna(lap["LapTime"]) else lap.get("Time")
+    if pd.isna(end):
+        return None
+    tel = _driver_telemetry(session, driver)
+    if tel is None:
+        tel = _driver_car_telemetry(session, driver)
+    if tel is None or "SessionTime" not in tel.columns:
+        return None
+    st = tel["SessionTime"]
+    seg = tel[(st >= start) & (st <= end)].copy()
+    if len(seg) < 2:
+        return None
+    d = seg["Distance"].values.astype(float)
+    d = d - d[0]
+    seg["Distance"] = d
+    seg["RelativeDistance"] = d / d[-1] if d[-1] > 0 else 0.0
+    return seg
+
+
+def _replay_min_date(session):
+    """Date of the first telemetry sample across drivers: replay timestamp zero."""
+    min_date = None
+    for drv in session.laps["Driver"].unique().tolist():
+        tel = _driver_telemetry(session, drv)
+        if tel is None or "Date" not in tel.columns:
+            continue
+        d = tel["Date"].dropna()
+        if len(d) and (min_date is None or d.iloc[0] < min_date):
+            min_date = d.iloc[0]
+    return min_date
+
+
+def _rc_message_list(session, min_date) -> list[dict]:
+    """Race control messages with replay timestamps, oldest first.
+
+    Stored once per session (rc_messages.json); the replay endpoint attaches
+    the messages up to each frame's time when it sends the frame. Keeping them
+    in every frame copied the last 50 messages 10,000+ times and was ~40% of
+    replay.json.
+    """
+    try:
+        rcm = session.race_control_messages
+    except Exception:
+        return []
+    if rcm is None or len(rcm) == 0 or min_date is None:
+        return []
+    number_to_abbr = {}
+    for _, row in session.results.iterrows():
+        num = str(row.get("DriverNumber", ""))
+        if num:
+            number_to_abbr[num] = str(row.get("Abbreviation", ""))
+    out: list[dict] = []
+    try:
+        for _, msg_row in rcm.iterrows():
+            message = str(msg_row.get("Message", ""))
+            if not message or message == "nan":
+                continue
+            category = str(msg_row.get("Category", ""))
+            racing_number = str(msg_row.get("RacingNumber", ""))
+            if racing_number in ("nan", "None", "0"):
+                racing_number = ""
+            msg_time = msg_row.get("Time")
+            if pd.isna(msg_time):
+                continue
+            if hasattr(msg_time, "total_seconds"):
+                time_sec = msg_time.total_seconds()
+            else:
+                try:
+                    time_sec = (msg_time - min_date).total_seconds()
+                except Exception:
+                    continue
+            entry: dict = {"message": message, "category": category, "timestamp": time_sec}
+            if racing_number and racing_number != "nan":
+                entry["racing_number"] = racing_number
+                drv_abbr = number_to_abbr.get(racing_number, "")
+                if drv_abbr:
+                    entry["driver"] = drv_abbr
+            # Flag data for sector-level visualisation
+            scope = str(msg_row.get("Scope", ""))
+            if scope and scope != "nan":
+                entry["scope"] = scope
+            flag_val = str(msg_row.get("Flag", ""))
+            if flag_val and flag_val != "nan":
+                entry["flag"] = flag_val
+            sector_num = msg_row.get("Sector")
+            if not pd.isna(sector_num):
+                try:
+                    entry["sector"] = int(sector_num)
+                except (ValueError, TypeError):
+                    pass
+            lap_num = msg_row.get("Lap")
+            if not pd.isna(lap_num):
+                try:
+                    entry["lap"] = int(lap_num)
+                except (ValueError, TypeError):
+                    pass
+            out.append(entry)
+        out.sort(key=lambda e: e["timestamp"])
+    except Exception as e:
+        logger.error(f"Failed to build RC message list: {e}")
+    return out
+
+
+def _get_rc_messages_sync(year: int, round_num: int, session_type: str) -> list[dict]:
+    session = _load_session(year, round_num, session_type)
+    return _rc_message_list(session, _replay_min_date(session))
 
 
 @lru_cache(maxsize=8)
@@ -797,18 +1098,8 @@ def _get_lap_data_sync(year: int, round_num: int, session_type: str = "R") -> li
     # FastF1 lap Time is relative to t0_date, so: replay_ts = Time - (min_tel_date - t0_date)
     replay_offset_secs = 0.0
     try:
-        all_dates = []
-        drivers_list = laps["Driver"].unique().tolist()
-        for drv in drivers_list:
-            drv_laps = laps.pick_drivers(drv)
-            try:
-                tel = drv_laps.get_telemetry()
-                if tel is not None and "Date" in tel.columns and len(tel) > 0:
-                    all_dates.extend(tel["Date"].dropna().tolist())
-            except Exception:
-                continue
-        if all_dates and hasattr(session, "t0_date") and session.t0_date is not None:
-            min_date = min(all_dates)
+        min_date = _replay_min_date(session)
+        if min_date is not None and hasattr(session, "t0_date") and session.t0_date is not None:
             replay_offset_secs = (min_date - session.t0_date).total_seconds()
     except Exception:
         replay_offset_secs = 0.0
@@ -856,27 +1147,10 @@ def _get_driver_telemetry_sync(
 ) -> dict | None:
     """Return telemetry trace for a single driver on a single lap."""
     session = _load_session(year, round_num, session_type)
-    laps_df = session.laps
-
-    drv_laps = laps_df.pick_drivers(driver)
-    lap_row = drv_laps[drv_laps["LapNumber"] == lap_number]
-    if len(lap_row) == 0:
-        return None
-
-    try:
-        tel = lap_row.get_telemetry()
-    except Exception:
-        tel = None
-    if tel is None or len(tel) == 0:
-        # get_telemetry() needs position data for the lap; when the position
-        # feed dropped out (Monaco 2026 R) the chart channels still exist in
-        # car data alone.
-        try:
-            tel = lap_row.get_car_data().add_distance().add_relative_distance()
-        except Exception:
-            return None
-
-    if tel is None or len(tel) == 0:
+    # Cut from the driver's merged trace; falls back to car data alone when the
+    # position feed dropped out (Monaco 2026 R).
+    tel = _lap_telemetry(session, driver, lap_number)
+    if tel is None:
         return None
 
     # Build arrays  - use Distance as x-axis (relative to lap)
@@ -974,13 +1248,9 @@ def _get_driver_positions_by_time_sync(
     # Collect all car position data (merged telemetry has cumulative Distance)
     driver_pos_data = {}
     for drv in drivers_list:
-        drv_laps = laps.pick_drivers(drv)
-        try:
-            tel = drv_laps.get_telemetry()
-            if tel is not None and len(tel) > 0:
-                driver_pos_data[drv] = tel
-        except Exception:
-            continue
+        tel = _driver_telemetry(session, drv)
+        if tel is not None:
+            driver_pos_data[drv] = tel
 
     logger.info(f"[perf] telemetry collect: {_time.monotonic() - t_start:.1f}s ({len(driver_pos_data)} drivers)")
 
@@ -1016,9 +1286,9 @@ def _get_driver_positions_by_time_sync(
     # Use the same normalization as the track outline (same reference lap)
     # so driver dots align exactly with the drawn track
     try:
-        _, ref_tel = _get_reference_lap_telemetry(session)
+        ref_lap, ref_tel = _get_reference_lap_telemetry(session)
     except ValueError:
-        ref_tel = None
+        ref_lap = ref_tel = None
     if ref_tel is not None and "X" in ref_tel.columns and len(ref_tel) > 0:
         x_min = float(ref_tel["X"].min())
         x_max = float(ref_tel["X"].max())
@@ -1178,59 +1448,9 @@ def _get_driver_positions_by_time_sync(
     except Exception as e:
         logger.error(f"Failed to parse race control messages: {e}")
 
-    # Build full RC message list for the RC feed
-    rc_message_list: list[dict] = []
-    try:
-        if rcm is not None and len(rcm) > 0:
-            for _, msg_row in rcm.iterrows():
-                message = str(msg_row.get("Message", ""))
-                if not message or message == "nan":
-                    continue
-                category = str(msg_row.get("Category", ""))
-                racing_number = str(msg_row.get("RacingNumber", ""))
-                if racing_number in ("nan", "None", "0"):
-                    racing_number = ""
-                msg_time = msg_row.get("Time")
-                if pd.isna(msg_time):
-                    continue
-                if hasattr(msg_time, 'total_seconds'):
-                    time_sec = msg_time.total_seconds()
-                else:
-                    try:
-                        time_sec = (msg_time - min_date).total_seconds()
-                    except Exception:
-                        continue
-                entry: dict = {"message": message, "category": category, "timestamp": time_sec}
-                if racing_number and racing_number != "nan":
-                    entry["racing_number"] = racing_number
-                    # Map racing number to driver abbreviation
-                    drv_abbr = number_to_abbr.get(racing_number, "")
-                    if drv_abbr:
-                        entry["driver"] = drv_abbr
-                # Flag data for sector-level visualisation
-                scope = str(msg_row.get("Scope", ""))
-                if scope and scope != "nan":
-                    entry["scope"] = scope
-                flag_val = str(msg_row.get("Flag", ""))
-                if flag_val and flag_val != "nan":
-                    entry["flag"] = flag_val
-                sector_num = msg_row.get("Sector")
-                if not pd.isna(sector_num):
-                    try:
-                        entry["sector"] = int(sector_num)
-                    except (ValueError, TypeError):
-                        pass
-                # Try to find lap number
-                lap_num = msg_row.get("Lap")
-                if not pd.isna(lap_num):
-                    try:
-                        entry["lap"] = int(lap_num)
-                    except (ValueError, TypeError):
-                        pass
-                rc_message_list.append(entry)
-            rc_message_list.sort(key=lambda e: e["timestamp"])
-    except Exception as e:
-        logger.error(f"Failed to build RC message list: {e}")
+    # Full RC message list: stored separately (rc_messages.json), used here
+    # only for the sector flag timeline.
+    rc_message_list = _rc_message_list(session, min_date)
 
     # Build sector flag events timeline: [(timestamp, sector_num, flag, driver_abbr)]
     sector_flag_events: list[tuple[float, int, str, str]] = []
@@ -1251,19 +1471,6 @@ def _get_driver_positions_by_time_sync(
             else:
                 active[sector_num] = {"sector": sector_num, "flag": flag, "driver": driver}
         return list(active.values()) if active else None
-
-    # Pre-compute RC message timestamps for binary search
-    _rc_timestamps = np.array([m["timestamp"] for m in rc_message_list], dtype=np.float64) if rc_message_list else np.array([], dtype=np.float64)
-
-    def _get_rc_messages(frame_time: float) -> list[dict]:
-        """Get RC messages up to frame_time (newest first, max 50)."""
-        if len(_rc_timestamps) == 0:
-            return []
-        idx = int(np.searchsorted(_rc_timestamps, frame_time, side="right"))
-        if idx == 0:
-            return []
-        start = max(0, idx - 50)
-        return list(reversed(rc_message_list[start:idx]))
 
     # Pre-index flag events per driver for O(log n) lookup instead of O(n)
     _flag_events_by_driver: dict[str, list[tuple[float, str]]] = {}
@@ -1623,12 +1830,11 @@ def _get_driver_positions_by_time_sync(
 
     # Pre-convert telemetry to numpy arrays for fast lookup via searchsorted
     driver_arrays: dict[str, dict] = {}
-    ref_x = ref_tel["X"].values.astype(float) if ref_tel is not None and "X" in ref_tel.columns else np.array([])
-    ref_y = ref_tel["Y"].values.astype(float) if ref_tel is not None and "Y" in ref_tel.columns else np.array([])
     for drv, tel in driver_pos_data.items():
         if "Date" not in tel.columns or len(tel) == 0:
             continue
-        raw_x, raw_y = _fill_position_gaps(tel, laps.pick_drivers(drv), ref_x, ref_y)
+        gp = grid_positions.get(drv, 0) if is_race else 0
+        raw_x, raw_y = _fill_position_gaps(tel, laps.pick_drivers(drv), ref_lap, ref_tel, GRID_SLOT_M * max(gp - 1, 0))
         times = (tel["Date"] - min_date).dt.total_seconds().values.astype(np.float64)
         sort_idx = np.argsort(times)
         times = times[sort_idx]
@@ -1641,7 +1847,9 @@ def _get_driver_positions_by_time_sync(
         gear = tel["nGear"].values[sort_idx].astype(int) if "nGear" in tel.columns else np.zeros(len(times), dtype=int)
         rpm = tel["RPM"].values[sort_idx].astype(np.float64) if "RPM" in tel.columns else np.zeros(len(times))
         drs = tel["DRS"].values[sort_idx].astype(int) if "DRS" in tel.columns else np.zeros(len(times), dtype=int)
+        frozen = _frozen_mask(times, speed, rpm)
         driver_arrays[drv] = {
+            "frozen": frozen,
             "times": times,
             "x": x_vals,
             "y": y_vals,
@@ -1829,6 +2037,7 @@ def _get_driver_positions_by_time_sync(
                 "gear": gr,
                 "rpm": rpms,
                 "drs": drs_val,
+                "frozen": bool(arrays["frozen"][idx]),
             }
             last_known[drv] = drv_data
             frame_drivers.append(drv_data)
@@ -2192,9 +2401,6 @@ def _get_driver_positions_by_time_sync(
         quali_phase = _get_quali_phase(i * sample_interval)
         if quali_phase:
             frame["quali_phase"] = quali_phase
-        rc_msgs = _get_rc_messages(i * sample_interval)
-        if rc_msgs:
-            frame["rc_messages"] = rc_msgs
         s_flags = _get_sector_flags(i * sample_interval)
         if s_flags:
             frame["sector_flags"] = s_flags

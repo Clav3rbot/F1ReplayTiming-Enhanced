@@ -215,20 +215,11 @@ class LiveStateManager:
 
         # Track normalization: raw F1 coords -> 0-1 normalized
         # norm = {"x_min": float, "y_min": float, "scale": float}
-        self._track_norm: dict[str, float] | None = track_norm
-
+        self._track_norm: dict[str, float] | None = None
         # Track outline as numpy arrays + KDTree for O(log N) nearest-point lookup
         self._track_xy: np.ndarray | None = None  # shape (N, 2)
         self._track_kdtree = None
-        if track_points:
-            self._track_xy = np.array(
-                [[p["x"], p["y"]] for p in track_points], dtype=np.float64
-            )
-            try:
-                from scipy.spatial import cKDTree
-                self._track_kdtree = cKDTree(self._track_xy)
-            except ImportError:
-                pass  # fallback to O(N) scan below
+        self.set_track(track_norm, track_points)
 
         # Auto-normalization from raw position data (fallback when no track_norm)
         self._raw_x_min: float = float("inf")
@@ -260,6 +251,29 @@ class LiveStateManager:
 
         # Overall sector bests (sector index 0-2 -> best time)
         self._overall_sector_bests: dict[int, float] = {}
+
+    def set_track(
+        self,
+        track_norm: dict[str, float] | None,
+        track_points: list[dict[str, float]] | None,
+    ) -> None:
+        """Install (or replace) the outline positions are normalised and snapped to.
+
+        Called again mid-session when the outline only becomes available after
+        the first clients connected (see LiveSession._prepare_outline).
+        """
+        self._track_norm = track_norm
+        self._track_xy = None
+        self._track_kdtree = None
+        if track_points:
+            self._track_xy = np.array(
+                [[p["x"], p["y"]] for p in track_points], dtype=np.float64
+            )
+            try:
+                from scipy.spatial import cKDTree
+                self._track_kdtree = cKDTree(self._track_xy)
+            except ImportError:
+                pass  # fallback to O(N) scan below
 
     # ------------------------------------------------------------------
     # Driver helpers

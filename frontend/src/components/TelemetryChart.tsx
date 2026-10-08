@@ -97,12 +97,15 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
   const gear = driver?.gear ?? 0;
   const rpmRaw = driver?.rpm ?? 0;
   const drs = driver?.drs ?? 0;
+  // Feed stuck repeating one sample: show a grey band with dashes rather than a stale number.
+  const frozen = !!driver?.frozen;
 
   // Hooks must always be called in the same order — never after an early return
   const throttle = useSmoothedNumber(throttleRaw, 0.24);
   const brake = useSmoothedNumber(brakeRaw, 0.4);
   const rpm = useSmoothedNumber(rpmRaw, 0.2);
-  const rpmDisplay = `${(rpm / 1000).toFixed(1)}k`;
+  const rpmDisplay = frozen ? "—" : `${(rpm / 1000).toFixed(1)}k`;
+  const pip = (color: string) => (frozen ? "#6B7280" : color);
 
   if (!visible) return null;
 
@@ -122,7 +125,12 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         sidebar ? `min-w-0 w-fit pl-2.5 ${hasDrs ? "pr-3" : "pr-1.5"}` : `w-fit pl-3 sm:pl-4 ${hasDrs ? "pr-3 sm:pr-4" : "pr-1.5 sm:pr-2"}`
       }`}
     >
-      <div className={`flex items-center relative z-10 min-w-0 ${sidebar ? "gap-2" : "gap-2 sm:gap-4"}`}>
+      {frozen && (
+        <div className="absolute inset-0 z-20 flex items-center justify-end pr-2 bg-gray-500/30 pointer-events-none" title="Car telemetry frozen in the F1 feed">
+          <span className="text-[8px] font-extrabold uppercase tracking-wider text-gray-300 bg-gray-800/80 px-1 rounded">frozen</span>
+        </div>
+      )}
+      <div className={`flex items-center relative z-10 min-w-0 ${sidebar ? "gap-2" : "gap-2 sm:gap-4"} ${frozen ? "opacity-50" : ""}`}>
         {/* Driver */}
         <div className="w-[38px] sm:w-[42px] flex items-center gap-1 shrink-0">
           <span
@@ -154,7 +162,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         <div className="w-[50px] sm:w-[85px] flex items-center shrink-0">
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto tracking-wider">Spd</span>
           <span className="text-[13px] font-extrabold text-ink font-mono tabular-nums-fixed text-right w-[26px] sm:w-[28px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-            {speed}
+            {frozen ? "—" : speed}
           </span>
           {!sidebar && <span className="text-[9px] font-bold text-f1-muted hidden sm:inline ml-1">{useImperial ? "mph" : "km/h"}</span>}
         </div>
@@ -162,13 +170,13 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
         {/* Throttle */}
         <div className="w-[52px] sm:w-[50px] flex items-center gap-[3px] shrink-0">
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto">Thr</span>
-          <BarPips value={throttle} max={100} color="#22C55E" />
+          <BarPips value={throttle} max={100} color={pip("#22C55E")} />
         </div>
 
         {/* Brake */}
         <div className="w-[52px] sm:w-[48px] flex items-center gap-[3px] shrink-0">
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[20px] sm:w-auto">Brk</span>
-          <BarPips value={brake} max={100} color="#EF4444" />
+          <BarPips value={brake} max={100} color={pip("#EF4444")} />
         </div>
 
         {/* Gear */}
@@ -176,7 +184,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
           <span className="text-[9px] font-bold text-f1-muted uppercase w-[10px] sm:hidden tracking-wider">G</span>
           <span className="text-[9px] font-bold text-f1-muted uppercase hidden sm:inline tracking-wider">Gear</span>
           <span className="text-[13px] font-extrabold text-ink font-mono tabular-nums-fixed w-[12px] text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-            {gear === 0 ? "N" : gear}
+            {frozen ? "—" : gear === 0 ? "N" : gear}
           </span>
         </div>
 
@@ -186,7 +194,7 @@ export default function TelemetryChart({ visible, driver, year, isQualifying, us
           <span className="text-[11px] font-extrabold text-ink font-mono tabular-nums-fixed text-right w-[34px] sm:w-[40px] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
             {rpmDisplay}
           </span>
-          <BarPips value={rpm} max={15000} color="#F59E0B" />
+          <BarPips value={rpm} max={15000} color={pip("#F59E0B")} />
         </div>
 
         {/* DRS (not available from 2026) */}

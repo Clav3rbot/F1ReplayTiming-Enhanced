@@ -1,9 +1,12 @@
 import logging
+import threading
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Query, HTTPException
-from services.storage import get_json, put_json
+from routers.sessions import SESSION_TYPE_PATTERN
+from services.storage import put_json
 from services.f1_data import _get_track_data_sync
+from services.track_lookup import ensure_circuit_outline, find_track
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["track"])
@@ -85,39 +88,21 @@ def _regenerate(path: str, year: int, round_num: int, session_type: str, cached:
 def track_geometry(
     year: int,
     round_num: int,
-    type: str = Query("R", description="Session type"),
+    type: str = Query("R", pattern=SESSION_TYPE_PATTERN, description="Session type"),
 ):
-    target_path = f"sessions/{year}/{round_num}/{type}/track.json"
-    data = get_json(target_path)
-    if data is not None:
-        if _is_stale(data):
-            data = _regenerate(target_path, year, round_num, type, data)
-        return data
-
-    # Fast fallback: try other session types or previous years BEFORE
-    # triggering slow FastF1 processing (track outlines rarely change)
-    for alt_type in ("R", "Q", "S", "SQ", "FP1", "FP2", "FP3"):
-        if alt_type == type:
-            continue
-        alt_path = f"sessions/{year}/{round_num}/{alt_type}/track.json"
-        data = get_json(alt_path)
-        if data is not None:
-            logger.info(f"Track fallback: using {year}/{round_num}/{alt_type} for {type}")
-            if _is_stale(data):
-                data = _regenerate(alt_path, year, round_num, alt_type, data)
-            return data
-
-    for prev_year in range(year - 1, year - 4, -1):
-        for alt_type in ("R", "Q"):
-            prev_path = f"sessions/{prev_year}/{round_num}/{alt_type}/track.json"
-            data = get_json(prev_path)
-            if data is not None:
-                logger.info(f"Track fallback: using {prev_year}/{round_num}/{alt_type} for {year}/{round_num}/{type}")
-                if _is_stale(data):
-                    data = _regenerate(prev_path, prev_year, round_num, alt_type, data)
-                return data
-
-    raise HTTPException(
-        status_code=404,
-        detail="Track data not available for this session.",
-    )
+    found = find_track(year, round_num, type)
+    if found is None:
+        # A weekend nobody has processed yet (live sessions): draw the outline
+        # from an earlier season in the background; the live page polls.
+        threading.Thread(target=ensure_circuit_outline, args=(year, round_num), daemon=True).start()
+        raise HTTPException(
+            status_code=404,
+            detail="Track data not available for this session.",
+        )
+    path, data = found
+    parts = path.split("/")
+    # sessions/{year}/{round}/{type}/track.json can be rebuilt from its session;
+    # a prepared circuits/ outline is already current.
+    if parts[0] == "sessions" and _is_stale(data):
+        data = _regenerate(path, int(parts[1]), int(parts[2]), parts[3], data)
+    return data

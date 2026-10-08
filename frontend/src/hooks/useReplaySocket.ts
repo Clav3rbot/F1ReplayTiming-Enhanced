@@ -34,6 +34,8 @@ export interface ReplayDriver {
   gear: number | null;
   rpm: number | null;
   drs: number | null;
+  /** Car data feed stuck repeating one sample: speed/throttle/gear/rpm are stale. */
+  frozen?: boolean;
   pit_prediction: number | null;
   pit_prediction_margin: number | null;
   pit_prediction_free_air: number | null;

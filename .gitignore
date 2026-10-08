@@ -28,3 +28,4 @@ backend/data/sessions/
 *docker-compose*.y*ml
 !docker-compose.yml
 frontend/tsconfig.tsbuildinfo
+backend/data/live_test/

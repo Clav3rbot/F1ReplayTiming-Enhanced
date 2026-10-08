@@ -3,10 +3,16 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 
-export function useApi<T>(path: string | null) {
+/**
+ * Fetch a JSON API path. With `retryMs`, a failed request is retried on that
+ * interval until it succeeds (for data the backend is still preparing, such
+ * as a live weekend's track outline).
+ */
+export function useApi<T>(path: string | null, retryMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!path) {
@@ -15,6 +21,7 @@ export function useApi<T>(path: string | null) {
     }
 
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     setLoading(true);
     setError(null);
 
@@ -23,7 +30,9 @@ export function useApi<T>(path: string | null) {
         if (!cancelled) setData(result);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (cancelled) return;
+        setError(err.message);
+        if (retryMs) retry = setTimeout(() => setAttempt((n) => n + 1), retryMs);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -31,8 +40,9 @@ export function useApi<T>(path: string | null) {
 
     return () => {
       cancelled = true;
+      clearTimeout(retry);
     };
-  }, [path]);
+  }, [path, retryMs, attempt]);
 
   return { data, loading, error };
 }

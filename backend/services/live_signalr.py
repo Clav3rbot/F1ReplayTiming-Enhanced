@@ -56,6 +56,12 @@ def _get_endpoints() -> tuple[str, str, str]:
         ws   = _F1_WS
     return base, ws, f"{base}/negotiate?negotiateVersion=1"
 
+
+def _proxy_headers() -> dict[str, str]:
+    """Shared-secret header the Cloudflare worker checks (F1_SIGNALR_PROXY_KEY)."""
+    key = os.environ.get("F1_SIGNALR_PROXY_KEY", "")
+    return {"X-Proxy-Key": key} if key else {}
+
 _RECORD_SEPARATOR = "\x1e"
 
 _TOPICS = [
@@ -227,6 +233,8 @@ class LiveSignalRClient:
         options_req = urllib.request.Request(negotiate_url, method="OPTIONS")
         options_req.add_header("Accept", "*/*")
         options_req.add_header("User-Agent", _UA)
+        for k, v in _proxy_headers().items():
+            options_req.add_header(k, v)
         try:
             opener.open(options_req, timeout=10)
         except urllib.error.URLError:
@@ -241,6 +249,8 @@ class LiveSignalRClient:
         post_req.add_header("Content-Type", "application/json")
         post_req.add_header("Accept", "application/json")
         post_req.add_header("User-Agent", _UA)
+        for k, v in _proxy_headers().items():
+            post_req.add_header(k, v)
 
         resp = opener.open(post_req, timeout=10)
         body = json.loads(resp.read().decode())
@@ -286,7 +296,7 @@ class LiveSignalRClient:
 
         ws_url = f"{ws_base}?id={connection_token}"
 
-        extra_headers: dict[str, str] = {}
+        extra_headers: dict[str, str] = dict(_proxy_headers())
         if cookie:
             extra_headers["Cookie"] = cookie
 
