@@ -68,6 +68,7 @@ Open http://localhost:8000. Select any past session and it will be processed on 
 | `PORT` | Port the app listens on inside the container (default: `8000`) — map the same port on both sides: `-e PORT=9000 -p 9000:9000` |
 | `AUTO_PRECOMPUTE` | Which session types to background-fetch on race weekends: `off`, `race`, `race+qual` (default), `all` |
 | `F1_SIGNALR_PROXY` | Optional; Cloudflare Worker URL to proxy F1 SignalR connections — needed when hosting on data-centre IPs blocked by F1's CDN (e.g. Oracle Cloud, AWS) |
+| `F1_SIGNALR_PROXY_KEY` | Optional; shared secret sent to the worker as `X-Proxy-Key`. Set the same value as the worker's `PROXY_KEY` secret so nobody else can use your proxy |
 | `OPENROUTER_API_KEY` | Optional; enables photo sync ([get a key](https://openrouter.ai/)) |
 | `AUTH_ENABLED` / `AUTH_PASSPHRASE` | Optional; restrict access with a passphrase |
 | `ALLOW_REPROCESS` | Optional; `true`/`false` to force-enable or disable reprocessing and deleting sessions from the UI. Defaults to enabled only when `AUTH_ENABLED` is on |

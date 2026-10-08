@@ -7,6 +7,11 @@
  * Deploy once on the free tier (workers.dev).
  * Set F1_SIGNALR_PROXY=https://<your-worker>.workers.dev in your .env.
  *
+ * Lock it down: add a secret named PROXY_KEY to the worker (Settings →
+ * Variables and Secrets) and set the same value as F1_SIGNALR_PROXY_KEY in
+ * the backend. Without it the worker is an open proxy anyone can use to
+ * exhaust your daily quota. Requests without a matching X-Proxy-Key get 403.
+ *
  * Free tier limits (more than enough for personal use):
  *   100 000 requests/day, unlimited WebSocket duration
  */
@@ -14,7 +19,10 @@
 const F1_HOST = "livetiming.formula1.com";
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    if (env.PROXY_KEY && request.headers.get("X-Proxy-Key") !== env.PROXY_KEY) {
+      return new Response("Forbidden", { status: 403 });
+    }
     const url = new URL(request.url);
     const upgradeHeader = request.headers.get("Upgrade") || "";
 
@@ -41,7 +49,7 @@ async function proxyHttp(request, url) {
     const lower = k.toLowerCase();
     // drop hop-by-hop and host headers
     if (["host", "cf-connecting-ip", "cf-ray", "cf-visitor",
-         "x-forwarded-for", "x-real-ip"].includes(lower)) continue;
+         "x-forwarded-for", "x-real-ip", "x-proxy-key"].includes(lower)) continue;
     headers.set(k, v);
   }
   headers.set("Host", F1_HOST);
@@ -79,7 +87,7 @@ async function proxyWebSocket(request, url) {
   for (const [k, v] of request.headers.entries()) {
     const lower = k.toLowerCase();
     if (["host", "cf-connecting-ip", "cf-ray", "cf-visitor",
-         "x-forwarded-for", "x-real-ip"].includes(lower)) continue;
+         "x-forwarded-for", "x-real-ip", "x-proxy-key"].includes(lower)) continue;
     if (lower === "upgrade" || lower === "connection") continue;
     f1Headers.set(k, v);
   }

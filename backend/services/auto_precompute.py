@@ -67,6 +67,18 @@ async def _check_and_process():
 
     processed_any = False
 
+    # Have the circuit outline ready before the weekend's first live session:
+    # nothing of a new weekend is processed when FP1 starts, and the live map
+    # needs an outline to place cars on.
+    from services.track_lookup import ensure_circuit_outline
+    for event in events:
+        stamps = [s["_ts"] for s in event["sessions_raw"] if s.get("_ts") is not None]
+        if stamps and min(stamps) - timedelta(days=1) <= now <= max(stamps) + timedelta(hours=6):
+            try:
+                await asyncio.to_thread(ensure_circuit_outline, year, event["round_number"])
+            except Exception as e:
+                logger.warning(f"[auto] Outline preparation failed for round {event['round_number']}: {e}")
+
     for event in events:
         round_num = event["round_number"]
 

@@ -10,6 +10,7 @@ import logging
 import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from routers.replay import VALID_SESSION_TYPES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["live"])
@@ -86,7 +87,7 @@ class LiveSession:
         track_norm = None
         track_points = None
         if year and round_num:
-            track_data = _find_track_data(year, round_num, self.session_type)
+            track_data = await asyncio.to_thread(_find_track_data, year, round_num, self.session_type)
             if track_data:
                 track_norm = track_data.get("norm")
                 track_points = track_data.get("track_points")
@@ -103,6 +104,12 @@ class LiveSession:
             track_points=track_points,
         )
 
+        if year and round_num and not (track_norm and track_points):
+            # Nothing of this weekend is processed yet (the usual case for a
+            # live session): draw the outline from an earlier season in the
+            # background and hand it to the state manager once it exists.
+            asyncio.create_task(self._prepare_outline(year, round_num))
+
         if data_dir:
             from services.live_test_replayer import LiveTestReplayer
             self._replayer = LiveTestReplayer(data_dir, speed_multiplier=speed)
@@ -117,6 +124,17 @@ class LiveSession:
 
         self._started = True
         logger.info(f"Live session started: {self.key} (mode={self._mode})")
+
+    async def _prepare_outline(self, year: int, round_num: int):
+        from services.track_lookup import ensure_circuit_outline
+        try:
+            data = await asyncio.to_thread(ensure_circuit_outline, year, round_num)
+        except Exception as e:
+            logger.warning(f"Outline preparation failed for {self.key}: {e}")
+            return
+        if data and data.get("norm") and data.get("track_points") and self._state_manager:
+            self._state_manager.set_track(data["norm"], data["track_points"])
+            logger.info(f"Live session {self.key}: outline ready ({len(data['track_points'])} points)")
 
     async def _run_replayer(self):
         """Run the test replayer, feeding messages into the state manager."""
@@ -192,38 +210,11 @@ class LiveSession:
 
 
 def _find_track_data(year: int, round_num: int, session_type: str) -> dict | None:
-    """Find track data for a session, with fallback to other sessions/years.
+    """Track data for a session, or for the same circuit elsewhere in storage."""
+    from services.track_lookup import find_track
 
-    Tries in order:
-    1. Exact match: this year/round/session
-    2. Other session types at this year/round (R, Q, S, FP1, etc.)
-    3. Same round in previous years (circuits sometimes keep same round number)
-    """
-    from services.storage import get_json
-
-    # 1. Exact match
-    data = get_json(f"sessions/{year}/{round_num}/{session_type}/track.json")
-    if data:
-        return data
-
-    # 2. Other session types at the same year/round
-    for alt_type in ("R", "Q", "S", "SQ", "FP1", "FP2", "FP3"):
-        if alt_type == session_type:
-            continue
-        data = get_json(f"sessions/{year}/{round_num}/{alt_type}/track.json")
-        if data:
-            logger.info(f"Track data fallback: using {year}/{round_num}/{alt_type} for {session_type}")
-            return data
-
-    # 3. Previous years, same round number (track outlines rarely change)
-    for prev_year in range(year - 1, year - 4, -1):
-        for alt_type in ("R", "Q"):
-            data = get_json(f"sessions/{prev_year}/{round_num}/{alt_type}/track.json")
-            if data:
-                logger.info(f"Track data fallback: using {prev_year}/{round_num}/{alt_type} for {year}/{round_num}/{session_type}")
-                return data
-
-    return None
+    found = find_track(year, round_num, session_type)
+    return found[1] if found else None
 
 
 def _get_test_data_dir(year: int, round_num: int, session_type: str) -> str | None:
@@ -289,6 +280,9 @@ async def live_websocket(
 
     if is_auth_enabled() and not verify_token(token):
         await websocket.close(code=4401, reason="Unauthorized")
+        return
+    if type not in VALID_SESSION_TYPES:
+        await websocket.close(code=4400, reason="Unknown session type")
         return
 
     await websocket.accept()

@@ -29,6 +29,10 @@ router = APIRouter(prefix="/api", tags=["sessions"])
 
 AVAILABLE_SEASONS = list(range(2024, 2029))
 
+# Every session-type query param is checked against this before it becomes a
+# storage path or a FastF1 call: the local backend joins it onto DATA_DIR.
+SESSION_TYPE_PATTERN = r"^(R|Q|S|SQ|FP1|FP2|FP3)$"
+
 SESSION_NAME_TO_TYPE = {
     "Race": "R",
     "Qualifying": "Q",
@@ -151,7 +155,7 @@ async def list_events(year: int):
 async def get_session(
     year: int,
     round_num: int,
-    type: str = Query("R", description="Session type: R, Q, S, FP1, FP2, FP3, SQ"),
+    type: str = Query("R", pattern=SESSION_TYPE_PATTERN, description="Session type: R, Q, S, FP1, FP2, FP3, SQ"),
 ):
     data = await asyncio.to_thread(get_json, f"sessions/{year}/{round_num}/{type}/info.json")
     if data is not None:
@@ -203,7 +207,7 @@ def _reprocess_allowed() -> bool:
 
 
 @router.post("/sessions/{year}/{round_num}/reprocess")
-async def reprocess_session(year: int, round_num: int, type: str = Query("R")):
+async def reprocess_session(year: int, round_num: int, type: str = Query("R", pattern=SESSION_TYPE_PATTERN)):
     """Re-run processing for a session, overwriting the stored data.
 
     Runs in the background; poll the status endpoint for progress.
@@ -218,7 +222,7 @@ async def reprocess_session(year: int, round_num: int, type: str = Query("R")):
 
 
 @router.get("/sessions/{year}/{round_num}/reprocess/status")
-async def reprocess_session_status(year: int, round_num: int, type: str = Query("R")):
+async def reprocess_session_status(year: int, round_num: int, type: str = Query("R", pattern=SESSION_TYPE_PATTERN)):
     return get_reprocess_status(year, round_num, type)
 
 
@@ -235,7 +239,7 @@ async def storage_usage():
 
 
 @router.delete("/sessions/{year}/{round_num}")
-async def delete_session_data(year: int, round_num: int, type: str = Query("R")):
+async def delete_session_data(year: int, round_num: int, type: str = Query("R", pattern=SESSION_TYPE_PATTERN)):
     """Delete one session's stored data.
 
     Gated like reprocess: destructive, so only exposed on instances that are

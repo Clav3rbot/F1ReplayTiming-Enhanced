@@ -50,6 +50,10 @@ app = FastAPI(
     description="Formula 1 race replay and telemetry data API",
     version="2.0.0",
     lifespan=lifespan,
+    # No public API schema on passphrase-protected instances
+    docs_url=None if is_auth_enabled() else "/docs",
+    redoc_url=None if is_auth_enabled() else "/redoc",
+    openapi_url=None if is_auth_enabled() else "/openapi.json",
 )
 
 # Optional CORS — only needed when running frontend dev server separately
@@ -82,9 +86,9 @@ async def auth_middleware(request: Request, call_next):
     # Let CORS preflight through — CORSMiddleware handles these
     if request.method == "OPTIONS":
         return await call_next(request)
-    # WebSocket upgrades are handled separately in the replay router
-    if request.headers.get("upgrade", "").lower() == "websocket":
-        return await call_next(request)
+    # Real WebSocket handshakes never reach an "http" middleware (Starlette
+    # routes them as a separate scope) and verify their token in the router.
+    # Never skip on an Upgrade header here: any plain request can carry one.
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
     if not verify_token(token):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})

@@ -22,7 +22,9 @@ from services.f1_data import (
     _get_lap_data_sync,
     _get_race_results_sync,
     _get_driver_positions_by_time_sync,
+    _get_rc_messages_sync,
     _get_driver_telemetry_sync,
+    clear_telemetry_memo,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,6 +182,7 @@ def process_session_sync(
     try:
         frames = _get_driver_positions_by_time_sync(year, round_num, session_type)
         storage.put_json(f"{base}/replay.json", frames)
+        storage.put_json(f"{base}/rc_messages.json", _get_rc_messages_sync(year, round_num, session_type))
         logger.info(f"[{prefix}] Uploaded {len(frames)} replay frames")
     except Exception as e:
         logger.warning(f"[{prefix}] No replay data: {e}")
@@ -230,6 +233,7 @@ def process_session_sync(
     except Exception:
         pass
 
+    clear_telemetry_memo()
     status("Done")
     logger.info(f"[{prefix}] Done")
     return True
@@ -300,6 +304,7 @@ def process_core_sync(
     try:
         frames = _get_driver_positions_by_time_sync(year, round_num, session_type, minimal=True)
         storage.put_json(f"{base}/replay.json", frames)
+        storage.put_json(f"{base}/rc_messages.json", _get_rc_messages_sync(year, round_num, session_type))
         elapsed = _time.monotonic() - t0
         logger.info(f"[{prefix}] Replay built: {len(frames)} frames in {elapsed:.1f}s")
     except Exception as e:
@@ -352,6 +357,7 @@ def process_telemetry_background(
                 logger.warning(f"[{prefix}] Background telemetry error for {abbr}: {e}")
 
         logger.info(f"[{prefix}] Background telemetry done for {len(drivers)} drivers")
+        clear_telemetry_memo()
     except Exception as e:
         logger.error(f"[{prefix}] Background telemetry failed: {e}")
 
