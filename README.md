@@ -19,7 +19,9 @@ https://github.com/user-attachments/assets/6a1a2093-44ca-490b-be41-f093a1a03049
 - **Driver leaderboard** showing position, gap to leader, interval, tyre compound and age, tyre history, pit stop count, grid position changes, fastest lap indicator, investigation/penalty status, and last lap time with purple/green colour coding for fastest and personal best
 - **Race control messages**: steward decisions, investigations, penalties, track limits, and flag changes displayed in a resizable overlay on the track map
 - **Pit position prediction**: estimates where a driver would rejoin if they pitted now, with predicted gap ahead and behind, using precomputed pit loss times per circuit with Safety Car and Virtual Safety Car adjustments
-- **Telemetry** for any driver showing speed, throttle, brake, gear, and DRS plotted against track distance
+- **Telemetry** readout for the selected drivers: speed, throttle, brake, gear, RPM, and DRS
+- **Speed trace**: the current lap drawn as the replay plays, with speed plus throttle, brake, gear, and RPM traces against track distance, corner minimum and straight-line maximum speeds, and sector splits. Select several drivers to overlay their laps (teammates are dashed)
+- **Team radio**: the radio clips F1 publishes for each session, transcribed to text and shown as a broadcast-style card on the track map, in replays and live
 - **Lap analysis panel**: lap time chart, delta comparison between two drivers, and sortable lap table
 - **Picture-in-Picture**: compact floating window with track map, race control, leaderboard, and telemetry
 - **Broadcast sync**: match the replay to a recording of a session, either by uploading a screenshot of the timing tower (using AI vision) or by manually entering gap times
@@ -185,6 +187,16 @@ The app also runs a background task that automatically detects and processes new
 #### Photo Sync Feature
 
 The broadcast sync feature lets you align the replay to a video recording. Manual sync (entering gap times) always works. To enable photo/screenshot sync (reads the timing tower from an image), set `OPENROUTER_API_KEY`. The app uses Gemini Flash via OpenRouter to read the leaderboard.
+
+#### Team Radio
+
+F1 publishes a selection of team radio clips per session as audio only. The backend transcribes them locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`small.en` model, one CPU thread), so no API key or paid service is needed.
+
+- A newly processed session is transcribed in the background. A session processed before this feature is transcribed the first time someone opens its replay; the captions appear a few minutes later without reloading.
+- Expect a few seconds per clip on a small ARM server, around 3 to 5 minutes for a race.
+- The first transcription downloads the model (about 480 MB) into the FastF1 cache directory.
+- Transcripts are English and machine-made, so some words will be wrong, and they don't say who is speaking (driver or engineer).
+- Captions can be turned off in Settings → Track Map → Team radio captions.
 
 ## Acknowledgements
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { wsUrl } from "@/lib/api";
-import type { ReplayDriver, ReplayFrame, WeatherData, QualiPhase, RCMessage } from "./useReplaySocket";
+import type { ReplayDriver, ReplayFrame, WeatherData, QualiPhase, RCMessage, RadioMessage } from "./useReplaySocket";
 
 export { type ReplayDriver, type ReplayFrame, type WeatherData, type QualiPhase, type RCMessage };
 
@@ -108,6 +108,7 @@ function parseReplayFrame(msg: Record<string, unknown>): ReplayFrame | null {
     status,
     weather: parseWeatherData(msg.weather),
     quali_phase: parseQualiPhase(msg.quali_phase),
+    radio_messages: Array.isArray(msg.radio_messages) ? (msg.radio_messages as RadioMessage[]) : undefined,
   };
 }
 

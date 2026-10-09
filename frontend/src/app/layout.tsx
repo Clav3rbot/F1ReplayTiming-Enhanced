@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Titillium_Web } from "next/font/google";
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import CopyProtection from "@/components/CopyProtection";
@@ -16,6 +16,15 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "700"],
   variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+// F1's former broadcast typeface: the team radio card
+const titillium = Titillium_Web({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -41,7 +50,7 @@ export default function RootLayout({
   return (
     // The inline script adds the saved theme class before first paint;
     // suppressHydrationWarning covers that class differing from the server HTML.
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${titillium.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

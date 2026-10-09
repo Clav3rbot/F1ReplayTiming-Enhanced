@@ -10,6 +10,7 @@ import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PiPWindow from "@/components/PiPWindow";
+import RadioCaption from "@/components/RadioCaption";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
@@ -523,6 +524,17 @@ function LivePageInner() {
                 >
                   {fullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
                 </button>
+              )}
+              {settings.showTeamRadio && (
+                <RadioCaption
+                  messages={live.frame?.radio_messages ?? []}
+                  now={live.frame?.timestamp || 0}
+                  speed={1}
+                  drivers={drivers}
+                  roster={sessionData?.drivers ?? []}
+                  compact={isMobile}
+                  className={isMobile ? "inset-x-2 bottom-2" : "top-1/2 right-3 -translate-y-1/2"}
+                />
               )}
             </div>
           )}

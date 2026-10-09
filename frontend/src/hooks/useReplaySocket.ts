@@ -65,6 +65,13 @@ export interface RCMessage {
   racing_number?: string;
 }
 
+/** A transcribed team radio clip (text is machine transcription, may be inexact). */
+export interface RadioMessage {
+  timestamp: number;
+  driver: string;
+  text: string;
+}
+
 export interface ReplayFrame {
   timestamp: number;
   lap: number;
@@ -75,6 +82,8 @@ export interface ReplayFrame {
   weather?: WeatherData;
   quali_phase?: QualiPhase;
   rc_messages?: RCMessage[];
+  /** Live only: replay fetches the full list from /radio. */
+  radio_messages?: RadioMessage[];
   red_flag_end?: number;
   sector_flags?: { sector: number; flag: string; driver: string }[];
 }

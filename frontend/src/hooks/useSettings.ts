@@ -26,6 +26,7 @@ export interface ReplaySettings {
   showLastLapTime: boolean;
   showSectors: boolean;
   showLapNotifications: boolean;
+  showTeamRadio: boolean;
   highlightClose: boolean;
   useImperial: boolean;
   rcSound: boolean;
@@ -64,6 +65,7 @@ export const DEFAULTS: ReplaySettings = {
   showLastLapTime: true,
   showSectors: true,
   showLapNotifications: true,
+  showTeamRadio: true,
   highlightClose: true,
   useImperial: false,
   rcSound: false,

@@ -8,6 +8,7 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-jetbrains-mono)', 'ui-monospace', 'monospace'],
+        display: ['var(--font-display)', 'var(--font-inter)', 'sans-serif'],
       },
       colors: {
         // Theme colors are RGB channels in globals.css, switched by the

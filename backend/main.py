@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from auth import is_auth_enabled, verify_token
-from routers import sessions, track, laps, results, replay, telemetry, sync, live, live_status
+from routers import sessions, track, laps, results, replay, telemetry, sync, live, live_status, radio
 from routers import auth_routes
 from services.auto_precompute import auto_precompute_loop, get_allowed_session_types
 from services.retention import retention_loop
@@ -106,6 +106,7 @@ app.include_router(telemetry.router)
 app.include_router(sync.router)
 app.include_router(live.router)
 app.include_router(live_status.router)
+app.include_router(radio.router)
 
 
 @app.get("/api/health")

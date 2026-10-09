@@ -365,6 +365,37 @@ export default function FeaturesPage() {
           </div>
         </section>
 
+        {/* Speed Trace */}
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-ink">Speed Trace</h2>
+            <span className="text-xs text-f1-muted">Replays</span>
+          </div>
+          <p className="text-f1-text leading-relaxed">
+            Open the Speed Trace panel to watch the selected driver&apos;s current lap being drawn as the replay
+            plays: speed against track distance, with throttle, brake, gear, and RPM below. The slowest point
+            of each corner and the top speed of each straight are labelled, and the sector splits appear as
+            the car crosses them. Select several drivers to overlay their laps on the same chart, with a dot
+            for where each car is now; teammates share the team colour, so the second one is dashed. Not
+            available live, as the live feed carries no car data.
+          </p>
+        </section>
+
+        {/* Team Radio */}
+        <section className="glass-panel p-6 rounded-xl">
+          <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
+            <h2 className="text-lg font-bold text-ink">Team Radio</h2>
+            <span className="text-xs text-f1-muted">Replays and live</span>
+          </div>
+          <p className="text-f1-text leading-relaxed">
+            The team radio clips F1 publishes for each session are transcribed to text and shown on the
+            track map as they happen, in a broadcast-style card. The transcription is automatic, so some
+            words may be wrong, and it doesn&apos;t tell the driver and the engineer apart. A session
+            opened for the first time is transcribed in the background, so its radio appears a few minutes
+            later. Captions can be turned off from the settings menu.
+          </p>
+        </section>
+
         {/* Weather */}
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
