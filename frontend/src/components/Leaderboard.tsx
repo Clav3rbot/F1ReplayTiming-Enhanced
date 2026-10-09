@@ -11,6 +11,9 @@ export interface LapEntry {
   lap_number: number;
   lap_time: string | null;
   time: number | null;
+  sector1?: string | null;
+  sector2?: string | null;
+  sector3?: string | null;
   compound: string | null;
   pit_in: boolean;
   pit_out: boolean;

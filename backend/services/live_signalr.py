@@ -78,6 +78,7 @@ _TOPICS = [
     "SessionStatus",
     "SessionData",
     "Position.z",
+    "TeamRadio",
 ]
 
 # Reconnect parameters

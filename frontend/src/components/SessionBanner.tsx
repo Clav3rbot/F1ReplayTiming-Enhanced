@@ -62,6 +62,7 @@ const TRACK_MAP_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showDriverNames", label: "Driver names on track" },
   { key: "showCorners", label: "Corner numbers" },
   { key: "showElevation", label: "Elevation" },
+  { key: "showTeamRadio", label: "Team radio captions" },
 ];
 
 const TIMELINE_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [

@@ -26,6 +26,7 @@ from services.f1_data import (
     _get_driver_telemetry_sync,
     clear_telemetry_memo,
 )
+from services.team_radio import queue_radio
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +235,9 @@ def process_session_sync(
         pass
 
     clear_telemetry_memo()
+    # Slow (seconds per clip): background thread so the replay isn't held back.
+    if not storage.exists(f"{base}/radio.json"):
+        queue_radio(year, round_num, session_type)
     status("Done")
     logger.info(f"[{prefix}] Done")
     return True

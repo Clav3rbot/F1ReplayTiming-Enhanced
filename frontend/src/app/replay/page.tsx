@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
-import { useReplaySocket } from "@/hooks/useReplaySocket";
+import { useReplaySocket, type RadioMessage } from "@/hooks/useReplaySocket";
 import { useSettings } from "@/hooks/useSettings";
 import SessionBanner from "@/components/SessionBanner";
 import TrackCanvas from "@/components/TrackCanvas";
@@ -18,6 +18,8 @@ import TelemetryChart from "@/components/TelemetryChart";
 import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import LapNotifications from "@/components/LapNotifications";
+import RadioCaption from "@/components/RadioCaption";
+import SpeedTrace from "@/components/SpeedTrace";
 import type { SectorOverlay } from "@/lib/trackRenderer";
 import type { LapData } from "@/lib/lapTiming";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
@@ -77,6 +79,8 @@ function ReplayPageInner() {
 
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [showSpeedTrace, setShowSpeedTrace] = useState(false);
+  const [mobileSpeedTraceOpen, setMobileSpeedTraceOpen] = useState(false);
   const [telemetryPosition, setTelemetryPosition] = useState<"left" | "bottom">("left");
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
   const [dataNoticeClosed, setDataNoticeClosed] = useState(false);
@@ -190,6 +194,12 @@ function ReplayPageInner() {
     needsLaps
       ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
       : null,
+  );
+
+  // Team radio transcripts: 404 while the backend is still transcribing, so keep polling
+  const { data: radioResponse } = useApi<{ radio: RadioMessage[] }>(
+    `/api/sessions/${year}/${round}/radio?type=${sessionType}`,
+    60_000,
   );
 
   // Build lookup: driver -> lap_number -> { lap time, replay time it was completed at }
@@ -355,6 +365,30 @@ function ReplayPageInner() {
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
+  // compact: phone map and PiP, where the tall card would hide the track
+  const radioCaption = (compact: boolean) => settings.showTeamRadio && (
+    <RadioCaption
+      messages={radioResponse?.radio ?? []}
+      now={replay.frame?.timestamp || 0}
+      speed={Math.max(1, replay.speed)}
+      drivers={drivers}
+      roster={sessionData?.drivers ?? []}
+      compact={compact}
+      className={compact ? "inset-x-2 bottom-2" : "top-1/2 right-3 -translate-y-1/2"}
+    />
+  );
+  // Selected drivers' current laps overlaid, drawn as the replay advances
+  const speedTrace = (
+    <SpeedTrace
+      year={year}
+      round={round}
+      sessionType={sessionType}
+      drivers={selectedDrivers.flatMap((a) => drivers.filter((d) => d.abbr === a))}
+      laps={lapsResponse?.laps ?? []}
+      now={replay.frame?.timestamp || 0}
+      useImperial={settings.useImperial}
+    />
+  );
 
   // Compute sector overlay for track map
   const SECTOR_HEX: Record<string, string> = { purple: "#A855F7", green: "#22C55E", yellow: "#EAB308" };
@@ -463,6 +497,7 @@ function ReplayPageInner() {
                 showElevation={settings.showElevation}
                 elevationRangeM={trackData?.elevation?.range_m ?? null}
               />
+              {radioCaption(true)}
             </div>
           </div>
         )}
@@ -614,6 +649,7 @@ function ReplayPageInner() {
                   currentLap={replay.frame?.lap || 0}
                   drivers={drivers}
                 />
+                {radioCaption(false)}
 
                 {showTelemetry && selectedDrivers.length <= 2 && (
                   <div className="absolute bottom-2 left-8 z-10">
@@ -670,6 +706,14 @@ function ReplayPageInner() {
                   >
                     {showTelemetry ? "Hide" : "Show"} Telemetry
                   </button>
+                  <button
+                    onClick={() => setShowSpeedTrace(!showSpeedTrace)}
+                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                      showSpeedTrace ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-ink" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                    }`}
+                  >
+                    Speed Trace
+                  </button>
                   {isRace && lapsResponse?.laps && (
                     <button
                       onClick={() => setLapAnalysisOpen(!lapAnalysisOpen)}
@@ -687,6 +731,11 @@ function ReplayPageInner() {
                   )}
                 </div>
                 </div>
+                {showSpeedTrace && (
+                  <div className="flex-shrink-0 glass-panel-heavy border-t border-f1-border">
+                    {speedTrace}
+                  </div>
+                )}
               </div>
 
               {/* Expanded telemetry panel for 3+ drivers */}
@@ -921,6 +970,20 @@ function ReplayPageInner() {
               </div>
             )}
 
+            {/* Speed Trace - Mobile */}
+            {isMobile && (
+              <div className="border-b border-f1-border">
+                <button
+                  onClick={() => setMobileSpeedTraceOpen(!mobileSpeedTraceOpen)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+                >
+                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Speed Trace</span>
+                  <ChevronToggle open={mobileSpeedTraceOpen} />
+                </button>
+                {mobileSpeedTraceOpen && <div className="bg-f1-card">{speedTrace}</div>}
+              </div>
+            )}
+
             {/* Playback Controls */}
             <div className="fixed bottom-0 inset-x-0 z-50 overflow-visible bg-f1-dark sm:relative sm:inset-auto sm:z-10">
               <PlaybackControls
@@ -1103,6 +1166,7 @@ function ReplayPageInner() {
                     playing={replay.playing}
                     showElevation={settings.showElevation}
                   />
+                  {radioCaption(true)}
                 </div>
               )}
             </div>

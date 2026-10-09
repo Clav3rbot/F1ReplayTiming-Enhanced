@@ -10,10 +10,15 @@ from __future__ import annotations
 import logging
 import math
 import re
+import threading
 import time
+from datetime import timezone
 from typing import Any
 
 import numpy as np
+from fastf1.utils import to_datetime
+
+from services.team_radio import transcribe_capture
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +253,11 @@ class LiveStateManager:
 
         # Race control messages (most recent first, capped at 50)
         self._rc_messages: list[dict[str, Any]] = []
+
+        # Team radio: static API path from SessionInfo, transcribed clips (oldest first)
+        self._api_path: str = ""
+        self._radio_seen: set[str] = set()
+        self._radio_messages: list[dict[str, Any]] = []
 
         # Overall sector bests (sector index 0-2 -> best time)
         self._overall_sector_bests: dict[int, float] = {}
@@ -719,6 +729,42 @@ class LiveStateManager:
             for num, drv in self._drivers.items():
                 drv.has_fastest_lap = (num == new_fastest_number)
 
+    # --- SessionInfo / TeamRadio --------------------------------------
+
+    def _handle_session_info(self, data: dict, _ts: float) -> None:
+        if data.get("Path"):
+            self._api_path = f"/static/{data['Path']}"
+
+    def _handle_team_radio(self, data: dict, _ts: float) -> None:
+        caps = data.get("Captures")
+        for cap in (caps.values() if isinstance(caps, dict) else caps or []):
+            path = cap.get("Path") if isinstance(cap, dict) else None
+            if not path or path in self._radio_seen or not self._api_path:
+                continue
+            self._radio_seen.add(path)
+            try:
+                utc = to_datetime(cap["Utc"]).replace(tzinfo=timezone.utc).timestamp()
+            except Exception:
+                continue
+            # Backlog sent on (re)connect: too old to caption, skip the CPU
+            if time.time() - utc > 300:
+                continue
+            threading.Thread(target=self._transcribe_radio, args=(self._api_path, cap), daemon=True).start()
+
+    def _transcribe_radio(self, api_path: str, cap: dict) -> None:
+        try:
+            text = transcribe_capture(api_path, cap)
+        except Exception as e:
+            logger.warning("Radio clip %s failed: %s", cap.get("Path"), e)
+            return
+        if not text:
+            return
+        drv = self._drivers.get(str(cap.get("RacingNumber")))
+        # Stamped when the text is ready so the caption gets its full display time
+        self._radio_messages = [*self._radio_messages[-19:], {
+            "timestamp": time.time(), "driver": drv.abbr if drv else "", "text": text,
+        }]
+
     # --- RaceControlMessages ------------------------------------------
 
     def _handle_race_control(self, data: dict, ts: float) -> None:
@@ -877,6 +923,8 @@ class LiveStateManager:
         "SessionStatus": _handle_session_status,
         "SessionData": _handle_session_data,
         "Position": _handle_position,
+        "SessionInfo": _handle_session_info,
+        "TeamRadio": _handle_team_radio,
     }
 
     # ------------------------------------------------------------------
@@ -946,6 +994,7 @@ class LiveStateManager:
             "quali_phase": quali_phase,
             "drivers": drivers_list,
             "rc_messages": list(reversed(self._rc_messages)),
+            "radio_messages": self._radio_messages,
         }
 
         # Add pit predictions for race sessions
