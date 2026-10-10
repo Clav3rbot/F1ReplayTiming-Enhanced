@@ -930,6 +930,103 @@ def _get_reference_lap_telemetry(session) -> tuple:
         return _scan_reference_lap(session, min_points=0)
 
 
+def _segment_fracs(session, outline_xy: np.ndarray, x_min: float, y_min: float, scale: float) -> list[list[float]] | None:
+    """Lap fraction (outline index / N) of every mini-sector boundary, from
+    where cars actually were when the timing feed flipped each segment.
+
+    The live map has no positions (F1 streams Position.z only to F1TV
+    subscribers) and places cars from these crossings; the segments are far
+    from equal-length, so an equal split puts cars ~50 m off and makes them
+    dash and crawl. Needs the raw TimingData stream (segment statuses are not
+    in FastF1's parsed timing) and the session's position data.
+    """
+    from scipy.spatial import cKDTree
+
+    page = f1api.fetch_page(session.api_path, "timing_data")
+    if not page or not session.pos_data:
+        return None
+    tree = cKDTree(outline_xy)
+    n_pts = len(outline_xy)
+    truth: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for num, pos in session.pos_data.items():
+        ok = pos["Status"] == "OnTrack"
+        if "SessionTime" not in pos.columns or ok.sum() < 10:
+            continue
+        t = pos.loc[ok, "SessionTime"].dt.total_seconds().values
+        xy = np.c_[(pos.loc[ok, "X"].values - x_min) / scale, (pos.loc[ok, "Y"].values - y_min) / scale]
+        _, idx = tree.query(xy)
+        truth[str(num)] = (t, idx / n_pts)
+
+    samples: dict[tuple[int, int], list[float]] = {}
+    counts = [0, 0, 0]
+    seen: dict[tuple[str, int], set[int]] = {}
+    for ts_str, data in page:
+        if not isinstance(data, dict):
+            continue
+        h, m, s = ts_str.split(":")
+        t = int(h) * 3600 + int(m) * 60 + float(s)
+        for num, line in data.get("Lines", {}).items():
+            sectors = line.get("Sectors") if isinstance(line, dict) else None
+            if isinstance(sectors, list):
+                sectors = {str(i): v for i, v in enumerate(sectors)}
+            if not isinstance(sectors, dict):
+                continue
+            for si, sv in sectors.items():
+                if not si.isdigit() or int(si) > 2 or not isinstance(sv, dict):
+                    continue
+                segs = sv.get("Segments")
+                if isinstance(segs, list):
+                    counts[int(si)] = max(counts[int(si)], len(segs))
+                    segs = {str(i): v for i, v in enumerate(segs)}
+                if not isinstance(segs, dict):
+                    continue
+                key = (str(num), int(si))
+                done = seen.setdefault(key, set())
+                for j, sg in segs.items():
+                    if not j.isdigit() or not isinstance(sg, dict):
+                        continue
+                    st = sg.get("Status")
+                    if st == 0:
+                        done.discard(int(j))  # new lap: segments reset
+                        continue
+                    if st not in (2048, 2049, 2051) or int(j) in done:
+                        continue  # pit lane, or a recolour of a passed segment
+                    done.add(int(j))
+                    counts[int(si)] = max(counts[int(si)], int(j) + 1)
+                    tr = truth.get(str(num))
+                    if tr is None:
+                        continue
+                    T, F = tr
+                    i = int(np.searchsorted(T, t))
+                    if 0 < i < len(T) and T[i] - T[i - 1] < 1.0:
+                        w = (t - T[i - 1]) / (T[i] - T[i - 1])
+                        f = (F[i - 1] + w * (((F[i] - F[i - 1] + 0.5) % 1.0) - 0.5)) % 1.0
+                        samples.setdefault((int(si), int(j) + 1), []).append(f)
+
+    fracs: list[list[float]] = []
+    for si in range(3):
+        row = []
+        for j in range(1, counts[si] + 1):
+            v = np.array(samples.get((si, j), []))
+            if len(v) < 5:
+                logger.info(f"Mini-sector calibration: too few crossings for S{si + 1} boundary {j} ({len(v)})")
+                return None
+            # circular median keeps the lap wrap at the finish line honest
+            ang = np.angle(np.mean(np.exp(2j * np.pi * v)))
+            row.append(round(float((ang / (2 * np.pi)) % 1.0), 4))
+        fracs.append(row)
+    # The last boundary is the finish line: pin it to 1.0 (timing latency
+    # can put it just past the wrap), then boundaries must run forward
+    if fracs[2] and min(1 - fracs[2][-1], fracs[2][-1]) <= 0.03:
+        fracs[2][-1] = 1.0
+    flat = fracs[0] + fracs[1] + fracs[2]
+    if len(flat) < 6 or (np.diff(flat) <= 0).any() or flat[-1] != 1.0:
+        logger.warning(f"Mini-sector calibration rejected: {fracs}")
+        return None
+    logger.info(f"Mini-sector boundaries calibrated: {[len(r) for r in fracs]} segments")
+    return fracs
+
+
 def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> dict:
     session = _load_session(year, round_num, session_type)
 
@@ -1067,6 +1164,12 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
             logger.warning(f"Could not extract marshal sector data: {e}")
             marshal_sectors = None
 
+    segment_fracs = None
+    try:
+        segment_fracs = _segment_fracs(session, np.c_[x_norm, y_norm], x_min, y_min, scale)
+    except Exception as e:
+        logger.warning(f"Could not calibrate mini-sector boundaries: {e}")
+
     if z_rel_m is not None:
         track_points = [{"x": px, "y": py, "z": pz} for px, py, pz in zip(x_norm, y_norm, z_rel_m)]
     else:
@@ -1079,6 +1182,7 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
         # Raw normalization params so driver positions use the same reference
         "norm": {"x_min": x_min, "y_min": y_min, "scale": scale},
         "sector_boundaries": sector_boundaries,
+        "segment_fracs": segment_fracs,
         "corners": corners,
         "marshal_sectors": marshal_sectors,
         "elevation": elevation,

@@ -469,6 +469,14 @@ function LivePageInner() {
                 </div>
               )}
 
+              {live.frame?.positions_estimated && drivers.some((d) => d.x !== 0 || d.y !== 0) && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+                  <span className="text-[10px] text-f1-muted bg-f1-card/80 border border-f1-border rounded px-2 py-0.5">
+                    Car positions estimated from mini-sector timing
+                  </span>
+                </div>
+              )}
+
               {/* Live positions unavailable overlay — only when no car has a
                   live position yet (F1 streams Position.z during green-flag
                   running; absent when cars are in the pits / between runs). */}
@@ -600,6 +608,7 @@ function LivePageInner() {
                 currentTime={live.frame?.timestamp || 0}
                 isRace={isRace}
                 isQualifying={isQualifying}
+                qualiPhase={live.frame?.quali_phase?.phase}
                 onScaleChange={setLeaderboardScale}
               />
             )}
@@ -918,6 +927,7 @@ function LivePageInner() {
                     currentTime={live.frame?.timestamp || 0}
                     isRace={isRace}
                     isQualifying={isQualifying}
+                    qualiPhase={live.frame?.quali_phase?.phase}
                     compact
                   />
                 </div>
