@@ -109,6 +109,7 @@ function parseReplayFrame(msg: Record<string, unknown>): ReplayFrame | null {
     weather: parseWeatherData(msg.weather),
     quali_phase: parseQualiPhase(msg.quali_phase),
     radio_messages: Array.isArray(msg.radio_messages) ? (msg.radio_messages as RadioMessage[]) : undefined,
+    positions_estimated: msg.positions_estimated === true,
   };
 }
 

@@ -111,6 +111,10 @@ class _DriverState:
         "_last_stint_idx",
         "_s3_complete_time",
         "_sector_times",
+        "_seg_frac",
+        "_seg_t",
+        "_seg_speed",
+        "_disp_frac",
     )
 
     def __init__(self, racing_number: str) -> None:
@@ -149,6 +153,11 @@ class _DriverState:
         self._s3_complete_time: float | None = None  # timestamp when S3 completed (for 5s linger)
         self._sector_times: dict[int, float] = {}  # sector_num -> time in seconds (for colour recomputation)
         self._stint_count: int = 0
+        # Last mini-sector crossing: lap fraction, monotonic time, speed in laps/s
+        self._seg_frac: float = 0.0
+        self._seg_t: float | None = None
+        self._seg_speed: float | None = None
+        self._disp_frac: float | None = None  # last fraction shown on the map
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -212,6 +221,8 @@ class LiveStateManager:
         pit_loss_vsc: float = 0.0,
         track_norm: dict[str, float] | None = None,
         track_points: list[dict[str, float]] | None = None,
+        sector_boundaries: dict[str, int] | None = None,
+        segment_fracs: list[list[float]] | None = None,
     ) -> None:
         self._session_type: str = session_type
         self._pit_loss_green: float = pit_loss_green
@@ -224,7 +235,12 @@ class LiveStateManager:
         # Track outline as numpy arrays + KDTree for O(log N) nearest-point lookup
         self._track_xy: np.ndarray | None = None  # shape (N, 2)
         self._track_kdtree = None
-        self.set_track(track_norm, track_points)
+        self._sector_fracs: tuple[float, float] | None = None  # S1 / S2 end as lap fractions
+        self._seg_counts: list[int] = [0, 0, 0]  # mini-sectors per sector
+        self._seg_fracs: list[list[float]] | None = None  # calibrated boundary fractions per sector
+        self._seg_dur: dict[tuple[int, int], float] = {}  # (sector, boundary) -> seconds to reach it
+        self._position_feed: bool = False  # real Position.z seen: no estimation
+        self.set_track(track_norm, track_points, sector_boundaries, segment_fracs)
 
         # Auto-normalization from raw position data (fallback when no track_norm)
         self._raw_x_min: float = float("inf")
@@ -244,6 +260,8 @@ class LiveStateManager:
         self._session_status: str = "Inactive"  # Inactive, Started, Finished, Finalised, Ends
         self._session_was_started: bool = False
         self._quali_phase: int = 0  # 0 = unknown, 1/2/3
+        self._status_phase: int = 0  # quali phase when _session_status was received
+        self._ended_at: float | None = None  # monotonic time of the first Finished/Finalised
         self._clock_remaining: float = 0.0
         self._clock_extrapolating: bool = False
         self._clock_utc: str = ""
@@ -266,6 +284,8 @@ class LiveStateManager:
         self,
         track_norm: dict[str, float] | None,
         track_points: list[dict[str, float]] | None,
+        sector_boundaries: dict[str, int] | None = None,
+        segment_fracs: list[list[float]] | None = None,
     ) -> None:
         """Install (or replace) the outline positions are normalised and snapped to.
 
@@ -273,6 +293,17 @@ class LiveStateManager:
         the first clients connected (see LiveSession._prepare_outline).
         """
         self._track_norm = track_norm
+        self._sector_fracs = None
+        self._seg_fracs = None
+        if segment_fracs and len(segment_fracs) == 3 and all(segment_fracs):
+            self._seg_fracs = segment_fracs
+            self._seg_counts = [len(f) for f in segment_fracs]
+        if sector_boundaries and sector_boundaries.get("total"):
+            total = float(sector_boundaries["total"])
+            self._sector_fracs = (
+                sector_boundaries.get("s1_end", 0) / total,
+                sector_boundaries.get("s2_end", 0) / total,
+            )
         self._track_xy = None
         self._track_kdtree = None
         if track_points:
@@ -395,6 +426,8 @@ class LiveStateManager:
 
             if "InPit" in updates:
                 drv.in_pit = bool(updates["InPit"])
+                if drv.in_pit:
+                    drv._seg_t = None
 
             if "Retired" in updates:
                 if updates["Retired"]:
@@ -412,6 +445,7 @@ class LiveStateManager:
                     sectors_raw = {str(i): v for i, v in enumerate(sectors_raw) if isinstance(v, dict)}
                 if isinstance(sectors_raw, dict):
                     self._process_sectors(drv, sectors_raw)
+                    self._track_segments(drv, sectors_raw)
 
             # Status / no_timing detection
             if "Status" in updates:
@@ -525,6 +559,139 @@ class LiveStateManager:
                     else:
                         s["color"] = "yellow"
 
+    # --- Mini-sector dead-reckoning -----------------------------------
+
+    _SEG_PASSED = (2048, 2049, 2051)
+    _DEFAULT_LAP_S = 95.0
+    _STALE_S = 120.0  # no crossing for this long: car in the garage
+
+    def _sector_span(self, idx: int) -> tuple[float, float]:
+        f1, f2 = self._sector_fracs or (1 / 3, 2 / 3)
+        return ((0.0, f1), (f1, f2), (f2, 1.0))[idx]
+
+    def _boundary_frac(self, idx: int, j: int) -> float:
+        """Lap fraction of boundary j (1..n) of sector idx: calibrated from a
+        processed session's positions when track.json has segment_fracs, else
+        an equal split of the sector."""
+        if self._seg_fracs and 1 <= j <= len(self._seg_fracs[idx]):
+            return self._seg_fracs[idx][j - 1]
+        start, end = self._sector_span(idx)
+        return start + j / max(self._seg_counts[idx], 1) * (end - start)
+
+    def _boundary_key(self, frac: float) -> tuple[int, int]:
+        """(sector, boundary index) of the mini-sector boundary at this lap fraction."""
+        if self._seg_fracs:
+            best = (0, 0)
+            best_d = 1.0
+            for idx in range(3):
+                for j, f in enumerate(self._seg_fracs[idx], 1):
+                    d = abs(((f - frac) + 0.5) % 1.0 - 0.5)
+                    if d < best_d:
+                        best_d, best = d, (idx, j)
+            return best
+        idx = 0 if frac < self._sector_fracs[0] else 1 if frac < self._sector_fracs[1] else 2
+        start, end = self._sector_span(idx)
+        n = max(self._seg_counts[idx], 1)
+        return idx, round((frac - start) / (end - start) * n)
+
+    def _track_segments(self, drv: _DriverState, sectors: dict) -> None:
+        """Anchor the car at the last mini-sector boundary it crossed.
+
+        F1 streams Position.z only to F1TV-authenticated connections, but
+        TimingData still reports every mini-sector crossing within a second
+        (Segments[j].Status 2048/2049/2051; 2064 = pit lane). Segments are
+        assumed equal-length within a sector: ~100 m of error on the map.
+        The time between consecutive crossings is learned per segment across
+        all cars, so the estimate reaches the next boundary on time.
+        """
+        now = time.monotonic()
+        best: float | None = None
+        for idx_str, sector_data in sectors.items():
+            if not isinstance(sector_data, dict) or not idx_str.isdigit():
+                continue
+            idx = int(idx_str)
+            if idx > 2:
+                continue
+            start, end = self._sector_span(idx)
+            segs = sector_data.get("Segments")
+            if isinstance(segs, list):
+                if len(segs) > 1:
+                    self._seg_counts[idx] = len(segs)
+                segs = {str(i): v for i, v in enumerate(segs)}
+            if isinstance(segs, dict):
+                for j_str, seg in segs.items():
+                    if not isinstance(seg, dict) or not j_str.isdigit():
+                        continue
+                    j = int(j_str)
+                    self._seg_counts[idx] = max(self._seg_counts[idx], j + 1)
+                    if seg.get("Status") == 2064:
+                        drv._seg_t = None
+                        return
+                    if seg.get("Status") in self._SEG_PASSED:
+                        frac = self._boundary_frac(idx, j + 1)
+                        best = frac if best is None else max(best, frac)
+            if sector_data.get("Value"):
+                frac = self._boundary_frac(idx, self._seg_counts[idx]) if self._seg_fracs else end
+                best = frac if best is None else max(best, frac)
+        if best is None:
+            return
+        best %= 1.0
+        if drv._seg_t is not None:
+            df = (best - drv._seg_frac) % 1.0
+            dt = now - drv._seg_t
+            # F1 recolours segments already passed (2048 -> 2049/2051) long
+            # after the car went by: only a short hop forward is a crossing,
+            # unless the anchor is old enough that anything could have happened
+            if df == 0.0 or (df > 0.25 and dt < 30.0):
+                return
+            if dt > 0.2:
+                speed = min(max(df / dt, 1 / 300), 1 / 50)
+                drv._seg_speed = speed if drv._seg_speed is None else 0.5 * drv._seg_speed + 0.5 * speed
+            if 1.0 < dt < 20.0:
+                pidx, pj = self._boundary_key(drv._seg_frac)
+                idx, j = self._boundary_key(best)
+                consecutive = (pidx, pj + 1) == (idx, j) or (pidx != idx and j == 1 and pj == self._seg_counts[pidx])
+                if consecutive:
+                    old = self._seg_dur.get((idx, j))
+                    self._seg_dur[(idx, j)] = dt if old is None else 0.7 * old + 0.3 * dt
+        drv._seg_frac = best
+        drv._seg_t = now
+
+    def _estimate_positions(self, now: float) -> bool:
+        """Advance each car from its last crossing by the learned segment duration
+        (measured speed before one is known), holding at the next boundary until
+        the crossing arrives and never moving a car backwards. False when real
+        positions exist."""
+        track = self._track_xy
+        if self._position_feed or track is None or len(track) == 0 or self._sector_fracs is None:
+            return False
+        n_pts = len(track)
+        for drv in self._drivers.values():
+            if drv._seg_t is None or drv.in_pit or drv.retired or now - drv._seg_t > self._STALE_S:
+                drv.x = drv.y = 0.0
+                drv.on_track = False
+                drv._disp_frac = None
+                continue
+            idx, j = self._boundary_key(drv._seg_frac)
+            n = max(self._seg_counts[idx], 1)
+            nkey = (idx, j + 1) if j < n else ((idx + 1) % 3, 1)
+            seg_len = (self._boundary_frac(*nkey) - drv._seg_frac) % 1.0
+            dur = self._seg_dur.get(nkey)
+            elapsed = now - drv._seg_t
+            if dur:
+                progress = elapsed / dur
+            else:
+                progress = (drv._seg_speed or 1 / self._DEFAULT_LAP_S) * elapsed / seg_len
+            est = (drv._seg_frac + min(progress, 1.0) * seg_len) % 1.0
+            if drv._disp_frac is not None and 0 < (drv._disp_frac - est) % 1.0 < 0.1:
+                est = drv._disp_frac
+            drv._disp_frac = est
+            pt = track[int(est * n_pts) % n_pts]
+            drv.x, drv.y = float(pt[0]), float(pt[1])
+            drv.relative_distance = est
+            drv.on_track = True
+        return True
+
     # --- Position -----------------------------------------------------
 
     def _handle_position(self, data: dict, _ts: float) -> None:
@@ -565,6 +732,7 @@ class LiveStateManager:
 
         if not raw_positions:
             return
+        self._position_feed = True
 
         # If no precomputed track_norm, auto-compute from position data
         if self._track_norm is None:
@@ -882,7 +1050,13 @@ class LiveStateManager:
             # session, which we must not treat as "session ended".
             if new_status == "Started":
                 self._session_was_started = True
+                self._ended_at = None
+            elif new_status in ("Finished", "Finalised") and self._ended_at is None:
+                self._ended_at = time.monotonic()
             self._session_status = new_status
+            # "Finished" closes every qualifying segment; remember which one,
+            # since QualifyingPart flips to the next segment before "Started"
+            self._status_phase = self._quali_phase
 
     # --- SessionData --------------------------------------------------
 
@@ -938,6 +1112,7 @@ class LiveStateManager:
         """
         SECTOR_LINGER = 5.0
         now = time.monotonic()
+        positions_estimated = self._estimate_positions(now)
 
         drivers_list: list[dict[str, Any]] = []
         for drv in self._drivers.values():
@@ -995,6 +1170,7 @@ class LiveStateManager:
             "drivers": drivers_list,
             "rc_messages": list(reversed(self._rc_messages)),
             "radio_messages": self._radio_messages,
+            "positions_estimated": positions_estimated,
         }
 
         # Add pit predictions for race sessions

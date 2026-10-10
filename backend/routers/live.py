@@ -8,6 +8,7 @@ and the real SignalR client for production (live sessions).
 import asyncio
 import logging
 import os
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from routers.replay import VALID_SESSION_TYPES
@@ -102,6 +103,8 @@ class LiveSession:
             pit_loss_vsc=pit_loss_vsc,
             track_norm=track_norm,
             track_points=track_points,
+            sector_boundaries=track_data.get("sector_boundaries") if track_data else None,
+            segment_fracs=track_data.get("segment_fracs") if track_data else None,
         )
 
         if year and round_num and not (track_norm and track_points):
@@ -133,7 +136,7 @@ class LiveSession:
             logger.warning(f"Outline preparation failed for {self.key}: {e}")
             return
         if data and data.get("norm") and data.get("track_points") and self._state_manager:
-            self._state_manager.set_track(data["norm"], data["track_points"])
+            self._state_manager.set_track(data["norm"], data["track_points"], data.get("sector_boundaries"), data.get("segment_fracs"))
             logger.info(f"Live session {self.key}: outline ready ({len(data['track_points'])} points)")
 
     async def _run_replayer(self):
@@ -314,6 +317,7 @@ async def live_websocket(
 
         # Broadcast loop: push frames to this client at ~2Hz
         frame_interval = 0.5
+        END_GRACE_S = 240.0
 
         async def handle_commands():
             """Listen for client commands."""
@@ -349,9 +353,12 @@ async def live_websocket(
                         # break and the next segment. Only treat "Finished" as the
                         # end during Q3. "Finalised" always marks the real end.
                         # phase 0 = QualifyingPart not received yet → treat as mid
-                        is_quali_mid_segment = sm._is_quali and sm._quali_phase < 3
-                        session_ended = status == "Finalised" or (
-                            status == "Finished" and not is_quali_mid_segment
+                        is_quali_mid_segment = sm._is_quali and sm._status_phase < 3
+                        # Keep streaming the in-laps: close END_GRACE_S after the flag
+                        session_ended = (
+                            sm._ended_at is not None
+                            and not is_quali_mid_segment
+                            and time.monotonic() - sm._ended_at > END_GRACE_S
                         )
                         if session_ended:
                             await websocket.send_json({

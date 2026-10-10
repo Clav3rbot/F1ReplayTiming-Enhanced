@@ -84,6 +84,8 @@ export interface ReplayFrame {
   rc_messages?: RCMessage[];
   /** Live only: replay fetches the full list from /radio. */
   radio_messages?: RadioMessage[];
+  /** Live only: car dots dead-reckoned from mini-sector timing. */
+  positions_estimated?: boolean;
   red_flag_end?: number;
   sector_flags?: { sector: number; flag: string; driver: string }[];
 }

@@ -27,6 +27,8 @@ interface Props {
   currentTime: number;
   isRace: boolean;
   isQualifying?: boolean;
+  /** Current qualifying segment ("Q1", "SQ2", ...): drivers below the cut are in the elimination zone. */
+  qualiPhase?: string;
   compact?: boolean;
   onScaleChange?: (scale: number) => void;
   lapData?: LapData;
@@ -90,12 +92,17 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, qualiPhase, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   // Qualifying: the "Eliminated" divider adds height, so rescale when it appears
   const hasEliminated = !!isQualifying && drivers.some((d) => d.knocked_out);
+  // Q1 keeps 10 + half the rest (16 of 22), Q2 keeps 10; Q3 has no cut
+  const phaseNum = isQualifying && qualiPhase ? parseInt(qualiPhase.replace(/\D/g, ""), 10) : 0;
+  const stillIn = drivers.filter((d) => !d.knocked_out).length;
+  const cut = phaseNum === 1 ? 10 + Math.floor((stillIn - 10) / 2) : phaseNum === 2 ? 10 : 0;
+  const hasZone = cut > 0 && stillIn > cut;
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,7 +131,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [drivers.length, hasEliminated, settings.showGapToLeader, settings.showBestLapTime, settings.showLastLapTime, isRace, compact, onScaleChange]);
+  }, [drivers.length, hasEliminated, hasZone, settings.showGapToLeader, settings.showBestLapTime, settings.showLastLapTime, isRace, compact, onScaleChange]);
 
   const sorted = useMemo(
     () => [...drivers].sort((a, b) => (a.position ?? 999) - (b.position ?? 999)),
@@ -143,6 +150,9 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
       <div className="divide-y divide-f1-border/50">
         {sorted.map((drv, i) => {
           const isHighlighted = highlightedDrivers.includes(drv.abbr);
+          const rankIn = hasZone && !drv.knocked_out ? sorted.slice(0, i + 1).filter((d) => !d.knocked_out).length : 0;
+          const inZone = rankIn > cut;
+          const firstInZone = inZone && rankIn === cut + 1;
           const isLeader = drv.position === 1;
           const compound = drv.compound;
           const tyreColor = compound ? (TYRE_COLORS[compound] || "#888") : undefined;
@@ -168,6 +178,12 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
           return (
             <Fragment key={drv.abbr}>
+            {firstInZone && (
+              <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-f1-red">
+                Elimination zone
+                <span className="h-px flex-1 bg-f1-red/40" />
+              </div>
+            )}
             {firstEliminated && (
               <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-f1-muted">
                 Eliminated
@@ -178,7 +194,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               onClick={() => onDriverClick(drv.abbr)}
               className={`w-full flex items-center px-2 py-1 hover:bg-ink/10 transition-colors duration-200 text-left relative ${
                 isHighlighted ? "bg-ink/10 shadow-[inset_3px_0_0_rgb(var(--ink)/0.8)]" : "border-l-[3px] border-transparent"
-              } ${drv.no_timing ? "opacity-40" : drv.knocked_out ? "opacity-50" : ""}`}
+              } ${drv.no_timing ? "opacity-40" : drv.knocked_out ? "opacity-50" : inZone ? "bg-f1-red/[0.07]" : ""}`}
             >
               {isHighlighted && <div className="absolute inset-0 bg-gradient-to-r from-ink/[0.05] to-transparent pointer-events-none" />}
               {/* Position - 24px */}
