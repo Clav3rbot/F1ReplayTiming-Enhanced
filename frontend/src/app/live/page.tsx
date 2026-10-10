@@ -11,6 +11,7 @@ import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PiPWindow from "@/components/PiPWindow";
 import RadioCaption from "@/components/RadioCaption";
+import { qualiOrder } from "@/lib/lapTiming";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
@@ -256,7 +257,7 @@ function LivePageInner() {
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
   const driversRaw = live.frame?.drivers || [];
-  const drivers = isQualifying ? driversRaw.filter((d) => !d.retired) : driversRaw;
+  const drivers = isQualifying ? qualiOrder(driversRaw.filter((d) => !d.retired)) : driversRaw;
   const trackStatus = live.frame?.status || "green";
   const weather = live.frame?.weather;
 

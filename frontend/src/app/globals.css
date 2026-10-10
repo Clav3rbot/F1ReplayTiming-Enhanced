@@ -343,14 +343,118 @@ input, textarea, select {
   animation: rcMsgIn 200ms ease-out both;
 }
 
-/* Team radio card: slides in like the broadcast graphic, waveform "plays" while shown */
+/* Team radio card, staged like the broadcast graphic. In: the header wipes in
+   from the map edge, the team rule draws across, the quote panel unfolds below
+   it and the words come into focus. Out (.radio-card-exit, added for the last
+   FADE_OUT s): the same steps in reverse. Header and quote paint their own
+   backgrounds and the shadow is a drop-shadow, so a part still clipped away
+   leaves no dark box or shadow behind. */
 @keyframes radioCardIn {
-  from { opacity: 0; transform: translateX(18px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(28px); }
+  30% { opacity: 1; }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes radioWipeIn {
+  from { clip-path: inset(0 0 0 100%); }
+  to { clip-path: inset(0); }
+}
+
+@keyframes radioRuleIn {
+  from { transform: scaleX(0); }
+  to { transform: none; }
+}
+
+@keyframes radioUnfold {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0); }
+}
+
+@keyframes radioCardOut {
+  to { opacity: 0; transform: translateX(16px); }
+}
+
+@keyframes radioWipeOut {
+  to { clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes radioRuleOut {
+  to { transform: scaleX(0); }
+}
+
+@keyframes radioFold {
+  to { clip-path: inset(0 0 100% 0); }
 }
 
 .radio-card-enter {
-  animation: radioCardIn 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: radioCardIn 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.radio-card-enter .radio-header {
+  animation: radioWipeIn 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.radio-card-enter .radio-rule {
+  transform-origin: right;
+  animation: radioRuleIn 420ms cubic-bezier(0.65, 0, 0.35, 1) 180ms both;
+}
+
+.radio-card-enter .radio-quote {
+  animation: radioUnfold 460ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
+}
+
+/* Exit totals 560 ms, inside FADE_OUT */
+.radio-card-exit {
+  animation: radioCardOut 200ms cubic-bezier(0.7, 0, 0.84, 0) 360ms forwards;
+}
+
+.radio-card-exit .radio-quote {
+  animation: radioFold 280ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+.radio-card-exit .radio-rule {
+  transform-origin: left;
+  animation: radioRuleOut 240ms cubic-bezier(0.7, 0, 0.84, 0) 140ms forwards;
+}
+
+.radio-card-exit .radio-header {
+  animation: radioWipeOut 300ms cubic-bezier(0.7, 0, 0.84, 0) 220ms forwards;
+}
+
+/* Card colours from the --team colour set inline: dark broadcast card */
+.radio-card {
+  filter: drop-shadow(0 16px 22px rgb(0 0 0 / 0.55));
+}
+
+.radio-header {
+  background: linear-gradient(180deg, #2a2a31 0%, #202026 100%);
+}
+
+.radio-rule {
+  background-color: var(--team);
+  box-shadow: 0 0 12px 1px var(--team);
+}
+
+.radio-quote {
+  background: linear-gradient(180deg, #151519 0%, #0e0e11 100%);
+  color: var(--team);
+}
+
+/* Light theme: the header stays the dark broadcast block, the quote sits on
+   paper. Team colours there are only pulled down when too light to read on
+   white (Mercedes teal, Haas grey); the rule's glow would smudge the paper. */
+:root.light .radio-card {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.1)) drop-shadow(0 12px 18px rgb(20 20 30 / 0.22));
+}
+
+:root.light .radio-rule {
+  box-shadow: none;
+}
+
+:root.light .radio-quote {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f4f7 100%);
+  color: color-mix(in srgb, var(--team) 65%, #15151e);
+  color: oklch(from var(--team) min(l, 0.55) c h);
 }
 
 @keyframes radioWave {
@@ -362,20 +466,20 @@ input, textarea, select {
   animation: radioWave 700ms ease-in-out infinite alternate;
 }
 
+/* Words come into focus (inline spans: blur, since transform needs a box) */
 @keyframes radioWordIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: none; }
 }
 
 .radio-word {
-  animation: radioWordIn 180ms ease-out both;
+  animation: radioWordIn 300ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rc-msg-enter,
-  .radio-card-enter,
-  .radio-wave > span,
-  .radio-word,
+  .radio-card,
+  .radio-card *,
   [class*="animate-[fadeIn"],
   [class*="animate-[modalIn"] {
     animation: none !important;
@@ -546,13 +650,75 @@ input, textarea, select {
 
 
 /* Qualifying lap-completion bubbles */
-@keyframes lapBubbleIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Lap-completion card: layered glass surface with a top highlight */
+.lap-card {
+  background: linear-gradient(180deg, rgb(var(--f1-card) / 0.94), rgb(var(--f1-surface) / 0.94));
+  border: 1px solid rgb(var(--ink) / 0.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 2px 6px rgb(0 0 0 / 0.25),
+    0 14px 32px -14px rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
+:root.light .lap-card {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 1px 3px rgb(0 0 0 / 0.08),
+    0 12px 28px -14px rgb(0 0 0 / 0.3);
+}
+
+/* Team tint and accent bar, from the --team colour set inline on the card */
+.lap-card-team {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--team) 15%, transparent), transparent 60%);
+}
+
+.lap-card-bar {
+  background-color: var(--team);
+  box-shadow: 0 0 10px var(--team);
+}
+
+/* On white a 15% tint reads as pastel and the glow as a smudge: keep it faint and crisp */
+:root.light .lap-card-team {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--team) 7%, transparent), transparent 50%);
+}
+
+:root.light .lap-card-bar {
+  box-shadow: none;
+}
+
+/* :root prefix so it also beats the light-theme shadow above */
+:root .lap-card.lap-card-fastest {
+  border-color: rgb(168 85 247 / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 0 18px -2px rgb(168 85 247 / 0.45),
+    0 14px 32px -14px rgb(0 0 0 / 0.7);
+}
+
+/* Entrance: the negative margin (card 46px + 6px gap) makes the stack below slide
+   down while the card wipes in from the left. */
+@keyframes lapBubbleIn {
+  0% { margin-top: -52px; opacity: 0; clip-path: inset(-24px 100% -24px -24px); }
+  35% { opacity: 1; }
+  100% { margin-top: 0; opacity: 1; clip-path: inset(-24px); }
+}
+
+@keyframes lapBubbleOut {
+  to { opacity: 0; transform: translateX(-12px); }
+}
+
+/* No fill on the entrance so the clip-path drops afterwards; the exit's delay is
+   set inline from BUBBLE_MS. */
 .lap-bubble {
-  animation: lapBubbleIn 0.25s ease-out;
+  animation: lapBubbleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1), lapBubbleOut 0.35s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lap-bubble {
+    animation: none;
+  }
 }
 
 @keyframes tour-in {

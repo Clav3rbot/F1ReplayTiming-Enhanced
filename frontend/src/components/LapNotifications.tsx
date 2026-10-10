@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
-import { lapColorClass, SectorMarkers, SectorInfo, LapData } from "@/lib/lapTiming";
+import { lapColorClass, sectorBgClass, sessionBestSecs, toSecs, SectorInfo, LapData } from "@/lib/lapTiming";
 
 // How long each bubble stays on screen (wall-clock ms).
 const BUBBLE_MS = 4500;
@@ -21,7 +21,13 @@ interface Bubble {
   teamColor: string;
   lapTime: string;
   colorClass: string;
+  /** Seconds to the fastest lap before this one (negative = new fastest). */
+  delta: number | null;
   sectors: SectorInfo[] | null;
+}
+
+function formatDelta(d: number): string {
+  return `${d < 0 ? "-" : "+"}${Math.abs(d).toFixed(3)}`;
 }
 
 interface Props {
@@ -126,12 +132,14 @@ export default function LapNotifications({
     for (const c of candidates) {
       seenRef.current.set(c.abbr, c.lapNum);
       const drv = driversRef.current.find((d) => d.abbr === c.abbr);
+      const delta = toSecs(c.time) - sessionBestSecs(lapData, now, c);
       newBubbles.push({
         id: idRef.current++,
         abbr: c.abbr,
         teamColor: drv?.color || "#FFFFFF",
         lapTime: c.time,
         colorClass: lapColorClass(c.time, c.abbr, lapData, now, currentLap || 0, isRace, drv?.has_fastest_lap ?? false),
+        delta: Number.isFinite(delta) ? delta : null,
         sectors: drv?.sectors ?? null,
       });
     }
@@ -167,19 +175,51 @@ export default function LapNotifications({
 
   if (!active || bubbles.length === 0) return null;
 
+  // Top-left is the one corner of the map no other overlay uses. Newest on top:
+  // a new card pushes the stack down and the oldest leaves from the bottom, so
+  // nothing jumps when a card is removed.
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
-      {bubbles.map((b) => (
-        <div
-          key={b.id}
-          className="lap-bubble flex items-center gap-3 whitespace-nowrap pl-2 pr-4 py-2 rounded-lg glass-panel shadow-glass"
-        >
-          <span className="w-1.5 h-6 rounded-sm flex-shrink-0" style={{ backgroundColor: b.teamColor }} />
-          <span className="text-base font-extrabold text-ink tracking-wide flex-shrink-0">{b.abbr}</span>
-          <span className={`text-base font-bold tabular-nums flex-shrink-0 ${b.colorClass}`}>{b.lapTime}</span>
-          <SectorMarkers sectors={b.sectors} className="flex-shrink-0" />
-        </div>
-      ))}
+    <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5 pointer-events-none">
+      {[...bubbles].reverse().map((b) => {
+        const position = drivers.find((d) => d.abbr === b.abbr)?.position ?? null;
+        const fastest = b.colorClass === "text-purple-400";
+        const pb = b.colorClass === "text-green-400";
+        return (
+          <div
+            key={b.id}
+            className={`lap-bubble lap-card flex h-[46px] w-[224px] overflow-hidden rounded-lg ${fastest ? "lap-card-fastest" : ""}`}
+            // Second delay starts the exit just before the bubble is removed.
+            style={{ animationDelay: `0ms, ${BUBBLE_MS - 350}ms`, "--team": b.teamColor } as CSSProperties}
+          >
+            <div className="flex w-9 flex-shrink-0 items-center justify-center border-r border-ink/[0.07] bg-ink/[0.04] font-mono text-[15px] font-bold tabular-nums-fixed text-ink">
+              {position ?? "–"}
+            </div>
+            <div className="lap-card-team relative flex min-w-0 flex-1 items-center justify-between gap-3 px-3">
+              <span className="lap-card-bar absolute inset-y-[9px] left-0 w-[3px] rounded-r-full" />
+              <div className="flex flex-col gap-[7px]">
+                <span className="font-display text-[17px] font-bold leading-none tracking-[0.06em] text-ink">{b.abbr}</span>
+                <span className="flex gap-[3px]">
+                  {[1, 2, 3].map((sn) => (
+                    <span key={sn} className={`h-[3px] w-[13px] rounded-full ${sectorBgClass(b.sectors?.find((s) => s.num === sn))}`} />
+                  ))}
+                </span>
+              </div>
+              <div className="flex flex-col items-end gap-[5px]">
+                <span className={`font-mono text-[16px] font-bold leading-none tabular-nums-fixed ${fastest || pb ? b.colorClass : "text-ink"}`}>
+                  {b.lapTime}
+                </span>
+                <span className="flex items-center gap-1.5 text-[9px] font-bold leading-none tracking-[0.14em]">
+                  {fastest && <span className="text-purple-400">FASTEST</span>}
+                  {pb && <span className="text-green-400">PB</span>}
+                  {b.delta !== null && (
+                    <span className="font-mono text-[10px] tracking-normal tabular-nums-fixed text-f1-muted">{formatDelta(b.delta)}</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

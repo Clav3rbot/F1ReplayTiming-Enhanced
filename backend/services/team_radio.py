@@ -141,11 +141,15 @@ def store_radio(year: int, round_num: int, session_type: str) -> None:
         logger.info(f"[{prefix}] Transcribed {len(radio)} radio clips")
     except Exception as e:
         logger.warning(f"[{prefix}] Team radio failed: {e}")
+        # Let the next /radio request retry (proxy hiccup, model download)
+        with _queued_lock:
+            _queued.discard((year, round_num, session_type))
 
 
-# Sessions already handed to a worker in this process (never retried until restart)
+# Sessions handed to a worker in this process; a failed one is dropped so it can be retried
 _queued: set[tuple] = set()
 _queued_lock = threading.Lock()
+_workers: list[threading.Thread] = []
 
 
 def queue_radio(year: int, round_num: int, session_type: str) -> None:
@@ -155,4 +159,12 @@ def queue_radio(year: int, round_num: int, session_type: str) -> None:
         if key in _queued:
             return
         _queued.add(key)
-    threading.Thread(target=store_radio, args=key, daemon=True).start()
+    worker = threading.Thread(target=store_radio, args=key, daemon=True)
+    _workers[:] = [w for w in _workers if w.is_alive()] + [worker]
+    worker.start()
+
+
+def wait_radio() -> None:
+    """Block until every queued transcription has finished (CLI exit)."""
+    for worker in list(_workers):
+        worker.join()

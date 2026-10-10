@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
 import { ReplaySettings } from "@/hooks/useSettings";
 import { TYRE_COLORS, TYRE_SHORT, TEAM_ABBR } from "@/lib/constants";
@@ -94,6 +94,8 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Qualifying: the "Eliminated" divider adds height, so rescale when it appears
+  const hasEliminated = !!isQualifying && drivers.some((d) => d.knocked_out);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
-  }, [drivers.length, settings.showGapToLeader, settings.showBestLapTime, settings.showLastLapTime, isRace, compact, onScaleChange]);
+  }, [drivers.length, hasEliminated, settings.showGapToLeader, settings.showBestLapTime, settings.showLastLapTime, isRace, compact, onScaleChange]);
 
   const sorted = useMemo(
     () => [...drivers].sort((a, b) => (a.position ?? 999) - (b.position ?? 999)),
@@ -139,7 +141,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
       <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%` }}>
 
       <div className="divide-y divide-f1-border/50">
-        {sorted.map((drv) => {
+        {sorted.map((drv, i) => {
           const isHighlighted = highlightedDrivers.includes(drv.abbr);
           const isLeader = drv.position === 1;
           const compound = drv.compound;
@@ -162,9 +164,17 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
             return formatGap(drv.gap);
           })();
 
+          const firstEliminated = !!isQualifying && !!drv.knocked_out && !sorted[i - 1]?.knocked_out;
+
           return (
+            <Fragment key={drv.abbr}>
+            {firstEliminated && (
+              <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-f1-muted">
+                Eliminated
+                <span className="h-px flex-1 bg-f1-border" />
+              </div>
+            )}
             <button
-              key={drv.abbr}
               onClick={() => onDriverClick(drv.abbr)}
               className={`w-full flex items-center px-2 py-1 hover:bg-ink/10 transition-colors duration-200 text-left relative ${
                 isHighlighted ? "bg-ink/10 shadow-[inset_3px_0_0_rgb(var(--ink)/0.8)]" : "border-l-[3px] border-transparent"
@@ -434,6 +444,7 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
               )}
 
             </button>
+            </Fragment>
           );
         })}
       </div>

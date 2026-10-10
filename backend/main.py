@@ -157,14 +157,19 @@ if STATIC_DIR.exists():
     if next_static.exists():
         app.mount("/_next", StaticFiles(directory=str(next_static)), name="next-static")
 
+    def _static_file(p: Path) -> FileResponse:
+        # Pages must be revalidated: a page cached from the previous deploy pulls
+        # the new build's chunks into its old webpack runtime and crashes.
+        return FileResponse(str(p), headers={"Cache-Control": "no-cache"} if p.suffix == ".html" else None)
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         """Serve frontend static files with SPA fallback."""
         for rel in [full_path, f"{full_path}.html", f"{full_path}/index.html"]:
             p = _safe_static_path(rel)
             if p and p.is_file():
-                return FileResponse(str(p))
+                return _static_file(p)
         root_index = STATIC_DIR / "index.html"
         if root_index.is_file():
-            return FileResponse(str(root_index))
+            return _static_file(root_index)
         return JSONResponse(status_code=404, content={"detail": "Not found"})

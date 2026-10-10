@@ -21,7 +21,7 @@ import LapNotifications from "@/components/LapNotifications";
 import RadioCaption from "@/components/RadioCaption";
 import SpeedTrace from "@/components/SpeedTrace";
 import type { SectorOverlay } from "@/lib/trackRenderer";
-import type { LapData } from "@/lib/lapTiming";
+import { qualiOrder, type LapData } from "@/lib/lapTiming";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 /** Classify a Race Control message for indicator coloring. */
@@ -321,7 +321,11 @@ function ReplayPageInner() {
     return () => window.clearTimeout(id);
   }, [dataError, loadPhase]);
 
-  const drivers = replay.frame?.drivers || [];
+  const frameDrivers = replay.frame?.drivers;
+  const drivers = useMemo(() => {
+    const list = frameDrivers || [];
+    return sessionType === "Q" || sessionType === "SQ" ? qualiOrder(list) : list;
+  }, [frameDrivers, sessionType]);
 
   // Filter & map drivers for the track canvas — single source of truth
   // Must be declared before early returns to comply with Rules of Hooks

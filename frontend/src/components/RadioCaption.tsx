@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { RadioMessage, ReplayDriver } from "@/hooks/useReplaySocket";
 
 interface Props {
@@ -26,7 +27,7 @@ const WAVE = Array.from({ length: 56 }, (_, i) => {
 // Wall-clock seconds on screen: enough to read the clip
 const READ_BASE = 8;
 const READ_PER_WORD = 0.35;
-const FADE_OUT = 0.6;
+const FADE_OUT = 0.6; // exit animation (globals.css) runs 560 ms
 // A queued clip still shows if it waited at most this long (wall-clock s): one card ahead of it
 const MAX_QUEUE = 20;
 
@@ -73,13 +74,12 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
     </div>
   );
   const quote = words.map((w, i) => (
-    <span key={i} className="radio-word" style={{ animationDelay: `${200 + i * 60}ms` }}>
+    <span key={i} className="radio-word" style={{ animationDelay: `${520 + i * 45}ms` }}>
       {i === 0 ? '"' : " "}
       {w}
       {i === words.length - 1 ? '"' : ""}
     </span>
   ));
-  const glow = { backgroundColor: color, boxShadow: `0 0 12px 1px ${color}` };
 
   return (
     // Position on the outer box, slide-in on the inner one: both use transform.
@@ -89,14 +89,14 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
       className={`pointer-events-none absolute z-10 ${compact ? "" : "w-[min(17.5rem,calc(100%-1.5rem))]"} ${className}`}
     >
       <div
-        className={`radio-card-enter overflow-hidden font-display italic shadow-[0_20px_45px_-12px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.07] transition-opacity duration-500 ${
+        className={`radio-card radio-card-enter overflow-hidden font-display italic ${
           compact ? "flex" : ""
-        } ${age > hold - FADE_OUT * speed ? "opacity-0" : ""}`}
-        style={{ background: "linear-gradient(180deg, #2a2a31 0%, #18181d 100%)" }}
+        } ${age > hold - FADE_OUT * speed ? "radio-card-exit" : ""}`}
+        style={{ "--team": color } as CSSProperties}
       >
         {compact ? (
           <>
-            <div className="relative flex w-[5.5rem] shrink-0 flex-col justify-end px-2.5 pb-2 pt-3">
+            <div className="radio-header relative flex w-[5.5rem] shrink-0 flex-col justify-end px-2.5 pb-2 pt-3">
               {equaliser}
               <div className="relative">
                 <div className="text-[13px] font-bold leading-none" style={{ color }}>{who?.driver_number}</div>
@@ -106,9 +106,9 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
                 </div>
               </div>
             </div>
-            <div className="w-[2px] shrink-0" style={glow} />
-            <div className="flex min-w-0 flex-1 items-center bg-black/40 px-3 py-2">
-              <p className="line-clamp-5 text-[11px] font-bold uppercase leading-[1.2]" style={{ color }}>
+            <div className="radio-rule w-[2px] shrink-0" />
+            <div className="radio-quote flex min-w-0 flex-1 items-center px-3 py-2">
+              <p className="line-clamp-5 text-[11px] font-bold uppercase leading-[1.2]">
                 {quote}
               </p>
             </div>
@@ -116,7 +116,7 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
         ) : (
           <>
             {/* Header sits on the equaliser, which stands on a glowing rule */}
-            <div className="relative">
+            <div className="radio-header relative">
               {equaliser}
               <div className="relative flex items-end justify-between gap-3 px-4 pb-2 pt-5">
                 <span className="text-[20px] font-bold leading-none sm:text-[22px]" style={{ color }}>
@@ -128,12 +128,9 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
                   <div className="text-white">Radio</div>
                 </div>
               </div>
-              <div className="h-[2px]" style={glow} />
+              <div className="radio-rule h-[2px]" />
             </div>
-            <p
-              className="bg-black/40 pb-5 pl-4 pr-5 pt-3.5 text-right text-[16px] font-bold uppercase leading-[1.18] sm:text-[18px]"
-              style={{ color }}
-            >
+            <p className="radio-quote pb-5 pl-4 pr-5 pt-3.5 text-right text-[16px] font-bold uppercase leading-[1.18] sm:text-[18px]">
               {quote}
             </p>
           </>
