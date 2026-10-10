@@ -1710,12 +1710,16 @@ def _get_driver_positions_by_time_sync(
         except Exception as e:
             logger.error(f"Failed to parse qualifying phases: {e}")
 
-    # Per-driver highest qualifying segment reached (1/2/3), read straight from
-    # the results Q1/Q2/Q3 best-lap columns. Used to grey out drivers once a
-    # later segment begins (they keep their position and posted time).
+    # Per-driver highest qualifying segment reached (1/2/3), from the results
+    # Q1/Q2/Q3 best-lap columns and the final classification. Used to grey out
+    # drivers once a later segment begins (they keep their position and posted time).
     driver_reached_phase: dict[str, int] = {}
     if is_quali:
         try:
+            # A driver who made a segment but set no time in it still classifies
+            # inside its cut: top 10 reach Q3, and Q1 drops half of the rest
+            # (15 of 20 cars reach Q2, 16 of 22).
+            q2_cut = 10 + (len(session.results) - 10) // 2
             for _, row in session.results.iterrows():
                 abbr = str(row.get("Abbreviation", ""))
                 if not abbr:
@@ -1724,6 +1728,9 @@ def _get_driver_positions_by_time_sync(
                 for idx, col in enumerate(("Q1", "Q2", "Q3"), start=1):
                     if col in row and pd.notna(row.get(col)):
                         reached = idx
+                pos = row.get("Position")
+                if pd.notna(pos):
+                    reached = max(reached, 3 if pos <= 10 else 2 if pos <= q2_cut else 1)
                 driver_reached_phase[abbr] = reached
         except Exception as e:
             logger.error(f"Failed to compute qualifying reached phases: {e}")

@@ -134,6 +134,8 @@ def process_session_sync(
 
     if skip_existing and storage.exists(f"{base}/replay.json"):
         logger.info(f"[{prefix}] Already exists, skipping")
+        if not storage.exists(f"{base}/radio.json"):
+            queue_radio(year, round_num, session_type)
         return True
 
     def status(msg: str):

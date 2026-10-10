@@ -52,22 +52,54 @@ export function lapColorClass(
   if (isRace) {
     isFastest = hasFastestLap && isPersonalBest;
   } else if (isPersonalBest && lapData) {
-    let overallFastest = Infinity;
-    for (const [, laps] of lapData) {
-      for (const [lapNum, entry] of laps) {
-        if (lapNum < 2) continue;
-        if (entry.completedAt !== null && entry.completedAt > currentTime) continue;
-        const s = toSecs(entry.time);
-        if (s < overallFastest) overallFastest = s;
-      }
-    }
-    isFastest = lastSecs <= overallFastest + 0.0005;
+    isFastest = lastSecs <= sessionBestSecs(lapData, currentTime) + 0.0005;
   }
 
   return isFastest ? "text-purple-400" : isPersonalBest ? "text-green-400" : "text-f1-muted";
 }
 
+/** Fastest lap (seconds) any driver has completed by `currentTime`, optionally ignoring one lap. */
+export function sessionBestSecs(
+  lapData: LapData,
+  currentTime: number,
+  skip?: { abbr: string; lapNum: number },
+): number {
+  let best = Infinity;
+  for (const [abbr, laps] of lapData) {
+    for (const [lapNum, entry] of laps) {
+      if (lapNum < 2) continue;
+      if (entry.completedAt !== null && entry.completedAt > currentTime) continue;
+      if (skip && abbr === skip.abbr && lapNum === skip.lapNum) continue;
+      const s = toSecs(entry.time);
+      if (s < best) best = s;
+    }
+  }
+  return best;
+}
+
 const SECTOR_TITLE = "S1 · S2 · S3 sector times\nPurple: personal best · Green: fastest · Yellow: normal · Grey: no data";
+
+/**
+ * Qualifying tower order: drivers still in the current segment first, then the
+ * knocked-out ones, each group keeping the incoming order, positions renumbered.
+ * Q1 casualties have slower bests than Q2 ones (they lost on their Q1 time), so
+ * the session-best order already ranks the two eliminated groups correctly.
+ */
+export function qualiOrder<T extends { position: number | null; knocked_out?: boolean }>(drivers: T[]): T[] {
+  if (!drivers.some((d) => d.knocked_out)) return drivers;
+  return [...drivers]
+    .sort((a, b) => Number(!!a.knocked_out) - Number(!!b.knocked_out) || (a.position ?? 999) - (b.position ?? 999))
+    .map((d, i) => (d.position === null || d.position === i + 1 ? d : { ...d, position: i + 1 }));
+}
+
+/** Background (plus glow) class for one sector, shared by every sector display. */
+export function sectorBgClass(sec: SectorInfo | undefined): string {
+  return sec
+    ? sec.color === "purple" ? "bg-f1-magenta shadow-[0_0_8px_rgba(255,0,255,0.6)]"
+    : sec.color === "green" ? "bg-f1-green shadow-[0_0_8px_rgba(0,255,65,0.6)]"
+    : "bg-yellow-400 light:bg-yellow-500"
+    : "bg-ink/10";
+}
 
 /**
  * The three sector squares, rendered identically to the leaderboard. The
@@ -76,15 +108,9 @@ const SECTOR_TITLE = "S1 · S2 · S3 sector times\nPurple: personal best · Gree
 export function SectorMarkers({ sectors, className = "" }: { sectors?: SectorInfo[] | null; className?: string }) {
   return (
     <span className={`flex items-center justify-center gap-[2px] ${className}`} title={SECTOR_TITLE}>
-      {[1, 2, 3].map((sn) => {
-        const sec = sectors?.find((s) => s.num === sn);
-        const bg = sec
-          ? sec.color === "purple" ? "bg-f1-magenta shadow-[0_0_8px_rgba(255,0,255,0.6)]"
-          : sec.color === "green" ? "bg-f1-green shadow-[0_0_8px_rgba(0,255,65,0.6)]"
-          : "bg-yellow-400"
-          : "bg-ink/10";
-        return <span key={sn} className={`w-[6px] h-[14px] rounded-[1px] ${bg}`} />;
-      })}
+      {[1, 2, 3].map((sn) => (
+        <span key={sn} className={`w-[6px] h-[14px] rounded-[1px] ${sectorBgClass(sectors?.find((s) => s.num === sn))}`} />
+      ))}
     </span>
   );
 }

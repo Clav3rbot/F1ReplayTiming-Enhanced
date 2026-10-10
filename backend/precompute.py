@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from services import storage
 from services.process import process_session_sync
+from services.team_radio import wait_radio
 from services.f1_data import (
     _fetch_schedule_sync,
     _get_season_events_sync,
@@ -97,6 +98,9 @@ def main():
     for year in args.years:
         process_year(year, target_round=args.round, target_session=args.session, skip_existing=args.skip_existing)
 
+    # Radio is transcribed in background threads; they die with the process
+    logger.info("Waiting for team radio transcription...")
+    wait_radio()
     logger.info("Pre-compute complete.")
 
 

@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/6a1a2093-44ca-490b-be41-f093a1a03049
 - **Track status flags** for green, yellow, Safety Car, Virtual Safety Car, and red flag conditions
 - **Playback controls** with 0.5× to 20× speed, skip buttons (5 s, 30 s, 1 m, 5 m), lap jumping, and a progress bar
 - **Session timeline**: hover the progress bar to see where the action is. An intensity curve peaks at the busiest moments (overtakes, incidents, retirements, flag changes); coloured chapters mark yellow flag, Safety Car, Virtual Safety Car and red flag periods; markers show on-track incidents and retirements. Each overlay can be toggled in Settings → Timeline
-- **Qualifying view**: Q1/Q2/Q3 phase jumps, live sector time bars, lap completion notifications, and knocked-out drivers dimmed in the leaderboard
+- **Qualifying view**: Q1/Q2/Q3 phase jumps, live sector time bars, broadcast-style lap cards as each lap ends (position, lap time, sectors, and the gap to the fastest lap, with personal bests and new fastest laps highlighted), and a leaderboard that keeps the drivers still in the segment on top and moves the knocked-out ones below an "Eliminated" divider
 - **Guided tour** on first visit to the homepage and the player, ending with an F1 start-lights sequence that starts the replay; it can be replayed from Settings → Other
 - **Next session countdown** on the homepage
 - **Storage management**: see which sessions are stored and how much space they take, delete old sessions, and reprocess a session from the picker
