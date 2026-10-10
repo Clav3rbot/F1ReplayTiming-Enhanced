@@ -1050,6 +1050,7 @@ function ReplayPageInner() {
                       currentTime={replay.frame?.timestamp || 0}
                       isRace={isRace}
                       isQualifying={isQualifying}
+                      qualiPhase={replay.frame?.quali_phase?.phase}
                       onScaleChange={setLeaderboardScale}
                       lapData={lapData}
                       currentLap={replay.frame?.lap || 0}
@@ -1106,6 +1107,7 @@ function ReplayPageInner() {
                 currentTime={replay.frame?.timestamp || 0}
                 isRace={isRace}
                 isQualifying={isQualifying}
+                qualiPhase={replay.frame?.quali_phase?.phase}
                 onScaleChange={setLeaderboardScale}
                 lapData={lapData}
                 currentLap={replay.frame?.lap || 0}
@@ -1246,6 +1248,7 @@ function ReplayPageInner() {
                     currentTime={replay.frame?.timestamp || 0}
                     isRace={isRace}
                     isQualifying={isQualifying}
+                    qualiPhase={replay.frame?.quali_phase?.phase}
                     compact
                     lapData={lapData}
                     currentLap={replay.frame?.lap || 0}
