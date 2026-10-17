@@ -25,6 +25,10 @@ from services.f1_data import (
     _get_rc_messages_sync,
     _get_driver_telemetry_sync,
     clear_telemetry_memo,
+    hold_weekend,
+    release_weekend,
+    AVAILABLE_SEASONS,
+    MAX_ROUND,
 )
 from services.team_radio import queue_radio
 
@@ -41,6 +45,11 @@ _reprocess_status: dict[str, dict] = {}
 # one, so an explicit delete isn't undone by the background downloader; any
 # successful reprocess clears it.
 TOMBSTONE = "deleted.json"
+
+
+def is_supported(year: int, round_num: int) -> bool:
+    """Gate for request-triggered processing: anything else would download from FastF1 for nothing."""
+    return year in AVAILABLE_SEASONS and 1 <= round_num <= MAX_ROUND
 
 
 def get_reprocess_status(year: int, round_num: int, session_type: str) -> dict:
@@ -129,6 +138,20 @@ def process_session_sync(
 
     on_status: optional callback(message: str) called with progress updates.
     """
+    hold_weekend(year, round_num)
+    try:
+        return _process_session_sync(year, round_num, session_type, skip_existing, on_status)
+    finally:
+        release_weekend(year, round_num)
+
+
+def _process_session_sync(
+    year: int,
+    round_num: int,
+    session_type: str,
+    skip_existing: bool,
+    on_status: callable,
+) -> bool:
     prefix = f"{year} R{round_num} {session_type}"
     base = f"sessions/{year}/{round_num}/{session_type}"
 
@@ -384,6 +407,8 @@ async def ensure_session_data(
     # Fast path: data already exists
     if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
         return True
+    if not is_supported(year, round_num):
+        return False
 
     # Get or create lock for this session
     key = f"{year}_{round_num}_{session_type}"
@@ -432,6 +457,8 @@ async def ensure_session_data_ws(
 
     if await asyncio.to_thread(storage.exists, f"{base}/replay.json"):
         return True
+    if not is_supported(year, round_num):
+        return False
 
     key = f"{year}_{round_num}_{session_type}"
     if key not in _locks:
@@ -459,7 +486,7 @@ async def ensure_session_data_ws(
         loop = asyncio.get_event_loop()
         process_task = loop.run_in_executor(
             None,
-            process_core_sync,
+            _process_core_then_telemetry,
             year,
             round_num,
             session_type,
@@ -480,20 +507,32 @@ async def ensure_session_data_ws(
             await send_status(msg)
 
         try:
-            success = process_task.result()
+            return process_task.result()
         except Exception as e:
             logger.error(f"On-demand processing failed for {key}: {e}")
             return False
 
-        if success:
-            # Fire off telemetry processing in background — don't block the replay
-            threading.Thread(
-                target=process_telemetry_background,
-                args=(year, round_num, session_type),
-                daemon=True,
-            ).start()
 
-        return success
+def _process_core_then_telemetry(year: int, round_num: int, session_type: str, on_status) -> bool:
+    """process_core_sync, then telemetry in a background thread so the replay
+    isn't held back. The weekend stays held until telemetry, which reuses the
+    loaded session, is done."""
+    hold_weekend(year, round_num)
+    ok = False
+    try:
+        ok = process_core_sync(year, round_num, session_type, on_status)
+    finally:
+        if not ok:
+            release_weekend(year, round_num)
+    if ok:
+        def telemetry():
+            try:
+                process_telemetry_background(year, round_num, session_type)
+            finally:
+                release_weekend(year, round_num)
+
+        threading.Thread(target=telemetry, daemon=True).start()
+    return ok
 
 
 def is_deleted(year: int, round_num: int, session_type: str) -> bool:

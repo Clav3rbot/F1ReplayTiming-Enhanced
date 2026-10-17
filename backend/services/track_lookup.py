@@ -12,7 +12,7 @@ import logging
 import threading
 
 from services import storage
-from services.f1_data import _fetch_schedule_sync, _get_track_data_sync
+from services.f1_data import _fetch_schedule_sync, _get_track_data_sync, hold_weekend, release_weekend
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +90,14 @@ def ensure_circuit_outline(year: int, round_num: int) -> dict | None:
     try:
         for y, r in same_circuit_rounds(year, round_num):
             for t in ("Q", "R"):
+                hold_weekend(y, r)
                 try:
                     data = _get_track_data_sync(y, r, t)
                 except Exception as e:
                     logger.info(f"No outline from {y}/{r}/{t} for {year}/{round_num}: {e}")
                     continue
+                finally:
+                    release_weekend(y, r)
                 if data:
                     data["outline_from"] = f"{y}/{r}/{t}"
                     storage.put_json(prepared_outline_path(year, round_num), data)

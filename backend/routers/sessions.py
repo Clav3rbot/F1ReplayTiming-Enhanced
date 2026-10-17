@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Query, HTTPException
 from auth import is_auth_enabled
 from services.storage import get_json, put_json, list_sizes
+from services.f1_data import AVAILABLE_SEASONS
 from services.process import (
     ensure_session_data,
+    is_supported,
     start_reprocess,
     get_reprocess_status,
     delete_session,
@@ -26,8 +28,6 @@ from services.retention import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["sessions"])
-
-AVAILABLE_SEASONS = list(range(2024, 2029))
 
 # Every session-type query param is checked against this before it becomes a
 # storage path or a FastF1 call: the local backend joins it onto DATA_DIR.
@@ -133,6 +133,8 @@ async def list_events(year: int):
         return cached[0]
 
     data = _build_events(year)
+    if data is None and year not in AVAILABLE_SEASONS:
+        raise HTTPException(status_code=404, detail=f"No schedule data for {year}")
     if data is None:
         # No schedule in storage — fetch from FastF1 and save for next time
         try:
@@ -217,6 +219,8 @@ async def reprocess_session(year: int, round_num: int, type: str = Query("R", pa
             status_code=403,
             detail="Reprocessing is disabled on this instance. Enable AUTH_ENABLED or set ALLOW_REPROCESS=true.",
         )
+    if not is_supported(year, round_num):
+        raise HTTPException(status_code=400, detail=f"Unsupported session: {year} round {round_num}")
     state = await start_reprocess(year, round_num, type)
     return {"state": state}
 
