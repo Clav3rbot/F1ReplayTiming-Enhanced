@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import os
 import logging
 import threading
@@ -55,6 +56,36 @@ def _cache_key(year: int, round_num: int, session_type: str) -> str:
     return f"{year}_{round_num}_{session_type}"
 
 
+# Jobs using a weekend's loaded sessions (processing can load the weekend's
+# other sessions too). Once written to storage they're never read again, so
+# the last job out frees them instead of leaving them in the LRU.
+_weekend_users: dict[tuple[int, int], int] = {}
+_weekend_lock = threading.Lock()
+
+
+def hold_weekend(year: int, round_num: int) -> None:
+    with _weekend_lock:
+        _weekend_users[(year, round_num)] = _weekend_users.get((year, round_num), 0) + 1
+
+
+def release_weekend(year: int, round_num: int) -> None:
+    """Pair of hold_weekend. Blocking (waits out a load in progress): call from a thread."""
+    with _weekend_lock:
+        left = _weekend_users.get((year, round_num), 1) - 1
+        if left > 0:
+            _weekend_users[(year, round_num)] = left
+            return
+        _weekend_users.pop((year, round_num), None)
+    prefix = f"{year}_{round_num}_"
+    with _session_lock:
+        keys = [k for k in _session_cache if k.startswith(prefix)]
+        for k in keys:
+            del _session_cache[k]
+    if keys:
+        gc.collect()
+        logger.info(f"Released FastF1 sessions from memory: {', '.join(keys)}")
+
+
 # Cache for session availability checks: key -> bool
 _availability_cache: dict[str, bool] = {}
 
@@ -97,6 +128,9 @@ def _check_session_has_data(year: int, round_num: int, session_type: str) -> boo
         return False
 
 
+AVAILABLE_SEASONS = list(range(2024, 2029))
+MAX_ROUND = 30
+
 SESSION_NAME_TO_TYPE: dict[str, str] = {
     "Race": "R",
     "Qualifying": "Q",
@@ -109,22 +143,33 @@ SESSION_NAME_TO_TYPE: dict[str, str] = {
 }
 
 
-# Cache for raw schedule data: year -> list of event dicts (static, fetched once)
-_schedule_cache: dict[int, list[dict]] = {}
+# Cache for raw schedule data: year -> (list of event dicts, fetched_at).
+# Expires so moved or cancelled rounds show up without a restart; FastF1 keeps
+# its own 12 h HTTP cache on top of this.
+_schedule_cache: dict[int, tuple[list[dict], float]] = {}
 _schedule_lock = threading.Lock()
+SCHEDULE_TTL = 60 * 60
 
 
 def _fetch_schedule_sync(year: int) -> list[dict]:
-    """Fetch and cache the raw schedule from FastF1. Only called once per year."""
-    if year in _schedule_cache:
-        return _schedule_cache[year]
+    """Fetch and cache the raw schedule from FastF1, refreshed hourly."""
+    cached = _schedule_cache.get(year)
+    if cached and _time.time() - cached[1] < SCHEDULE_TTL:
+        return cached[0]
 
     with _schedule_lock:
-        if year in _schedule_cache:
-            return _schedule_cache[year]
+        cached = _schedule_cache.get(year)
+        if cached and _time.time() - cached[1] < SCHEDULE_TTL:
+            return cached[0]
 
         logger.info(f"Fetching schedule for {year} from FastF1...")
-        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        try:
+            schedule = fastf1.get_event_schedule(year, include_testing=False)
+        except Exception:
+            if cached:
+                logger.warning(f"Schedule refresh for {year} failed; keeping the cached copy")
+                return cached[0]
+            raise
         events = []
 
         for _, row in schedule.iterrows():
@@ -156,7 +201,11 @@ def _fetch_schedule_sync(year: int) -> list[dict]:
                 "_event_dt": event_dt,
             })
 
-        _schedule_cache[year] = events
+        if not events and cached:
+            # FastF1 falls back across backends and can come back empty
+            logger.warning(f"Schedule refresh for {year} returned no events; keeping the cached copy")
+            return cached[0]
+        _schedule_cache[year] = (events, _time.time())
         logger.info(f"Schedule for {year} cached ({len(events)} events).")
         return events
 

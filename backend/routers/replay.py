@@ -62,7 +62,9 @@ def _rc_upto(rc: list[dict], rc_ts: list[float], t: float) -> list[dict]:
 _eviction_tasks: dict[str, asyncio.Task] = {}  # key -> pending eviction task
 
 CACHE_EVICTION_SECONDS = 300  # 5 minutes after last client disconnects
-MAX_REPLAY_CACHED_SESSIONS = 10
+# A race is ~720 MB of Python objects, and the VPS has 12 GB with no swap. Only
+# sessions nobody watches count against it; a reload from R2 takes ~4 s.
+MAX_REPLAY_CACHED_SESSIONS = 3
 
 # Idle gap after which the server sends a keep-alive frame. Proxies and tunnels
 # that only count data frames towards their idle timeout (commonly 60s or 300s)

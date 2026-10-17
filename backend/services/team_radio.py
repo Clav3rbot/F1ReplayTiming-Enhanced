@@ -100,9 +100,13 @@ def build_radio_list(year: int, round_num: int, session_type: str) -> list[dict]
     zero = _replay_zero(api_path, storage.get_json(f"{base}/rc_messages.json") or [])
     if zero is None:
         # Processed before rc_messages.json existed: load the session (slow, ~300 MB)
-        from services.f1_data import _load_session, _replay_min_date, clear_telemetry_memo
-        zero = _replay_min_date(_load_session(year, round_num, session_type))
-        clear_telemetry_memo()
+        from services.f1_data import _load_session, _replay_min_date, clear_telemetry_memo, hold_weekend, release_weekend
+        hold_weekend(year, round_num)
+        try:
+            zero = _replay_min_date(_load_session(year, round_num, session_type))
+        finally:
+            clear_telemetry_memo()
+            release_weekend(year, round_num)
     if zero is None:
         return []
     info = storage.get_json(f"{base}/info.json") or {}

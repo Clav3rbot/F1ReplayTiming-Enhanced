@@ -88,8 +88,11 @@ async def _get_schedule(year: int, now: datetime) -> dict | None:
     if cache_fresh:
         return cached[1]
 
-    # If we have a stored schedule and we're NOT near any session, use it as-is
-    if stored and not _is_near_any_session(stored.get("events", []), now):
+    # If we have a stored schedule and we're NOT near any session, use it as-is,
+    # but still refresh it daily: a round moved mid-week must show up before
+    # the old date is what decides "near"
+    stored_age = now.timestamp() - (stored or {}).get("refreshed_at", 0)
+    if stored and stored_age < 24 * 3600 and not _is_near_any_session(stored.get("events", []), now):
         return stored
 
     # We're near a session (or have no stored schedule) — try a live FastF1 fetch
@@ -98,7 +101,7 @@ async def _get_schedule(year: int, now: datetime) -> dict | None:
         from services.storage import put_json
 
         events = await asyncio.to_thread(_get_season_events_sync, year)
-        schedule = {"year": year, "events": events}
+        schedule = {"year": year, "events": events, "refreshed_at": int(now.timestamp())}
         put_json(f"seasons/{year}/schedule.json", schedule)
         _schedule_cache[year] = (now, schedule)
         logger.info(f"[live_status] Refreshed {year} schedule from FastF1 "

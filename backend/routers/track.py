@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Query, HTTPException
 from routers.sessions import SESSION_TYPE_PATTERN
 from services.storage import put_json
-from services.f1_data import _get_track_data_sync
+from services.f1_data import _get_track_data_sync, hold_weekend, release_weekend
 from services.track_lookup import ensure_circuit_outline, find_track
 
 logger = logging.getLogger(__name__)
@@ -62,11 +62,14 @@ def _is_stale(track_data: dict | None) -> bool:
 def _regenerate(path: str, year: int, round_num: int, session_type: str, cached: dict) -> dict:
     """Rebuild track.json with the current backend logic, keeping the cached
     copy if the rebuild fails."""
+    hold_weekend(year, round_num)
     try:
         fresh = _get_track_data_sync(year, round_num, session_type)
     except Exception as e:
         logger.warning(f"Could not regenerate track data for {path}: {e}")
         return cached
+    finally:
+        release_weekend(year, round_num)
 
     if not fresh:
         return cached

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from auth import is_auth_enabled, verify_token
 from routers import sessions, track, laps, results, replay, telemetry, sync, live, live_status, radio
@@ -93,6 +94,20 @@ async def auth_middleware(request: Request, call_next):
     if not verify_token(token):
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     return await call_next(request)
+
+
+@app.middleware("http")
+async def static_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Next.js build assets have content hashes in their names, so they never change.
+    # Only 200s: a 404 for a chunk requested mid-deploy must not stick for a year.
+    if request.url.path.startswith("/_next/static/") and response.status_code == 200:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
+# Added last, so outermost: Tailscale Funnel passes responses through uncompressed
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 # Routers
