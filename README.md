@@ -4,6 +4,8 @@
 
 A web app for watching Formula 1 sessions with real timing data, car positions on track, driver telemetry, and more, both live during race weekends and as replays of past sessions. Built with Next.js and FastAPI.
 
+> **Status (October 2026): no new replays.** Formula 1 now requires an F1 TV subscription to access its timing archive: `livetiming.formula1.com/static` answers 401 without one (see [FastF1 #978](https://github.com/theOehrly/Fast-F1/issues/978)). Every replay in this app was downloaded from that archive through FastF1, so new sessions can no longer be processed. Replays already stored keep working, and live timing is not affected because F1's live stream is still open. The on-demand and pre-compute instructions below need an F1 TV account (FastF1 3.9 or later with `F1_USERNAME` / `F1_PASSWORD`) plus `ARCHIVE_OPEN = True` in `backend/services/process.py`.
+
 https://github.com/user-attachments/assets/a80e5ee4-7287-4135-a004-42de8663d9a7
 
 ## Features
@@ -26,8 +28,8 @@ https://github.com/user-attachments/assets/a80e5ee4-7287-4135-a004-42de8663d9a7
 - **Qualifying view**: Q1/Q2/Q3 phase jumps, live sector time bars, broadcast-style lap cards as each lap ends (position, lap time, sectors, and the gap to the fastest lap, with personal bests and new fastest laps highlighted), and a leaderboard that keeps the drivers still in the segment on top and moves the knocked-out ones below an "Eliminated" divider
 - **Guided tour** on first visit to the homepage and the player, ending with an F1 start-lights sequence that starts the replay; it can be replayed from Settings → Other
 - **Next session countdown** on the homepage
-- **Storage management**: see which sessions are stored and how much space they take, delete old sessions, and reprocess a session from the picker
-- **Session support** for races, qualifying, sprint qualifying, and practice sessions from 2024 onwards
+- **Storage management**: see which sessions are stored and how much space they take, and delete old sessions
+- **Session support** for races, qualifying, sprint qualifying, and practice sessions of the 2026 season that were stored before F1 closed its archive
 - **Passphrase authentication** to optionally restrict access when publicly hosted
 
 ## Architecture

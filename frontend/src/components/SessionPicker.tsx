@@ -200,8 +200,6 @@ export default function SessionPicker() {
 
   // Right-click / long-press menu on a session pill
   const [ctxMenu, setCtxMenu] = useState<SessionMenu | null>(null);
-  const [reprocessing, setReprocessing] = useState<Set<string>>(new Set());
-  const [reprocessModal, setReprocessModal] = useState<{ label: string; key: string; state: "running" | "done" | "error"; message: string } | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ label: string; year: number; round: number; code: string; sizeLabel: string | null; state: "confirm" | "deleting" | "done" | "error"; message: string } | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef(false);
@@ -216,57 +214,6 @@ export default function SessionPicker() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
-  }
-
-  function clearReprocessing(key: string) {
-    setReprocessing((p) => {
-      const n = new Set(p);
-      n.delete(key);
-      return n;
-    });
-  }
-
-  async function reprocess(m: SessionMenu) {
-    setCtxMenu(null);
-    setReprocessing((p) => new Set(p).add(m.key));
-    setReprocessModal({ label: m.label, key: m.key, state: "running", message: "Starting…" });
-    const finish = (state: "done" | "error", message: string) => {
-      clearReprocessing(m.key);
-      setReprocessModal((prev) => (prev && prev.key === m.key ? { ...prev, state, message } : prev));
-    };
-    try {
-      const res = await authFetch(
-        `/api/sessions/${m.year}/${m.round}/reprocess?type=${m.code}`,
-        { method: "POST" },
-      );
-      if (!res.ok) {
-        const detail = res.status === 403
-          ? "Reprocessing is disabled on this instance."
-          : "Failed to start reprocessing.";
-        throw new Error(detail);
-      }
-      const poll = async () => {
-        try {
-          const s = await authFetch(
-            `/api/sessions/${m.year}/${m.round}/reprocess/status?type=${m.code}`,
-          ).then((r) => r.json());
-          if (s.state === "running") {
-            setReprocessModal((prev) => (prev && prev.key === m.key ? { ...prev, message: s.message || prev.message } : prev));
-            setTimeout(poll, 1500);
-            return;
-          }
-          finish(
-            s.state === "done" ? "done" : "error",
-            s.message || (s.state === "done" ? "Reprocess complete" : "Reprocess failed"),
-          );
-        } catch {
-          finish("error", "Lost connection while reprocessing.");
-        }
-      };
-      setTimeout(poll, 1500);
-    } catch (e) {
-      finish("error", e instanceof Error ? e.message : "Failed to start reprocessing.");
-    }
   }
 
   async function confirmDelete() {
@@ -455,7 +402,6 @@ export default function SessionPicker() {
                   : "Not downloaded — will process when opened";
                 const href = `/replay?year=${year}&round=${evt.round_number}&type=${code}`;
                 const sKey = `${year}_${evt.round_number}_${code}`;
-                const busy = reprocessing.has(sKey);
                 const openMenu = (x: number, y: number) =>
                   setCtxMenu({ x, y, href, label: session.name, key: sKey, year, round: evt.round_number, code, precomputed: !!session.precomputed, sizeBytes: session.size_bytes });
                 return (
@@ -481,14 +427,12 @@ export default function SessionPicker() {
                       className="px-3 py-1.5 bg-ink/5 text-ink/90 text-xs font-bold rounded-md hover:bg-f1-red hover:text-white hover:shadow-[0_0_15px_rgba(225,6,0,0.4)] border border-ink/10 hover:border-f1-red/50 transition-all duration-300 flex items-center gap-1.5 select-none"
                     >
                       {session.name}
-                      {busy ? (
-                        <span className="w-3 h-3 border-2 border-ink/30 border-t-ink rounded-full animate-spin flex-shrink-0" aria-label="Reprocessing" />
-                      ) : session.precomputed ? (
+                      {session.precomputed && (
                         <span
                           className="w-1.5 h-1.5 rounded-full bg-f1-green shadow-[0_0_6px_rgba(0,255,65,0.6)] flex-shrink-0"
                           aria-label="Downloaded"
                         />
-                      ) : null}
+                      )}
                     </Link>
                   </div>
                 );
@@ -549,31 +493,27 @@ export default function SessionPicker() {
           >
             Open in new window
           </button>
-          <div className="my-1 border-t border-ink/10" />
-          <button
-            onClick={() => reprocess(ctxMenu)}
-            className="block w-full text-left px-4 py-2 text-ink hover:bg-ink/5 transition-colors"
-          >
-            ↻ Reprocess
-          </button>
           {ctxMenu.precomputed && (
-            <button
-              onClick={() => {
-                setDeleteModal({
-                  label: ctxMenu.label,
-                  year: ctxMenu.year,
-                  round: ctxMenu.round,
-                  code: ctxMenu.code,
-                  sizeLabel: formatSize(ctxMenu.sizeBytes),
-                  state: "confirm",
-                  message: "",
-                });
-                setCtxMenu(null);
-              }}
-              className="block w-full text-left px-4 py-2 text-f1-red hover:bg-ink/5 transition-colors"
-            >
-              Delete data{ctxMenu.sizeBytes ? ` (${formatSize(ctxMenu.sizeBytes)})` : ""}
-            </button>
+            <>
+              <div className="my-1 border-t border-ink/10" />
+              <button
+                onClick={() => {
+                  setDeleteModal({
+                    label: ctxMenu.label,
+                    year: ctxMenu.year,
+                    round: ctxMenu.round,
+                    code: ctxMenu.code,
+                    sizeLabel: formatSize(ctxMenu.sizeBytes),
+                    state: "confirm",
+                    message: "",
+                  });
+                  setCtxMenu(null);
+                }}
+                className="block w-full text-left px-4 py-2 text-f1-red hover:bg-ink/5 transition-colors"
+              >
+                Delete data{ctxMenu.sizeBytes ? ` (${formatSize(ctxMenu.sizeBytes)})` : ""}
+              </button>
+            </>
           )}
         </div>
       )}
@@ -591,8 +531,8 @@ export default function SessionPicker() {
               <>
                 <p className="text-f1-muted text-sm mb-4">
                   Removes the stored data for this session
-                  {deleteModal.sizeLabel ? `, freeing ${deleteModal.sizeLabel}` : ""}. Open the
-                  session to download it again.
+                  {deleteModal.sizeLabel ? `, freeing ${deleteModal.sizeLabel}` : ""}. This is
+                  permanent: F1&apos;s archive no longer lets this app download it again.
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -634,40 +574,6 @@ export default function SessionPicker() {
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Reprocess progress modal */}
-      {reprocessModal && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="glass-panel-heavy rounded-xl shadow-glass w-full max-w-sm p-6">
-            <h3 className="text-ink font-bold text-base mb-1">Reprocessing {reprocessModal.label}</h3>
-            {reprocessModal.state === "running" && (
-              <>
-                <p className="text-f1-muted text-sm mb-4">
-                  Rebuilding this session&apos;s data. This usually takes 1–3 minutes. You can close this and it will keep running.
-                </p>
-                <div className="flex items-center gap-3">
-                  <span className="w-5 h-5 border-2 border-f1-muted border-t-f1-red rounded-full animate-spin flex-shrink-0" />
-                  <span className="text-ink text-sm">{reprocessModal.message}</span>
-                </div>
-              </>
-            )}
-            {reprocessModal.state === "done" && (
-              <p className="text-f1-green text-sm mb-2">Done. Reopen the session to see the updated data.</p>
-            )}
-            {reprocessModal.state === "error" && (
-              <p className="text-f1-red text-sm mb-2">{reprocessModal.message}</p>
-            )}
-            <div className="flex justify-end mt-5">
-              <button
-                onClick={() => setReprocessModal(null)}
-                className="px-4 py-2 bg-ink/5 text-ink text-sm font-bold rounded-md border border-ink/10 hover:bg-f1-red hover:border-f1-red/50 transition-all duration-300"
-              >
-                {reprocessModal.state === "running" ? "Hide" : "Close"}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -765,6 +671,15 @@ export default function SessionPicker() {
               {s}
             </button>
           ))}
+        </div>
+
+        <div className="mb-6 max-w-3xl mx-auto glass-panel rounded-xl border border-yellow-400/25 px-4 py-3" role="note">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-yellow-400 mb-1">No new replays</p>
+          <p className="text-sm leading-relaxed text-f1-muted">
+            Since October 2026 Formula 1 requires an F1 TV subscription to access its timing archive, which is where
+            this app got its replays from. New sessions can no longer be downloaded: the replays already here keep
+            working, and live timing is not affected.
+          </p>
         </div>
 
         {eventsLoading ? (

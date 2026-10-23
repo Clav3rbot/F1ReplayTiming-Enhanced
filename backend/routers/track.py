@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, HTTPException
 from routers.sessions import SESSION_TYPE_PATTERN
 from services.storage import put_json
 from services.f1_data import _get_track_data_sync, hold_weekend, release_weekend
+from services.process import is_supported
 from services.track_lookup import ensure_circuit_outline, find_track
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,6 @@ def track_geometry(
     parts = path.split("/")
     # sessions/{year}/{round}/{type}/track.json can be rebuilt from its session;
     # a prepared circuits/ outline is already current.
-    if parts[0] == "sessions" and _is_stale(data):
+    if parts[0] == "sessions" and _is_stale(data) and is_supported(int(parts[1]), int(parts[2])):
         data = _regenerate(path, int(parts[1]), int(parts[2]), parts[3], data)
     return data

@@ -98,6 +98,10 @@ def _build_events(year: int) -> dict:
                     size_bytes = sum(v for k, v in sizes.items() if k.startswith(prefix))
             session["precomputed"] = precomputed
             session["size_bytes"] = size_bytes
+            # Nothing can be downloaded any more (see process.ARCHIVE_OPEN), so
+            # a past session opens only if it is already stored
+            if not is_supported(year, round_num or 0):
+                session["available"] = session["available"] and precomputed
 
         # Normalize date_utc to ISO 8601 with "Z" so the browser
         # correctly interprets them as UTC and converts to local time

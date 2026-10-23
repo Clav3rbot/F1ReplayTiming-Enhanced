@@ -46,10 +46,16 @@ _reprocess_status: dict[str, dict] = {}
 # successful reprocess clears it.
 TOMBSTONE = "deleted.json"
 
+# Since October 2026 F1's timing archive (livetiming.formula1.com/static) answers
+# 401 without an F1 TV login, so FastF1 can no longer download any session; the
+# sessions already stored are still served. Turn back on once FastF1 is given an
+# account (fastf1>=3.9 reads F1_USERNAME / F1_PASSWORD).
+ARCHIVE_OPEN = False
+
 
 def is_supported(year: int, round_num: int) -> bool:
     """Gate for request-triggered processing: anything else would download from FastF1 for nothing."""
-    return year in AVAILABLE_SEASONS and 1 <= round_num <= MAX_ROUND
+    return ARCHIVE_OPEN and year in AVAILABLE_SEASONS and 1 <= round_num <= MAX_ROUND
 
 
 def get_reprocess_status(year: int, round_num: int, session_type: str) -> dict:

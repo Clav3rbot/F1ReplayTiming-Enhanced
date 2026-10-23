@@ -128,7 +128,9 @@ def _check_session_has_data(year: int, round_num: int, session_type: str) -> boo
         return False
 
 
-AVAILABLE_SEASONS = list(range(2024, 2029))
+# 2024 and 2025 were only ever processed on demand and F1's archive is now
+# closed (see process.ARCHIVE_OPEN), so they have nothing left to show
+AVAILABLE_SEASONS = list(range(2026, 2029))
 MAX_ROUND = 30
 
 SESSION_NAME_TO_TYPE: dict[str, str] = {
@@ -1079,49 +1081,14 @@ def _segment_fracs(session, outline_xy: np.ndarray, x_min: float, y_min: float, 
 def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> dict:
     session = _load_session(year, round_num, session_type)
 
-    rotation = 0.0
-    corners_raw = None
-    marshal_sectors_raw = None
     try:
         circuit_info = session.get_circuit_info()
-        rotation = float(circuit_info.rotation) if hasattr(circuit_info, "rotation") else 0.0
-        if hasattr(circuit_info, "corners") and circuit_info.corners is not None and len(circuit_info.corners) > 0:
-            corners_raw = circuit_info.corners
-        if hasattr(circuit_info, "marshal_sectors") and circuit_info.marshal_sectors is not None and len(circuit_info.marshal_sectors) > 0:
-            marshal_sectors_raw = circuit_info.marshal_sectors
     except Exception:
-        pass
+        circuit_info = None
 
     # Get track coordinates from a reference lap with valid position telemetry
     # (fastest lap when possible, otherwise fastest lap covered by pos data)
     ref_lap, telemetry = _get_reference_lap_telemetry(session)
-
-    x = telemetry["X"].values
-    y = telemetry["Y"].values
-
-    # Elevation (Z is in 1/10 m). Store each point's height in metres above the
-    # track's lowest point, plus the total range, so the frontend can colour the
-    # line on a fixed absolute scale (flat tracks stay flat-looking).
-    z_rel_m = None
-    elevation = None
-    if "Z" in telemetry.columns:
-        z = telemetry["Z"].values.astype(float)
-        if len(z) > 0 and not np.isnan(z).all():
-            z_min = float(np.nanmin(z))
-            z_max = float(np.nanmax(z))
-            z_rel = (np.nan_to_num(z, nan=z_min) - z_min) / 10.0
-            z_rel_m = [round(float(v), 2) for v in z_rel]
-            elevation = {"range_m": round((z_max - z_min) / 10.0, 1)}
-
-    # Normalize to 0-1 range for frontend flexibility
-    x_min, x_max = float(x.min()), float(x.max())
-    y_min, y_max = float(y.min()), float(y.max())
-    scale = max(x_max - x_min, y_max - y_min)
-    if scale == 0:
-        scale = 1
-
-    x_norm = ((x - x_min) / scale).tolist()
-    y_norm = ((y - y_min) / scale).tolist()
 
     # Compute sector boundaries from fastest lap sector session times
     sector_boundaries = None
@@ -1143,6 +1110,65 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
             logger.info(f"Sector boundaries: S1 ends at point {s1_pos}/{len(telemetry)}, S2 ends at {s2_pos}/{len(telemetry)}")
     except Exception as e:
         logger.warning(f"Could not compute sector boundaries: {e}")
+
+    data = _track_from_outline(
+        telemetry["X"].values,
+        telemetry["Y"].values,
+        telemetry["Z"].values if "Z" in telemetry.columns else None,
+        circuit_info,
+        sector_boundaries,
+        str(session.event.get("Location", "")),
+    )
+    try:
+        norm = data["norm"]
+        outline_xy = np.array([[p["x"], p["y"]] for p in data["track_points"]])
+        data["segment_fracs"] = _segment_fracs(session, outline_xy, norm["x_min"], norm["y_min"], norm["scale"])
+    except Exception as e:
+        logger.warning(f"Could not calibrate mini-sector boundaries: {e}")
+    return data
+
+
+def _track_from_outline(x, y, z, circuit_info, sector_boundaries: dict | None, circuit_name: str) -> dict:
+    """track.json payload from one lap's raw X/Y/Z (Z may be None) and the
+    circuit's MultiViewer info (corners, marshal sectors, rotation; may be None)."""
+    rotation = 0.0
+    corners_raw = None
+    marshal_sectors_raw = None
+    try:
+        rotation = float(circuit_info.rotation) if hasattr(circuit_info, "rotation") else 0.0
+        if hasattr(circuit_info, "corners") and circuit_info.corners is not None and len(circuit_info.corners) > 0:
+            corners_raw = circuit_info.corners
+        if hasattr(circuit_info, "marshal_sectors") and circuit_info.marshal_sectors is not None and len(circuit_info.marshal_sectors) > 0:
+            marshal_sectors_raw = circuit_info.marshal_sectors
+    except Exception:
+        pass
+
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Elevation (Z is in 1/10 m). Store each point's height in metres above the
+    # track's lowest point, plus the total range, so the frontend can colour the
+    # line on a fixed absolute scale (flat tracks stay flat-looking).
+    z_rel_m = None
+    elevation = None
+    if z is not None:
+        z = np.asarray(z, dtype=float)
+        if len(z) > 0 and not np.isnan(z).all():
+            z_min = float(np.nanmin(z))
+            z_max = float(np.nanmax(z))
+            z_rel = (np.nan_to_num(z, nan=z_min) - z_min) / 10.0
+            z_rel_m = [round(float(v), 2) for v in z_rel]
+            elevation = {"range_m": round((z_max - z_min) / 10.0, 1)}
+
+    # Normalize to 0-1 range for frontend flexibility
+    x_min, x_max = float(x.min()), float(x.max())
+    y_min, y_max = float(y.min()), float(y.max())
+    scale = max(x_max - x_min, y_max - y_min)
+    if scale == 0:
+        scale = 1
+
+    x_norm = ((x - x_min) / scale).tolist()
+    y_norm = ((y - y_min) / scale).tolist()
 
     # Normalize corner positions using the same scale as track points
     corners = None
@@ -1213,12 +1239,6 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
             logger.warning(f"Could not extract marshal sector data: {e}")
             marshal_sectors = None
 
-    segment_fracs = None
-    try:
-        segment_fracs = _segment_fracs(session, np.c_[x_norm, y_norm], x_min, y_min, scale)
-    except Exception as e:
-        logger.warning(f"Could not calibrate mini-sector boundaries: {e}")
-
     if z_rel_m is not None:
         track_points = [{"x": px, "y": py, "z": pz} for px, py, pz in zip(x_norm, y_norm, z_rel_m)]
     else:
@@ -1227,11 +1247,11 @@ def _get_track_data_sync(year: int, round_num: int, session_type: str = "R") -> 
     return {
         "track_points": track_points,
         "rotation": rotation,
-        "circuit_name": str(session.event.get("Location", "")),
+        "circuit_name": circuit_name,
         # Raw normalization params so driver positions use the same reference
         "norm": {"x_min": x_min, "y_min": y_min, "scale": scale},
         "sector_boundaries": sector_boundaries,
-        "segment_fracs": segment_fracs,
+        "segment_fracs": None,
         "corners": corners,
         "marshal_sectors": marshal_sectors,
         "elevation": elevation,

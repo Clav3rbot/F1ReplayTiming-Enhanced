@@ -278,7 +278,7 @@ export default function StorageManager({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <p className="text-f1-muted text-xs mt-2">
-              Checked daily. Open a session to download it again.
+              Checked daily. Deleted sessions are gone for good: F1&apos;s archive no longer lets this app download them again.
             </p>
           </div>
 

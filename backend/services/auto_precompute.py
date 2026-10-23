@@ -50,7 +50,7 @@ async def _check_and_process():
     from services.f1_data import _fetch_schedule_sync, SESSION_NAME_TO_TYPE
     from services import storage
 
-    from services.process import process_session_sync as process_session, is_deleted
+    from services.process import process_session_sync as process_session, is_deleted, ARCHIVE_OPEN
 
     allowed = get_allowed_session_types()
     if not allowed:
@@ -78,6 +78,9 @@ async def _check_and_process():
                 await asyncio.to_thread(ensure_circuit_outline, year, event["round_number"])
             except Exception as e:
                 logger.warning(f"[auto] Outline preparation failed for round {event['round_number']}: {e}")
+
+    if not ARCHIVE_OPEN:
+        return
 
     for event in events:
         round_num = event["round_number"]
