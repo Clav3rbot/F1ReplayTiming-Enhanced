@@ -14,6 +14,8 @@ logger = logging.getLogger("auto_precompute")
 
 # Check interval in seconds (30 minutes)
 CHECK_INTERVAL = 30 * 60
+# Seconds between two session downloads in one check, to stay within F1's limits
+SESSION_GAP = 60
 
 _AUTO_PRECOMPUTE_PRESETS: dict[str, set[str]] = {
     "off":       set(),
@@ -66,6 +68,7 @@ async def _check_and_process():
         return
 
     processed_any = False
+    attempted_any = False
 
     # Have the circuit outline ready before the weekend's first live session:
     # nothing of a new weekend is processed when FP1 starts, and the live map
@@ -115,6 +118,10 @@ async def _check_and_process():
 
             # New session data might be available - try to process it
             prefix = f"{year} R{round_num} {session_type}"
+            if attempted_any:
+                # Pause between downloads to stay within F1's limits
+                await asyncio.sleep(SESSION_GAP)
+            attempted_any = True
             logger.info(f"[auto] New session detected: {prefix}, attempting precompute...")
 
             try:

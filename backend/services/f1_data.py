@@ -40,11 +40,56 @@ if proxy:
     fastf1._api.base_url = proxy
     # The worker checks a shared secret; FastF1's own HTTP sessions must send it too
     proxy_key = os.environ.get("F1_SIGNALR_PROXY_KEY", "")
-    if proxy_key:
-        import fastf1.req
-        for _s in (fastf1.req.Cache._requests_session, fastf1.req.Cache._requests_session_cached):
-            if _s is not None:
+    import fastf1.req
+    from fastf1.internals.f1account import LivetimingAuthAdapter, token_manager
+    for _s in (fastf1.req.Cache._requests_session, fastf1.req.Cache._requests_session_cached):
+        if _s is not None:
+            if proxy_key:
                 _s.headers["X-Proxy-Key"] = proxy_key
+            # FastF1 adds the F1 TV token only to livetiming.formula1.com; the worker
+            # forwards it, so requests through the proxy need it too
+            _s.mount(proxy + "/", LivetimingAuthAdapter(token_manager))
+
+# FastF1's requests have no timeout, so a stalled download (FastF1 #982) blocks processing
+# for good. Add one, count the timeouts (a load that hit any is retried once), and keep
+# F1's last refusal so a failed load can say why.
+import requests as _requests
+import fastf1.req as _f1req
+
+_REQUEST_TIMEOUT = (10, 60)  # (connect, read) seconds
+_timeouts = 0
+_last_refusal: int | None = None
+_send_without_timeout = _f1req._SessionWithRateLimiting.send
+
+
+def _send_with_timeout(self, request, **kwargs):
+    global _timeouts, _last_refusal
+    if kwargs.get("timeout") is None:
+        kwargs["timeout"] = _REQUEST_TIMEOUT
+    try:
+        resp = _send_without_timeout(self, request, **kwargs)
+    except _requests.Timeout:
+        _timeouts += 1
+        logger.warning(f"Request to F1 timed out: {request.url}")
+        raise
+    # FastF1 falls back to its mirror quietly when F1 refuses, so log it here
+    if resp.status_code in (401, 403) and "/static/" in (request.url or ""):
+        _last_refusal = resp.status_code
+        logger.warning(f"F1 refused {request.url}: HTTP {resp.status_code}")
+    return resp
+
+
+_f1req._SessionWithRateLimiting.send = _send_with_timeout
+
+
+def _refusal_reason() -> str | None:
+    if _last_refusal == 401:
+        return ("F1 rejected the F1 TV sign-in (HTTP 401): check F1_USERNAME / F1_PASSWORD "
+                "and that the F1 TV subscription (Access or higher) is active.")
+    if _last_refusal == 403:
+        return ("F1 refused the download (HTTP 403): it blocks cloud servers and VPNs. "
+                "Route it through F1_SIGNALR_PROXY or process the session on another computer.")
+    return None
 
 # LRU in-memory cache for loaded sessions (cap prevents OOM on long-running instances)
 _SESSION_CACHE_MAX = 8
@@ -286,13 +331,26 @@ def _load_session(year: int, round_num: int, session_type: str, *, minimal: bool
         t0 = _time.monotonic()
         load_mode = "minimal" if minimal else "full"
         logger.info(f"Loading session {year}/{round_num}/{session_type} ({load_mode}) from FastF1...")
-        session = fastf1.get_session(year, round_num, session_type)
-        session.load(
-            telemetry=True,
-            laps=True,
-            weather=not minimal,
-            messages=not minimal,
-        )
+
+        def load() -> tuple[fastf1.core.Session, bool]:
+            global _last_refusal
+            before = _timeouts
+            _last_refusal = None
+            s = fastf1.get_session(year, round_num, session_type)
+            s.load(telemetry=True, laps=True, weather=not minimal, messages=not minimal)
+            return s, _timeouts > before
+
+        session, stalled = load()
+        if stalled:
+            # FastF1 logs failed parts and carries on, so a timed-out load has gaps.
+            # Load again: FastF1's cache keeps what already arrived.
+            logger.warning(f"Requests timed out loading {year}/{round_num}/{session_type}; retrying once")
+            session, stalled = load()
+            if stalled:
+                raise RuntimeError("F1's servers didn't respond. Try again later.")
+        if len(session.laps) == 0 and (reason := _refusal_reason()):
+            # An empty load usually means F1 gave us nothing: say why, not "not loaded" later
+            raise RuntimeError(reason)
         elapsed = _time.monotonic() - t0
 
         # Only cache if we actually got meaningful data
@@ -1293,6 +1351,44 @@ def _get_lap_data_sync(year: int, round_num: int, session_type: str = "R") -> li
 
 async def get_lap_data(year: int, round_num: int, session_type: str = "R") -> list[dict]:
     return await asyncio.to_thread(_get_lap_data_sync, year, round_num, session_type)
+
+
+def build_minisectors(session, laps: list[dict], frames: list[dict], track_points: list[dict]) -> dict | None:
+    """minisectors.json from the raw TimingData stream (qualifying and practice).
+
+    Stream time becomes replay time with the offset between F1's lap end times and
+    the stored ones (laps.json "time"), so this works on stored sessions too."""
+    from services import minisectors
+
+    ends = {(str(r["Driver"]), int(r["LapNumber"])): r["Time"].total_seconds()
+            for _, r in session.laps.iterrows() if pd.notna(r.get("Time"))}
+    diffs = [ends[(e["driver"], e["lap_number"])] - e["time"] for e in laps
+             if e.get("time") is not None and (e["driver"], e["lap_number"]) in ends]
+    if not diffs:
+        return None
+    pages = f1api.fetch_page(session.api_path, "timing_data")
+    number_to_abbr = {str(r["DriverNumber"]): str(r["Abbreviation"]) for _, r in session.results.iterrows()}
+    return minisectors.build(pages, float(np.median(diffs)), frames, track_points, number_to_abbr)
+
+
+def rebuild_minisectors_sync(year: int, round_num: int, session_type: str) -> dict | None:
+    """Add minisectors.json to a stored session without reprocessing it: downloads lap
+    timing and the TimingData stream only (no telemetry); car positions come from the
+    stored replay frames."""
+    from services import storage
+
+    base = f"sessions/{year}/{round_num}/{session_type}"
+    laps = storage.get_json(f"{base}/laps.json")
+    track = storage.get_json(f"{base}/track.json")
+    frames = storage.get_json(f"{base}/replay.json")
+    if not laps or not track or not frames:
+        return None
+    session = fastf1.get_session(year, round_num, session_type)
+    session.load(laps=True, telemetry=False, weather=False, messages=False)
+    ms = build_minisectors(session, laps, frames, track.get("track_points") or [])
+    if ms:
+        storage.put_json(f"{base}/minisectors.json", ms)
+    return ms
 
 
 def _get_driver_telemetry_sync(

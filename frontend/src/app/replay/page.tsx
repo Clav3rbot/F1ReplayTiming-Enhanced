@@ -19,8 +19,9 @@ import SyncPhoto from "@/components/SyncPhoto";
 import PiPWindow from "@/components/PiPWindow";
 import LapNotifications from "@/components/LapNotifications";
 import RadioCaption from "@/components/RadioCaption";
-import SpeedTrace from "@/components/SpeedTrace";
-import type { SectorOverlay } from "@/lib/trackRenderer";
+import type { LapOverlay, SectorOverlay } from "@/lib/trackRenderer";
+import { MINI_HEX, miniMarkersWidth, miniStatesAt, type MiniSectorData } from "@/lib/miniSectors";
+import { outlineFractions, cornerFractions, partsOverlay as lapPartsOverlay, DEFAULT_SECTOR } from "@/lib/outline";
 import { qualiOrder, type LapData } from "@/lib/lapTiming";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
@@ -79,8 +80,6 @@ function ReplayPageInner() {
 
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [showTelemetry, setShowTelemetry] = useState(false);
-  const [showSpeedTrace, setShowSpeedTrace] = useState(false);
-  const [mobileSpeedTraceOpen, setMobileSpeedTraceOpen] = useState(false);
   const [telemetryPosition, setTelemetryPosition] = useState<"left" | "bottom">("left");
   const [showSyncPhoto, setShowSyncPhoto] = useState(false);
   const [dataNoticeClosed, setDataNoticeClosed] = useState(false);
@@ -102,6 +101,8 @@ function ReplayPageInner() {
   const [pipLeaderboardOpen, setPipLeaderboardOpen] = useState(true);
   const [showSectorOverlay, setShowSectorOverlay] = useState(false);
   const [sectorFocusDriver, setSectorFocusDriver] = useState<string | null>(null);
+  // Map colouring requested by Lap Analysis (a lap's sectors, track dominance); wins over Show Sectors
+  const [lapOverlay, setLapOverlay] = useState<LapOverlay | null>(null);
   const [rcPanelOpen, setRcPanelOpen] = useState(false);
   const [rcPinned, setRcPinned] = useState(false);
   const [rcPanelSize, setRcPanelSize] = useState<"sm" | "md" | "lg">("md");
@@ -187,13 +188,17 @@ function ReplayPageInner() {
     `/api/sessions/${year}/${round}/track?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`,
   );
 
-  // Fetch lap data for last lap time column (race/sprint only)
-  // Qualifying needs laps too — the lap-completion bubbles are driven by them
-  const needsLaps = sessionType === "R" || sessionType === "S" || sessionType === "Q" || sessionType === "SQ";
+  // Lap data: last lap time column, qualifying lap bubbles and Lap Analysis (every session type)
+  const needsLaps = !!sessionType;
   const { data: lapsResponse, loading: lapsLoading } = useApi<{ laps: LapEntry[] }>(
     needsLaps
       ? `/api/sessions/${year}/${round}/laps?type=${sessionType}${retryKey ? `&_r=${retryKey}` : ''}`
       : null,
+  );
+
+  // Mini-sectors (qualifying and practice): 404 for sessions processed without them
+  const { data: miniData } = useApi<MiniSectorData>(
+    sessionType && sessionType !== "R" && sessionType !== "S" ? `/api/sessions/${year}/${round}/minisectors?type=${sessionType}` : null,
   );
 
   // Team radio transcripts: 404 while the backend is still transcribing, so keep polling
@@ -336,6 +341,28 @@ function ReplayPageInner() {
     [drivers],
   );
 
+  // Lap fraction of each outline point. Points are time-spaced, so the fraction is arc
+  // length from the line, not point index; lap telemetry's distance axis matches this.
+  const outlineFrac = useMemo(() => outlineFractions(trackData?.track_points), [trackData]);
+
+  // Corners as lap fractions for the speed trace's distance axis
+  const traceCorners = useMemo(
+    () => cornerFractions(trackData?.track_points, trackData?.corners, outlineFrac),
+    [trackData, outlineFrac],
+  );
+
+  // Each driver's laps in order, to tell when they're on an out-lap (non-race leaderboard)
+  const lapsByDriver = useMemo(() => {
+    const map = new Map<string, LapEntry[]>();
+    for (const l of lapsResponse?.laps ?? []) {
+      const arr = map.get(l.driver) ?? [];
+      arr.push(l);
+      map.set(l.driver, arr);
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.lap_number - b.lap_number);
+    return map;
+  }, [lapsResponse]);
+
   if (dataError) {
     return (
       <div className="min-h-screen bg-f1-dark flex items-center justify-center">
@@ -369,8 +396,9 @@ function ReplayPageInner() {
   const weather = replay.frame?.weather;
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
-  // compact: phone map and PiP, where the tall card would hide the track
-  const radioCaption = (compact: boolean) => settings.showTeamRadio && (
+  // compact: phone map and PiP, where the tall card would hide the track.
+  // audio: false where another card (the PiP one) already plays the clip.
+  const radioCaption = (compact: boolean, audio = true) => settings.showTeamRadio && (
     <RadioCaption
       messages={radioResponse?.radio ?? []}
       now={replay.frame?.timestamp || 0}
@@ -379,30 +407,74 @@ function ReplayPageInner() {
       roster={sessionData?.drivers ?? []}
       compact={compact}
       className={compact ? "inset-x-2 bottom-2" : "top-1/2 right-3 -translate-y-1/2"}
+      audioPath={(name) => `/api/sessions/${year}/${round}/radio/audio/${name}?type=${sessionType}`}
+      playAudio={audio && settings.teamRadioAudio && replay.playing && replay.speed === 1}
     />
   );
-  // Selected drivers' current laps overlaid, drawn as the replay advances
-  const speedTrace = (
-    <SpeedTrace
+  const hasLapAnalysis = !!lapsResponse?.laps;
+  const lapAnalysisPanel = (onClose?: () => void) => (
+    <LapAnalysisPanel
+      laps={lapsResponse?.laps ?? []}
+      drivers={drivers}
+      currentLap={replay.frame?.lap || 0}
       year={year}
       round={round}
       sessionType={sessionType}
-      drivers={selectedDrivers.flatMap((a) => drivers.filter((d) => d.abbr === a))}
-      laps={lapsResponse?.laps ?? []}
       now={replay.frame?.timestamp || 0}
+      isRace={isRace}
       useImperial={settings.useImperial}
+      corners={traceCorners}
+      sectorFracs={
+        trackData?.sector_boundaries && outlineFrac.length > 1
+          ? [outlineFrac[trackData.sector_boundaries.s1_end], outlineFrac[trackData.sector_boundaries.s2_end]]
+          : undefined
+      }
+      phases={isQualifying ? replay.qualiPhases : []}
+      mini={settings.miniSectors ? miniData : null}
+      onMapOverlay={setLapOverlay}
+      onClose={onClose}
     />
   );
 
+  // Mini-sectors in place of the three sectors (leaderboard and Show Sectors), when the session has them
+  const now = replay.frame?.timestamp || 0;
+  const miniSectors = isQualifying && settings.miniSectors && miniData
+    ? { counts: miniData.counts, states: new Map(drivers.map((d) => [d.abbr, miniStatesAt(miniData, d.abbr, now)])) }
+    : null;
+
+  // Drivers on an out-lap (practice/qualifying): the lap under way left the pits and they're out of the pit lane
+  const outLap = new Set<string>();
+  if (!isRace) {
+    for (const d of drivers) {
+      const lap = lapsByDriver.get(d.abbr)?.find((l) => l.time != null && l.time > now);
+      if (lap?.pit_out && !d.in_pit) outLap.add(d.abbr);
+    }
+  }
+
   // Compute sector overlay for track map
   const SECTOR_HEX: Record<string, string> = { purple: "#A855F7", green: "#22C55E", yellow: "#EAB308" };
-  const DEFAULT_SECTOR = "#3A3A4A";
+  // With no driver selected, Show Sectors follows the leader
+  const sectorTarget = sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver)
+    ? sectorFocusDriver
+    : selectedDrivers[0] ?? drivers[0]?.abbr ?? null;
+  const partsOverlay = (parts: { from: number; to: number; color: string }[]) =>
+    lapPartsOverlay(outlineFrac, trackData?.sector_boundaries, parts);
   const sectorOverlay: SectorOverlay | null = (() => {
+    if (lapOverlay?.sectors && trackData?.sector_boundaries) {
+      return { boundaries: trackData.sector_boundaries, colors: lapOverlay.sectors };
+    }
+    if (lapOverlay?.stretches) return partsOverlay(lapOverlay.stretches);
     if (!isQualifying || !showSectorOverlay || !trackData?.sector_boundaries) return null;
-    const target = sectorFocusDriver && selectedDrivers.includes(sectorFocusDriver)
-      ? sectorFocusDriver
-      : selectedDrivers[0] ?? null;
+    const target = sectorTarget;
     if (!target) return null;
+    const states = miniSectors?.states.get(target);
+    if (miniData && states) {
+      return partsOverlay(miniData.ends.map((end, k) => ({
+        from: k ? miniData.ends[k - 1] : 0,
+        to: end,
+        color: MINI_HEX[states[k]] ?? DEFAULT_SECTOR,
+      })));
+    }
     const drv = drivers.find((d) => d.abbr === target);
     const sectors = drv?.sectors;
     return {
@@ -422,9 +494,9 @@ function ReplayPageInner() {
     if (!isRace) w += 18; // pit indicator (P box + margin)
     if (isRace && settings.showGridChange) w += 24;
     if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
-    if (isRace && settings.showLastLapTime) w += 60; // last lap time column
+    if (settings.showLastLapTime) w += 60; // last lap time column
     if (settings.showGapToLeader) w += 56;
-    if (isQualifying && settings.showSectors) w += 36; // sector indicators (28 + 8 margin)
+    if (isQualifying && settings.showSectors) w += miniSectors ? miniMarkersWidth(miniSectors.counts) + 8 : 36; // sector indicators (+ 8 margin)
     if (isRace && settings.showPitStops) w += 24;
     if (isRace && settings.showTyreHistory) w += 36;
     if (settings.showTyreType) w += 24;
@@ -465,6 +537,14 @@ function ReplayPageInner() {
           onSettingChange={updateSetting}
           weather={weather}
           mobileTeamAbbrHidden={mobileTeamAbbrHidden}
+          extraActions={
+            <a
+              href="/"
+              className="px-2 py-1 sm:px-3 rounded text-[10px] sm:text-xs font-bold text-f1-muted hover:text-ink hover:bg-ink/10 transition-colors"
+            >
+              Exit
+            </a>
+          }
         />
       )}
       {/* Main content grid */}
@@ -653,7 +733,7 @@ function ReplayPageInner() {
                   currentLap={replay.frame?.lap || 0}
                   drivers={drivers}
                 />
-                {radioCaption(false)}
+                {radioCaption(false, !pipActive)}
 
                 {showTelemetry && selectedDrivers.length <= 2 && (
                   <div className="absolute bottom-2 left-8 z-10">
@@ -669,16 +749,17 @@ function ReplayPageInner() {
                 <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2" data-tour="panels">
                   {!isMobile && isQualifying && trackData?.sector_boundaries && (
                     <>
-                      {showSectorOverlay && selectedDrivers.length === 0 && (
-                        <span className="text-[10px] text-f1-muted mr-1">Select a driver to view sectors</span>
+                      {showSectorOverlay && selectedDrivers.length === 0 && sectorTarget && (
+                        <span className="text-[10px] text-f1-muted mr-1">Leader: {sectorTarget}</span>
                       )}
-                      {showSectorOverlay && selectedDrivers.length > 0 && selectedDrivers.map((abbr) => {
+                      {/* One driver needs no switch: their sectors show straight away */}
+                      {showSectorOverlay && selectedDrivers.length > 1 && selectedDrivers.map((abbr) => {
                         const drv = drivers.find((d) => d.abbr === abbr);
-                        const isActive = sectorFocusDriver === abbr;
+                        const isActive = sectorTarget === abbr;
                         return (
                           <button
                             key={abbr}
-                            onClick={() => setSectorFocusDriver(isActive ? null : abbr)}
+                            onClick={() => setSectorFocusDriver(abbr)}
                             className={`px-1.5 py-1 border rounded text-[10px] font-bold transition-colors ${
                               isActive
                                 ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
@@ -690,6 +771,15 @@ function ReplayPageInner() {
                           </button>
                         );
                       })}
+                      {miniData && (
+                        <button
+                          onClick={() => updateSetting("miniSectors", !settings.miniSectors)}
+                          className="px-2 py-1 border rounded text-[10px] font-bold transition-colors bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                          title="Switch between the three sectors and F1's mini-sectors (leaderboard and track map)"
+                        >
+                          {settings.miniSectors ? "Mini-sectors" : "Sectors"}
+                        </button>
+                      )}
                       <button
                         onClick={() => setShowSectorOverlay(!showSectorOverlay)}
                         className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
@@ -710,15 +800,7 @@ function ReplayPageInner() {
                   >
                     {showTelemetry ? "Hide" : "Show"} Telemetry
                   </button>
-                  <button
-                    onClick={() => setShowSpeedTrace(!showSpeedTrace)}
-                    className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
-                      showSpeedTrace ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-ink" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
-                    }`}
-                  >
-                    Speed Trace
-                  </button>
-                  {isRace && lapsResponse?.laps && (
+                  {hasLapAnalysis && (
                     <button
                       onClick={() => setLapAnalysisOpen(!lapAnalysisOpen)}
                       className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
@@ -735,11 +817,6 @@ function ReplayPageInner() {
                   )}
                 </div>
                 </div>
-                {showSpeedTrace && (
-                  <div className="flex-shrink-0 glass-panel-heavy border-t border-f1-border">
-                    {speedTrace}
-                  </div>
-                )}
               </div>
 
               {/* Expanded telemetry panel for 3+ drivers */}
@@ -974,20 +1051,6 @@ function ReplayPageInner() {
               </div>
             )}
 
-            {/* Speed Trace - Mobile */}
-            {isMobile && (
-              <div className="border-b border-f1-border">
-                <button
-                  onClick={() => setMobileSpeedTraceOpen(!mobileSpeedTraceOpen)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
-                >
-                  <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Speed Trace</span>
-                  <ChevronToggle open={mobileSpeedTraceOpen} />
-                </button>
-                {mobileSpeedTraceOpen && <div className="bg-f1-card">{speedTrace}</div>}
-              </div>
-            )}
-
             {/* Playback Controls */}
             <div className="fixed bottom-0 inset-x-0 z-50 overflow-visible bg-f1-dark sm:relative sm:inset-auto sm:z-10">
               <PlaybackControls
@@ -1054,6 +1117,8 @@ function ReplayPageInner() {
                       onScaleChange={setLeaderboardScale}
                       lapData={lapData}
                       currentLap={replay.frame?.lap || 0}
+                      outLap={outLap}
+                      miniSectors={miniSectors}
                       mobileTeamAbbrHidden={mobileTeamAbbrHidden}
                     />
                   </div>
@@ -1062,7 +1127,7 @@ function ReplayPageInner() {
             )}
 
             {/* Lap Analysis section - mobile only */}
-            {isMobile && isRace && lapsResponse?.laps && (
+            {isMobile && hasLapAnalysis && (
               <div className="border-t border-f1-border" ref={mobileLapAnalysisRef}>
                 <button
                   onClick={() => {
@@ -1081,7 +1146,7 @@ function ReplayPageInner() {
                 </button>
                 {mobileLapAnalysisOpen && (
                   <div className="bg-f1-card">
-                    <LapAnalysisPanel laps={lapsResponse.laps} drivers={drivers} currentLap={replay.frame?.lap || 0} />
+                    {lapAnalysisPanel()}
                   </div>
                 )}
               </div>
@@ -1093,9 +1158,9 @@ function ReplayPageInner() {
         {!isMobile && settings.showLeaderboard && (
           <div className="border-l border-f1-border flex-shrink-0 flex">
             {/* Lap Analysis Panel - desktop only, left of leaderboard */}
-            {isRace && lapAnalysisOpen && lapsResponse?.laps && (
-              <div className="w-[300px] h-full border-r border-f1-border overflow-hidden flex-shrink-0">
-                <LapAnalysisPanel laps={lapsResponse.laps} drivers={drivers} currentLap={replay.frame?.lap || 0} onClose={() => setLapAnalysisOpen(false)} />
+            {hasLapAnalysis && lapAnalysisOpen && (
+              <div className="w-[440px] h-full border-r border-f1-border overflow-hidden flex-shrink-0">
+                {lapAnalysisPanel(() => setLapAnalysisOpen(false))}
               </div>
             )}
             <div style={{ width: Math.ceil(leaderboardWidth * leaderboardScale) }}>
@@ -1111,6 +1176,8 @@ function ReplayPageInner() {
                 onScaleChange={setLeaderboardScale}
                 lapData={lapData}
                 currentLap={replay.frame?.lap || 0}
+                outLap={outLap}
+                miniSectors={miniSectors}
                 mobileTeamAbbrHidden={mobileTeamAbbrHidden}
               />
             </div>
@@ -1252,6 +1319,8 @@ function ReplayPageInner() {
                     compact
                     lapData={lapData}
                     currentLap={replay.frame?.lap || 0}
+                    outLap={outLap}
+                    miniSectors={miniSectors}
                   />
                 </div>
               )}

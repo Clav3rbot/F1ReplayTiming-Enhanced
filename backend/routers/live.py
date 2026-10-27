@@ -8,9 +8,10 @@ and the real SignalR client for production (live sessions).
 import asyncio
 import logging
 import os
+import re
 import time
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from routers.replay import VALID_SESSION_TYPES
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,19 @@ class LiveSession:
         replayer._current_index = idx
         logger.info(f"Skipped forward {seconds}s: {current_ts:.1f}s -> {target_ts:.1f}s (idx {idx})")
 
+    def laps_version(self) -> int | None:
+        return self._state_manager.laps.version if self._state_manager else None
+
+    def signed_in(self) -> bool:
+        """Whether this session gets car positions and telemetry (an F1 TV
+        sign-in, or a recording that has them)."""
+        if self._signalr_client is not None:
+            return self._signalr_client.signed_in
+        return bool(self._state_manager and self._state_manager._position_feed)
+
+    def feed_error(self) -> str | None:
+        return self._signalr_client.feed_error if self._signalr_client is not None else None
+
     def add_client(self, ws: WebSocket):
         self.clients.append(ws)
 
@@ -269,6 +283,40 @@ async def _get_or_create_session(
     return _live_sessions[key]
 
 
+_SAFE_DRIVER = re.compile(r"^[A-Z]{3}$")
+# F1's clip names, e.g. VER_1_20261024_165239.mp3
+_CLIP_NAME = re.compile(r"^[A-Z]{3}_\d{1,2}_\d{8}_\d{6}\.mp3$")
+
+
+def _live_state(year: int, round_num: int, session_type: str):
+    session = _live_sessions.get(f"{year}_{round_num}_{session_type}")
+    return session._state_manager if session else None
+
+
+@router.get("/api/live/{year}/{round_num}/telemetry")
+def live_lap_telemetry(year: int, round_num: int, type: str = Query("Q"), driver: str = Query(...), lap: int = Query(...)):
+    """One lap's telemetry recorded during the live session, for Lap Analysis's Compare tab."""
+    if not _SAFE_DRIVER.match(driver):
+        raise HTTPException(status_code=400, detail="Invalid driver abbreviation")
+    sm = _live_state(year, round_num, type)
+    trace = sm.lap_trace(driver, lap) if sm else None
+    if trace is None:
+        raise HTTPException(status_code=404, detail="Not recorded yet")
+    return trace
+
+
+@router.get("/api/live/{year}/{round_num}/radio/{name}")
+def live_radio_audio(year: int, round_num: int, name: str, type: str = Query("R")):
+    """A live team radio clip, kept in memory while it's on the page (F1's copy needs the F1 TV token)."""
+    if not _CLIP_NAME.match(name):
+        raise HTTPException(status_code=400, detail="Invalid clip name")
+    sm = _live_state(year, round_num, type)
+    audio = sm.radio_audio(name) if sm else None
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Clip not available")
+    return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
 @router.websocket("/ws/live/{year}/{round_num}")
 async def live_websocket(
     websocket: WebSocket,
@@ -337,11 +385,26 @@ async def live_websocket(
 
         command_task = asyncio.create_task(handle_commands())
 
+        sent_laps: int | None = None
+        sent_error: str | None = None
         try:
             while True:
+                # Laps aren't held back for the broadcast delay: they carry their
+                # completion time, which the page compares with the frame it shows
+                version = session.laps_version()
+                if version is not None and version != sent_laps:
+                    await websocket.send_json({"type": "laps", **session._state_manager.laps_message()})
+                    sent_laps = version
+
+                # Tell the page when F1 refuses the connection, and when it recovers
+                error = session.feed_error()
+                if error != sent_error:
+                    await websocket.send_json({"type": "feed_error", "message": error})
+                    sent_error = error
+
                 frame = session.get_frame()
                 if frame:
-                    await websocket.send_json({"type": "frame", **frame})
+                    await websocket.send_json({"type": "frame", **frame, "signed_in": session.signed_in()})
 
                     # Check if session has finished (only after it was actually started)
                     sm = session._state_manager

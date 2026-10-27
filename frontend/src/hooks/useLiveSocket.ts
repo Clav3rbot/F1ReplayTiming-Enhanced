@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { wsUrl } from "@/lib/api";
 import type { ReplayDriver, ReplayFrame, WeatherData, QualiPhase, RCMessage, RadioMessage } from "./useReplaySocket";
+import type { LapEntry } from "@/components/Leaderboard";
 
 export { type ReplayDriver, type ReplayFrame, type WeatherData, type QualiPhase, type RCMessage };
 
@@ -15,6 +16,10 @@ interface LiveState {
   finished: boolean;
   sessionEnded: boolean;
   error: string | null;
+  /** Why F1 refused the live connection, until it connects */
+  feedError: string | null;
+  /** Laps completed so far, on the frames' clock (null until the first list) */
+  laps: LapEntry[] | null;
 }
 
 interface BufferedFrame {
@@ -110,6 +115,10 @@ function parseReplayFrame(msg: Record<string, unknown>): ReplayFrame | null {
     quali_phase: parseQualiPhase(msg.quali_phase),
     radio_messages: Array.isArray(msg.radio_messages) ? (msg.radio_messages as RadioMessage[]) : undefined,
     positions_estimated: msg.positions_estimated === true,
+    sector_flags: Array.isArray(msg.sector_flags) ? (msg.sector_flags as ReplayFrame["sector_flags"]) : undefined,
+    signed_in: msg.signed_in === true,
+    mini_counts: Array.isArray(msg.mini_counts) ? (msg.mini_counts as number[]) : undefined,
+    mini_ends: Array.isArray(msg.mini_ends) ? (msg.mini_ends as number[]) : undefined,
   };
 }
 
@@ -136,6 +145,8 @@ export function useLiveSocket(
     finished: false,
     sessionEnded: false,
     error: null,
+    feedError: null,
+    laps: null,
   });
 
   // Delay processing: buffer frames and release them after |delayOffset| seconds.
@@ -241,6 +252,14 @@ export function useLiveSocket(
           }
           break;
         }
+        // Not held back for the broadcast delay: laps carry their completion
+        // time, which the page compares with the frame it shows
+        case "laps":
+          if (Array.isArray(msg.laps)) setState((s) => ({ ...s, laps: msg.laps as LapEntry[] }));
+          break;
+        case "feed_error":
+          setState((s) => ({ ...s, feedError: typeof msg.message === "string" ? msg.message : null }));
+          break;
         case "finished":
           setState((s) => ({
             ...s,

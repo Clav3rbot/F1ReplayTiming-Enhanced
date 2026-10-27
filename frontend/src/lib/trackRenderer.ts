@@ -69,6 +69,23 @@ export interface SectorFlag {
 export interface SectorOverlay {
   boundaries: { s1_end: number; s2_end: number; total: number };
   colors: { s1: string; s2: string; s3: string };
+  /** Finer stretches of the outline (point indices) drawn in place of the three sectors, e.g. mini-sectors. */
+  segments?: { start: number; end: number; color: string }[];
+}
+
+function overlaySegments(overlay: SectorOverlay, n: number) {
+  const { boundaries, colors, segments } = overlay;
+  return segments ?? [
+    { start: 0, end: boundaries.s1_end, color: colors.s1 },
+    { start: boundaries.s1_end, end: boundaries.s2_end, color: colors.s2 },
+    { start: boundaries.s2_end, end: n - 1, color: colors.s3 },
+  ];
+}
+
+/** Map colouring asked for by Lap Analysis: one lap's sectors, or parts of the lap (0–1) by colour (track dominance). */
+export interface LapOverlay {
+  sectors?: { s1: string; s2: string; s3: string };
+  stretches?: { from: number; to: number; color: string }[];
 }
 
 // Sector overlay colour used when a sector has no posted time; matches the
@@ -266,13 +283,7 @@ export function drawTrack(
     // sector colours on top of the elevation. Un-timed sectors (default grey)
     // are skipped so the elevation shows through where there's no highlight.
     if (sectorOverlay) {
-      const { boundaries, colors } = sectorOverlay;
-      const segments = [
-        { start: 0, end: boundaries.s1_end, color: colors.s1 },
-        { start: boundaries.s1_end, end: boundaries.s2_end, color: colors.s2 },
-        { start: boundaries.s2_end, end: rotated.length - 1, color: colors.s3 },
-      ];
-      for (const seg of segments) {
+      for (const seg of overlaySegments(sectorOverlay, rotated.length)) {
         if (seg.color.toUpperCase() === DEFAULT_SECTOR_HEX) continue;
         ctx.beginPath();
         ctx.strokeStyle = seg.color;
@@ -286,12 +297,7 @@ export function drawTrack(
       }
     }
   } else if (sectorOverlay) {
-    const { boundaries, colors } = sectorOverlay;
-    const segments = [
-      { start: 0, end: boundaries.s1_end, color: colors.s1 },
-      { start: boundaries.s1_end, end: boundaries.s2_end, color: colors.s2 },
-      { start: boundaries.s2_end, end: rotated.length - 1, color: colors.s3 },
-    ];
+    const segments = overlaySegments(sectorOverlay, rotated.length);
     // Draw base track first (so gaps between segments aren't visible)
     ctx.beginPath();
     ctx.strokeStyle = pal.asphalt;
@@ -492,7 +498,8 @@ export function drawDrivers(
 
     ctx.restore();
 
-    if (showNames) {
+    // Drivers selected on the leaderboard keep their name when names are hidden
+    if (showNames || isHighlighted) {
       ctx.font = isHighlighted ? "800 12px system-ui, -apple-system, sans-serif" : "800 10px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center";
       if (pal.halo) {

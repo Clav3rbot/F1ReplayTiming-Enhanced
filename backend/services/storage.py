@@ -88,6 +88,19 @@ def _local_get_json(path: str) -> object | None:
     return _loads(filepath.read_bytes())
 
 
+def _local_put_bytes(path: str, data: bytes) -> None:
+    filepath = _data_dir() / path
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    tmp = filepath.with_suffix(".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, filepath)
+
+
+def _local_get_bytes(path: str) -> bytes | None:
+    filepath = _data_dir() / path
+    return filepath.read_bytes() if filepath.exists() else None
+
+
 def _local_exists(path: str) -> bool:
     return (_data_dir() / path).exists()
 
@@ -185,6 +198,20 @@ def _r2_put_json(path: str, data: object) -> None:
         ContentEncoding="gzip",
     )
     logger.info(f"Uploaded {path} ({len(body)} bytes gzipped)")
+
+
+def _r2_put_bytes(path: str, data: bytes, content_type: str) -> None:
+    _get_r2_client().put_object(Bucket=_r2_bucket(), Key=_r2_key(path), Body=data, ContentType=content_type)
+
+
+def _r2_get_bytes(path: str) -> bytes | None:
+    from botocore.exceptions import ClientError
+    try:
+        return _get_r2_client().get_object(Bucket=_r2_bucket(), Key=_r2_key(path))["Body"].read()
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+            return None
+        raise
 
 
 def _r2_get_json(path: str) -> object | None:
@@ -302,6 +329,20 @@ def get_json(path: str) -> object | None:
     if _mode() == "r2":
         return _r2_get_json(path)
     return _local_get_json(path)
+
+
+def put_bytes(path: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+    """Store a binary file (e.g. team radio audio) as is."""
+    if _mode() == "r2":
+        _r2_put_bytes(path, data, content_type)
+    else:
+        _local_put_bytes(path, data)
+
+
+def get_bytes(path: str) -> bytes | None:
+    if _mode() == "r2":
+        return _r2_get_bytes(path)
+    return _local_get_bytes(path)
 
 
 def exists(path: str) -> bool:

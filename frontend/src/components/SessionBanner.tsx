@@ -8,6 +8,7 @@ import { restartTours } from "./GuidedTour";
 import { WeatherData } from "@/hooks/useReplaySocket";
 import ThemeToggle from "./ThemeToggle";
 import Logo from "./Logo";
+import CaptionSettings from "./CaptionSettings";
 
 interface Props {
   eventName: string;
@@ -36,7 +37,7 @@ const LEADERBOARD_SETTINGS: { key: keyof ReplaySettings; label: string; raceOnly
   { key: "showTeamAbbr", label: "Team" },
   { key: "showGridChange", label: "Grid position change", raceOnly: true },
   { key: "showBestLapTime", label: "Best time", nonRaceOnly: true },
-  { key: "showLastLapTime", label: "Last lap time", raceOnly: true },
+  { key: "showLastLapTime", label: "Last lap time" },
   { key: "showGapToLeader", label: "Gap" },
   { key: "highlightClose", label: "Highlight under 1s", raceOnly: true },
   { key: "showPitStops", label: "Pit stops", raceOnly: true },
@@ -62,7 +63,11 @@ const TRACK_MAP_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showDriverNames", label: "Driver names on track" },
   { key: "showCorners", label: "Corner numbers" },
   { key: "showElevation", label: "Elevation" },
+];
+
+const TEAM_RADIO_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
   { key: "showTeamRadio", label: "Team radio captions" },
+  { key: "teamRadioAudio", label: "Team radio audio (at 1×)" },
 ];
 
 const TIMELINE_SETTINGS: { key: keyof ReplaySettings; label: string }[] = [
@@ -92,7 +97,7 @@ export default function SessionBanner({
   const isRace = sessionType === "R" || sessionType === "S";
   const isQualifying = sessionType === "Q" || sessionType === "SQ";
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Timeline" | "Race Control" | "Other">("Leaderboard");
+  const [settingsTab, setSettingsTab] = useState<"Leaderboard" | "Weather" | "Track Map" | "Team Radio" | "Timeline" | "Race Control" | "Other">("Leaderboard");
   const settingsRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -250,7 +255,7 @@ export default function SessionBanner({
                 <div className="flex flex-1 min-h-0">
                   {/* Tab sidebar */}
                   <div className="flex flex-col border-r border-f1-border py-2 w-36 flex-shrink-0">
-                    {(["Leaderboard", "Weather", "Track Map", "Timeline", "Race Control", "Other"] as const).map((tab) => (
+                    {(["Leaderboard", "Weather", "Track Map", "Team Radio", "Timeline", "Race Control", "Other"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setSettingsTab(tab)}
@@ -340,6 +345,24 @@ export default function SessionBanner({
                         </div>
                       </button>
                     ))}
+                  </>)}
+
+                  {settingsTab === "Team Radio" && (<>
+                    {TEAM_RADIO_SETTINGS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => onSettingChange?.(key, !settings[key])}
+                        className="w-full flex items-center justify-between px-2 sm:px-6 py-1.5 hover:bg-ink/5 transition-colors"
+                      >
+                        <span className="text-sm text-ink">{label}</span>
+                        <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${settings[key] ? "bg-f1-red" : "bg-f1-border"}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${settings[key] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    ))}
+                    <div className="mt-2 border-t border-f1-border pt-2">
+                      <CaptionSettings />
+                    </div>
                   </>)}
 
                   {settingsTab === "Timeline" && (<>

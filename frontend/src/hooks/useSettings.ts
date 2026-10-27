@@ -25,8 +25,11 @@ export interface ReplaySettings {
   showPitFreeAir: boolean;
   showLastLapTime: boolean;
   showSectors: boolean;
+  /** Qualifying: mini-sectors instead of the three sectors, where the session has them. */
+  miniSectors: boolean;
   showLapNotifications: boolean;
   showTeamRadio: boolean;
+  teamRadioAudio: boolean;
   highlightClose: boolean;
   useImperial: boolean;
   rcSound: boolean;
@@ -64,8 +67,10 @@ export const DEFAULTS: ReplaySettings = {
   showPitFreeAir: true,
   showLastLapTime: true,
   showSectors: true,
+  miniSectors: true,
   showLapNotifications: true,
   showTeamRadio: true,
+  teamRadioAudio: true,
   highlightClose: true,
   useImperial: false,
   rcSound: false,

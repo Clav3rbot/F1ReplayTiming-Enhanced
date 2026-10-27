@@ -81,6 +81,35 @@ _TOPICS = [
     "TeamRadio",
 ]
 
+# Only sent to a connection signed in with F1 TV: car telemetry (and, during a
+# session, Position.z, which is in _TOPICS so a recording or a free feed that
+# has it still gets it)
+_AUTH_TOPICS = [
+    "CarData.z",
+]
+
+
+def _f1tv_authorization() -> str | None:
+    """The F1 TV sign-in's Authorization header (F1_USERNAME / F1_PASSWORD), if any."""
+    if not os.environ.get("F1_USERNAME"):
+        return None
+    try:
+        from fastf1.internals.f1account import get_token
+        return get_token().authorization_header
+    except Exception as e:
+        logger.warning("No F1 TV token for live timing: %s", e)
+        return None
+
+
+def _refusal_message(err: Exception) -> str:
+    """Why F1 refused the connection, for the live page."""
+    # urllib's HTTPError has .code; a refused WebSocket upgrade has .response.status_code
+    code = getattr(err, "code", None) or getattr(getattr(err, "response", None), "status_code", None)
+    if code in (401, 403):
+        return (f"F1's live timing refused this server's connection (HTTP {code}). "
+                "F1 blocks most cloud servers and VPNs: set F1_SIGNALR_PROXY to route through a proxy.")
+    return f"Can't reach F1's live timing: {err}"
+
 # Reconnect parameters
 _INITIAL_BACKOFF = 1.0  # seconds
 _MAX_BACKOFF = 30.0  # seconds
@@ -122,6 +151,11 @@ class LiveSignalRClient:
         self._ping_task: asyncio.Task[None] | None = None
         self._seen_targets: set[str] = set()
         self._raw_msg_count: int = 0
+        # Set when F1 rejects the token, so later reconnects use the free feed
+        self._auth_rejected = False
+        self.signed_in = False
+        # Why the last connection attempt failed, until one succeeds
+        self.feed_error: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -158,10 +192,12 @@ class LiveSignalRClient:
                 if self._stop_event.is_set():
                     break
                 logger.info("Session ended, reconnecting in %.1fs", backoff)
-            except Exception:
+            except Exception as e:
                 logger.exception(
                     "SignalR session error, reconnecting in %.1fs", backoff
                 )
+                if self.feed_error is None:
+                    self.feed_error = _refusal_message(e)
 
             self._set_disconnected()
 
@@ -213,7 +249,7 @@ class LiveSignalRClient:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _negotiate(negotiate_url: str) -> tuple[str, str]:
+    def _negotiate(negotiate_url: str, authorization: str | None = None) -> tuple[str, str]:
         """Perform the SignalR negotiate handshake over HTTP.
 
         Returns
@@ -252,6 +288,8 @@ class LiveSignalRClient:
         post_req.add_header("User-Agent", _UA)
         for k, v in _proxy_headers().items():
             post_req.add_header(k, v)
+        if authorization:
+            post_req.add_header("Authorization", authorization)
 
         resp = opener.open(post_req, timeout=10)
         body = json.loads(resp.read().decode())
@@ -291,15 +329,36 @@ class LiveSignalRClient:
         # Negotiate happens on a regular HTTP request — run in a thread so
         # we don't block the event loop.
         _, ws_base, negotiate_url = _get_endpoints()
-        connection_token, cookie = await asyncio.get_running_loop().run_in_executor(
-            None, self._negotiate, negotiate_url
-        )
+        loop = asyncio.get_running_loop()
+        authorization = None if self._auth_rejected else await loop.run_in_executor(None, _f1tv_authorization)
+        try:
+            try:
+                connection_token, cookie = await loop.run_in_executor(
+                    None, self._negotiate, negotiate_url, authorization
+                )
+            except urllib.error.HTTPError as e:
+                if not authorization or e.code not in (401, 403):
+                    raise
+                # The free feed still works without car positions and telemetry
+                logger.warning("F1 rejected the F1 TV token (HTTP %s), using the free feed", e.code)
+                self._auth_rejected = True
+                authorization = None
+                connection_token, cookie = await loop.run_in_executor(
+                    None, self._negotiate, negotiate_url, None
+                )
+        except Exception as e:
+            self.feed_error = _refusal_message(e)
+            raise
+        self.signed_in = authorization is not None
+        topics = _TOPICS + _AUTH_TOPICS if authorization else _TOPICS
 
         ws_url = f"{ws_base}?id={connection_token}"
 
         extra_headers: dict[str, str] = dict(_proxy_headers())
         if cookie:
             extra_headers["Cookie"] = cookie
+        if authorization:
+            extra_headers["Authorization"] = authorization
 
         ssl_context = ssl.create_default_context()
 
@@ -331,6 +390,7 @@ class LiveSignalRClient:
                     )
 
             self._connected = True
+            self.feed_error = None
             logger.info("SignalR handshake complete")
 
             # --- Subscribe ---
@@ -338,10 +398,10 @@ class LiveSignalRClient:
                 "type": _MSG_INVOCATION,
                 "invocationId": "1",
                 "target": "Subscribe",
-                "arguments": [_TOPICS],
+                "arguments": [topics],
             }
             await self._send(ws, subscribe_msg)
-            logger.info("Subscribed to %d topics", len(_TOPICS))
+            logger.info("Subscribed to %d topics (%s)", len(topics), "F1 TV signed in" if authorization else "free feed")
 
             # --- Receive loop ---
             buffer = ""

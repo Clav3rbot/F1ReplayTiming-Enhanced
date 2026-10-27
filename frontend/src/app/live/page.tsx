@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useLiveSocket } from "@/hooks/useLiveSocket";
@@ -11,7 +11,13 @@ import TrackCanvas from "@/components/TrackCanvas";
 import Leaderboard from "@/components/Leaderboard";
 import PiPWindow from "@/components/PiPWindow";
 import RadioCaption from "@/components/RadioCaption";
-import { qualiOrder } from "@/lib/lapTiming";
+import LapAnalysisPanel from "@/components/LapAnalysisPanel";
+import LapNotifications from "@/components/LapNotifications";
+import TelemetryChart from "@/components/TelemetryChart";
+import { qualiOrder, type LapData } from "@/lib/lapTiming";
+import { MINI_HEX, miniMarkersWidth } from "@/lib/miniSectors";
+import { outlineFractions, cornerFractions, partsOverlay, DEFAULT_SECTOR } from "@/lib/outline";
+import type { LapOverlay, SectorOverlay } from "@/lib/trackRenderer";
 import { Maximize, Minimize, ArrowUpRight } from "lucide-react";
 
 interface TrackData {
@@ -21,7 +27,10 @@ interface TrackData {
   sector_boundaries?: { s1_end: number; s2_end: number; total: number } | null;
   corners?: { x: number; y: number; number: number; letter: string; angle: number }[] | null;
   elevation?: { range_m: number } | null;
+  marshal_sectors?: { x: number; y: number; number: number }[] | null;
 }
+
+const SECTOR_HEX: Record<string, string> = { purple: "#A855F7", green: "#22C55E", yellow: "#EAB308" };
 
 interface SessionData {
   year: number;
@@ -102,6 +111,12 @@ function LivePageInner() {
   const [rcPosition, setRcPosition] = useState<{ x: number; y: number } | null>(null);
   const rcDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const rcPanelRef = useRef<HTMLDivElement>(null);
+  const [lapAnalysisOpen, setLapAnalysisOpen] = useState(false);
+  const [mobileLapAnalysisOpen, setMobileLapAnalysisOpen] = useState(false);
+  // A lap's sectors or the track dominance, from Lap Analysis
+  const [lapOverlay, setLapOverlay] = useState<LapOverlay | null>(null);
+  const [showSectorOverlay, setShowSectorOverlay] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(true);
 
   useEffect(() => {
     try { localStorage.setItem("f1live_delay", String(delayOffset)); } catch {}
@@ -197,6 +212,24 @@ function LivePageInner() {
 
   const live = useLiveSocket(year, round, sessionType, speed, delayOffset);
 
+  const outlineFrac = useMemo(() => outlineFractions(trackData?.track_points), [trackData]);
+  const traceCorners = useMemo(
+    () => cornerFractions(trackData?.track_points, trackData?.corners, outlineFrac),
+    [trackData, outlineFrac],
+  );
+  // driver -> lap number -> { lap time, frame time it was completed at }, from the laps recorded live
+  const lapData = useMemo<LapData | undefined>(() => {
+    if (!live.laps) return undefined;
+    const map: LapData = new Map();
+    for (const lap of live.laps) {
+      if (!lap.lap_time) continue;
+      const laps = map.get(lap.driver) ?? new Map();
+      laps.set(lap.lap_number, { time: lap.lap_time, completedAt: lap.time ?? null });
+      map.set(lap.driver, laps);
+    }
+    return map;
+  }, [live.laps]);
+
   const sessionTypeUpper = sessionType.toUpperCase();
   const isRace = sessionTypeUpper === "R" || sessionTypeUpper === "S";
   const isQualifying = sessionTypeUpper === "Q" || sessionTypeUpper === "SQ";
@@ -260,6 +293,72 @@ function LivePageInner() {
   const drivers = isQualifying ? qualiOrder(driversRaw.filter((d) => !d.retired)) : driversRaw;
   const trackStatus = live.frame?.status || "green";
   const weather = live.frame?.weather;
+  const now = live.frame?.timestamp || 0;
+  // Real positions and telemetry: the server is signed in to F1 TV
+  const signedIn = live.frame?.signed_in === true;
+  // Cars on track: no position yet, or parked in the garage, isn't shown
+  const mapDrivers = drivers
+    .filter((d) => !d.retired && !d.no_timing && d.on_track !== false && (d.x !== 0 || d.y !== 0))
+    .map((d) => ({ abbr: d.abbr, x: d.x, y: d.y, color: d.color, position: d.position }));
+
+  // Mini-sectors (practice and qualifying): leaderboard bars, Show Sectors and OUT
+  const miniCounts = !isRace ? live.frame?.mini_counts : undefined;
+  const miniSectors = miniCounts && settings.miniSectors
+    ? { counts: miniCounts, states: new Map(drivers.map((d) => [d.abbr, d.mini_sectors ?? null])) }
+    : null;
+  // F1 colours the pit lane's mini-sectors (2064) until the lap ends: out of the pits, on an out-lap
+  const outLap = new Set(!isRace ? drivers.filter((d) => !d.in_pit && d.mini_sectors?.includes(2064)).map((d) => d.abbr) : []);
+  // mini_ends are fractions of the outline's points: as distance along the lap, like the replay's
+  const nPts = outlineFrac.length;
+  const miniEnds = live.frame?.mini_ends && nPts > 1
+    ? live.frame.mini_ends.map((f) => (f >= 0.999 ? 1 : outlineFrac[Math.min(nPts - 1, Math.round(f * nPts))]))
+    : null;
+
+  // Show Sectors follows the first selected driver, else the leader
+  const sectorTarget = selectedDrivers[0] ?? drivers[0]?.abbr ?? null;
+  const sectorOverlay: SectorOverlay | null = (() => {
+    if (lapOverlay?.sectors && trackData?.sector_boundaries) {
+      return { boundaries: trackData.sector_boundaries, colors: lapOverlay.sectors };
+    }
+    if (lapOverlay?.stretches) return partsOverlay(outlineFrac, trackData?.sector_boundaries, lapOverlay.stretches);
+    if (isRace || !showSectorOverlay || !trackData?.sector_boundaries || !sectorTarget) return null;
+    const states = miniSectors?.states.get(sectorTarget);
+    if (miniEnds && states && miniEnds.length === states.length) {
+      return partsOverlay(outlineFrac, trackData.sector_boundaries, miniEnds.map((end, k) => ({
+        from: k ? miniEnds[k - 1] : 0,
+        to: end,
+        color: MINI_HEX[states[k]] ?? DEFAULT_SECTOR,
+      })));
+    }
+    const sectors = drivers.find((d) => d.abbr === sectorTarget)?.sectors;
+    const colorOf = (n: number) => SECTOR_HEX[sectors?.find((x) => x.num === n)?.color ?? ""] ?? DEFAULT_SECTOR;
+    return { boundaries: trackData.sector_boundaries, colors: { s1: colorOf(1), s2: colorOf(2), s3: colorOf(3) } };
+  })();
+
+  const hasLapAnalysis = !!live.laps?.length;
+  const lapAnalysisPanel = (onClose?: () => void) => (
+    <LapAnalysisPanel
+      laps={live.laps ?? []}
+      drivers={drivers}
+      currentLap={live.frame?.lap || 0}
+      year={year}
+      round={round}
+      sessionType={sessionType}
+      now={now}
+      isRace={isRace}
+      useImperial={settings.useImperial}
+      corners={traceCorners}
+      sectorFracs={
+        trackData?.sector_boundaries && nPts > 1
+          ? [outlineFrac[trackData.sector_boundaries.s1_end], outlineFrac[trackData.sector_boundaries.s2_end]]
+          : undefined
+      }
+      phases={[]}
+      live
+      onMapOverlay={setLapOverlay}
+      onClose={onClose}
+    />
+  );
 
   // Session hasn't started yet (connected but no driver data)
   const waitingForSession = live.ready && drivers.length === 0;
@@ -272,9 +371,9 @@ function LivePageInner() {
     if (!isRace) w += 18;
     if (isRace && settings.showGridChange) w += 24;
     if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
-    if (isRace && settings.showLastLapTime) w += 60; // last lap time column
+    if (settings.showLastLapTime) w += 60; // last lap time column
     if (settings.showGapToLeader) w += 56;
-    if (isQualifying && settings.showSectors) w += 36;
+    if (isQualifying && settings.showSectors) w += miniSectors ? miniMarkersWidth(miniSectors.counts) + 8 : 36;
     if (isRace && settings.showPitStops) w += 24;
     if (isRace && settings.showTyreHistory) w += 36;
     if (settings.showTyreType) w += 24;
@@ -335,9 +434,11 @@ function LivePageInner() {
                       <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
                       <span className="text-sm font-bold text-red-400 uppercase">Live</span>
                     </div>
-                    <p className="text-ink text-lg font-bold mb-2">Waiting for session to start</p>
-                    <p className="text-f1-muted text-sm">
-                      Live timing data will appear automatically when the session begins.
+                    <p className="text-ink text-lg font-bold mb-2">
+                      {live.feedError ? "Can't connect to F1's live timing" : "Waiting for session to start"}
+                    </p>
+                    <p className="text-f1-muted text-sm max-w-sm">
+                      {live.feedError ?? "Live timing data will appear automatically when the session begins."}
                     </p>
                   </div>
                 </div>
@@ -469,10 +570,18 @@ function LivePageInner() {
                 </div>
               )}
 
+              {/* F1 refused the connection after the session had started (it reconnects by itself) */}
+              {live.feedError && !waitingForSession && (
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 max-w-md pointer-events-none">
+                  <p className="text-[11px] text-ink bg-f1-card/95 border border-f1-red/50 rounded px-3 py-1.5 text-center">{live.feedError}</p>
+                </div>
+              )}
+
               {live.frame?.positions_estimated && drivers.some((d) => d.x !== 0 || d.y !== 0) && (
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
                   <span className="text-[10px] text-f1-muted bg-f1-card/80 border border-f1-border rounded px-2 py-0.5">
                     Car positions estimated from mini-sector timing
+                    {!signedIn && ". Sign the server in to F1 TV for real positions and telemetry"}
                   </span>
                 </div>
               )}
@@ -480,7 +589,7 @@ function LivePageInner() {
               {/* Live positions unavailable overlay — only when no car has a
                   live position yet (F1 streams Position.z during green-flag
                   running; absent when cars are in the pits / between runs). */}
-              {!drivers.some((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)) && (
+              {mapDrivers.length === 0 && (
                 <div className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-4">
                   <div className="bg-f1-card/90 border border-f1-border rounded-lg px-4 py-2.5 backdrop-blur-sm text-center max-w-sm">
                     <p className="text-f1-muted text-xs leading-relaxed">
@@ -496,17 +605,14 @@ function LivePageInner() {
                   trackPoints={trackPoints}
                   rotation={rotation}
                   trackStatus={trackStatus}
-                  drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
-                    abbr: d.abbr,
-                    x: d.x,
-                    y: d.y,
-                    color: d.color,
-                    position: d.position,
-                  }))}
+                  drivers={mapDrivers}
                   highlightedDrivers={selectedDrivers}
                   playbackSpeed={1}
                   showDriverNames={settings.showDriverNames}
+                  sectorOverlay={sectorOverlay}
                   corners={settings.showCorners ? trackData?.corners : null}
+                  marshalSectors={trackData?.marshal_sectors}
+                  sectorFlags={live.frame?.sector_flags}
                   showElevation={settings.showElevation}
                   elevationRangeM={trackData?.elevation?.range_m ?? null}
                 />
@@ -543,7 +649,78 @@ function LivePageInner() {
                   roster={sessionData?.drivers ?? []}
                   compact={isMobile}
                   className={isMobile ? "inset-x-2 bottom-2" : "top-1/2 right-3 -translate-y-1/2"}
+                  audioPath={(name) => `/api/live/${year}/${round}/radio/${name}?type=${sessionType}`}
+                  playAudio={settings.teamRadioAudio && !pipActive}
                 />
+              )}
+
+              {/* Qualifying lap-completion bubbles */}
+              <LapNotifications
+                enabled={settings.showLapNotifications}
+                isQualifying={isQualifying}
+                isRace={isRace}
+                lapData={lapData}
+                currentTime={now}
+                currentLap={live.frame?.lap || 0}
+                drivers={drivers}
+              />
+
+              {/* Telemetry for the selected drivers (F1 TV sign-in only) */}
+              {!isMobile && signedIn && showTelemetry && selectedDrivers.length > 0 && (
+                <div className="absolute bottom-10 left-8 z-10">
+                  {selectedDrivers.map((abbr) => (
+                    <TelemetryChart key={abbr} visible driver={drivers.find((d) => d.abbr === abbr) || null} year={year} isQualifying={isQualifying} useImperial={settings.useImperial} />
+                  ))}
+                </div>
+              )}
+
+              {/* Desktop bottom controls: sectors, telemetry, lap analysis */}
+              {!isMobile && (
+                <div className="absolute bottom-0 right-3 z-20 flex items-center gap-1 pb-2">
+                  {!isRace && trackData?.sector_boundaries && (
+                    <>
+                      {showSectorOverlay && selectedDrivers.length === 0 && sectorTarget && (
+                        <span className="text-[10px] text-f1-muted mr-1">Leader: {sectorTarget}</span>
+                      )}
+                      {miniCounts && showSectorOverlay && (
+                        <button
+                          onClick={() => updateSetting("miniSectors", !settings.miniSectors)}
+                          className="px-2 py-1 rounded text-[10px] font-bold bg-f1-card/90 border border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                        >
+                          {settings.miniSectors ? "Mini-sectors" : "Sectors"}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowSectorOverlay(!showSectorOverlay)}
+                        className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                          showSectorOverlay ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-ink" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                        }`}
+                      >
+                        {showSectorOverlay ? "Hide" : "Show"} Sectors
+                      </button>
+                    </>
+                  )}
+                  {signedIn && (
+                    <button
+                      onClick={() => setShowTelemetry(!showTelemetry)}
+                      className={`px-2 py-1 border rounded text-[10px] font-bold transition-colors ${
+                        showTelemetry ? "bg-f1-red/20 border-f1-red/50 text-f1-red hover:text-ink" : "bg-f1-card/90 border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                      }`}
+                    >
+                      {showTelemetry ? "Hide" : "Show"} Telemetry
+                    </button>
+                  )}
+                  {hasLapAnalysis && (
+                    <button
+                      onClick={() => setLapAnalysisOpen(!lapAnalysisOpen)}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                        lapAnalysisOpen ? "bg-f1-red text-white" : "bg-f1-card/90 border border-f1-border text-f1-muted hover:text-ink backdrop-blur-sm"
+                      }`}
+                    >
+                      Laps
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -583,6 +760,13 @@ function LivePageInner() {
           })()}
         </div>
 
+        {/* Lap Analysis panel - desktop, left of the leaderboard */}
+        {!isMobile && hasLapAnalysis && lapAnalysisOpen && (
+          <div className="w-[440px] flex-shrink-0 border-l border-f1-border overflow-hidden">
+            {lapAnalysisPanel(() => setLapAnalysisOpen(false))}
+          </div>
+        )}
+
         {/* Leaderboard section */}
         {settings.showLeaderboard && (
           <div className={`flex-shrink-0 ${isMobile ? "" : "border-l"} border-f1-border`} style={{ width: isMobile ? "100%" : Math.ceil(leaderboardWidth * leaderboardScale) }}>
@@ -610,8 +794,28 @@ function LivePageInner() {
                 isQualifying={isQualifying}
                 qualiPhase={live.frame?.quali_phase?.phase}
                 onScaleChange={setLeaderboardScale}
+                lapData={lapData}
+                currentLap={live.frame?.lap || 0}
+                outLap={outLap}
+                miniSectors={miniSectors}
               />
             )}
+          </div>
+        )}
+
+        {/* Lap Analysis section - mobile only */}
+        {isMobile && hasLapAnalysis && (
+          <div className="border-t border-f1-border">
+            <button
+              onClick={() => setMobileLapAnalysisOpen(!mobileLapAnalysisOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-f1-card border-b border-f1-border"
+            >
+              <span className="text-[11px] font-bold text-f1-muted uppercase tracking-wider">Lap Analysis</span>
+              <svg className={`w-4 h-4 text-f1-muted transition-transform ${mobileLapAnalysisOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {mobileLapAnalysisOpen && <div className="bg-f1-card">{lapAnalysisPanel()}</div>}
           </div>
         )}
       </div>
@@ -861,9 +1065,12 @@ function LivePageInner() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={[]}
+                    drivers={mapDrivers}
                     highlightedDrivers={selectedDrivers}
                     showDriverNames={settings.showDriverNames}
+                    sectorOverlay={sectorOverlay}
+                    marshalSectors={trackData?.marshal_sectors}
+                    sectorFlags={live.frame?.sector_flags}
                     compact={true}
                     corners={settings.showCorners ? trackData?.corners : null}
                     showElevation={settings.showElevation}
@@ -929,6 +1136,10 @@ function LivePageInner() {
                     isQualifying={isQualifying}
                     qualiPhase={live.frame?.quali_phase?.phase}
                     compact
+                    lapData={lapData}
+                    currentLap={live.frame?.lap || 0}
+                    outLap={outLap}
+                    miniSectors={miniSectors}
                   />
                 </div>
               )}

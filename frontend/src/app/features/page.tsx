@@ -369,15 +369,19 @@ export default function FeaturesPage() {
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
             <h2 className="text-lg font-bold text-ink">Speed Trace</h2>
-            <span className="text-xs text-f1-muted">Replays</span>
+            <span className="text-xs text-f1-muted">All sessions, replays and live</span>
           </div>
           <p className="text-f1-text leading-relaxed">
-            Open the Speed Trace panel to watch the selected driver&apos;s current lap being drawn as the replay
-            plays: speed against track distance, with throttle, brake, gear, and RPM below. The slowest point
-            of each corner and the top speed of each straight are labelled, and the sector splits appear as
-            the car crosses them. Select several drivers to overlay their laps on the same chart, with a dot
-            for where each car is now; teammates share the team colour, so the second one is dashed. Not
-            available live, as the live feed carries no car data.
+            Open Lap Analysis and pick the Compare tab, then one or two drivers. By default it shows each
+            driver&apos;s best lap so far, overlaid, with the sector times side by side, the difference and the
+            gap along the lap (approximate). Track dominance colours the map by the faster driver in each of
+            25 parts of the lap.
+            Switch to Current lap to watch the lap in progress being drawn as the replay plays, with a dot
+            for where each car is now. Both show
+            speed against track distance, with throttle, brake, gear, and RPM below; the slowest point of each
+            corner and the top speed of each straight are labelled, with the sector splits. Teammates share the
+            team colour, so the second one is dashed. In live timing it compares the laps completed since you
+            connected, and needs the server signed in to F1 TV, which is what makes F1 send car data.
           </p>
         </section>
 
@@ -392,7 +396,8 @@ export default function FeaturesPage() {
             track map as they happen, in a broadcast-style card. The transcription is automatic, so some
             words may be wrong, and it doesn&apos;t tell the driver and the engineer apart. A session
             opened for the first time is transcribed in the background, so its radio appears a few minutes
-            later. Captions can be turned off from the settings menu.
+            later. Each clip&apos;s audio plays with its card (replays at 1× speed). Settings → Team Radio
+            turns captions and audio on or off and picks the transcription model.
           </p>
         </section>
 
@@ -413,7 +418,7 @@ export default function FeaturesPage() {
         <section className="glass-panel p-6 rounded-xl">
           <div className="flex flex-wrap items-baseline gap-x-3 mb-3">
             <h2 className="text-lg font-bold text-ink">Track Status &amp; Flags</h2>
-            <span className="text-xs text-f1-muted">Replay</span>
+            <span className="text-xs text-f1-muted">Replays and live</span>
           </div>
           <p className="text-f1-text leading-relaxed mb-3">
             Flag conditions are shown on the track map at marshal sector level, giving you a precise
@@ -459,10 +464,12 @@ export default function FeaturesPage() {
             provide real-time leaderboard data, tyre information, race control messages, and weather.
           </p>
           <p className="text-f1-text leading-relaxed mb-3">
-            Driver positions on the track map and telemetry data (speed, throttle, brake, gear) are
-            not available in live mode, as track position data requires an authenticated F1 TV
-            subscription. These become available in replay mode once the session is processed via
-            FastF1, typically 1 to 2 hours after the chequered flag.
+            When the server is signed in to F1 TV, F1 also sends the car positions and telemetry: the
+            map shows where each car really is, the selected drivers get the speed, throttle, brake and
+            gear readout, and each lap completed while you watch goes into Lap Analysis, the last lap
+            column and the lap cards, with mini-sectors, marshal sector flags, OUT on out-laps and team
+            radio audio. Without a sign-in, cars are placed on the map from their mini-sector times. If
+            F1 refuses the server&apos;s connection, the page says why instead of waiting for the session.
           </p>
           <h3 className="text-sm font-bold text-ink mb-2">
             Broadcast delay

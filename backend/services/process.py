@@ -14,7 +14,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from services import storage
+from services import download_problems, storage
 from services.f1_data import (
     _load_session,
     _get_session_info_sync,
@@ -24,6 +24,7 @@ from services.f1_data import (
     _get_driver_positions_by_time_sync,
     _get_rc_messages_sync,
     _get_driver_telemetry_sync,
+    build_minisectors,
     clear_telemetry_memo,
     hold_weekend,
     release_weekend,
@@ -31,6 +32,7 @@ from services.f1_data import (
     MAX_ROUND,
 )
 from services.team_radio import queue_radio
+from services.minisectors import SESSION_TYPES as MINI_SECTOR_SESSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,14 @@ def process_session_sync(
     """
     hold_weekend(year, round_num)
     try:
-        return _process_session_sync(year, round_num, session_type, skip_existing, on_status)
+        ok = _process_session_sync(year, round_num, session_type, skip_existing, on_status)
+        # Failures are recorded where they happen
+        if ok:
+            download_problems.clear(year, round_num, session_type)
+        return ok
+    except Exception as e:
+        download_problems.record(year, round_num, session_type, str(e))
+        raise
     finally:
         release_weekend(year, round_num)
 
@@ -174,11 +183,13 @@ def _process_session_sync(
         storage.put_json(f"{base}/info.json", info)
     except Exception as e:
         logger.error(f"[{prefix}] Failed to get session info: {e}")
+        download_problems.record(year, round_num, session_type, str(e))
         return False
 
     status("Processing track data...")
 
     # Track data
+    track = None
     try:
         track = _get_track_data_sync(year, round_num, session_type)
         storage.put_json(f"{base}/track.json", track)
@@ -211,7 +222,18 @@ def _process_session_sync(
         storage.put_json(f"{base}/rc_messages.json", _get_rc_messages_sync(year, round_num, session_type))
         logger.info(f"[{prefix}] Uploaded {len(frames)} replay frames")
     except Exception as e:
+        frames = None
         logger.warning(f"[{prefix}] No replay data: {e}")
+        download_problems.record(year, round_num, session_type, f"No replay data: {e}")
+
+    # Mini-sectors need the raw timing stream, only downloadable while F1's archive lets us in
+    if session_type in MINI_SECTOR_SESSIONS and laps and track and frames:
+        try:
+            ms = build_minisectors(_load_session(year, round_num, session_type), laps, frames, track.get("track_points") or [])
+            if ms:
+                storage.put_json(f"{base}/minisectors.json", ms)
+        except Exception as e:
+            logger.warning(f"[{prefix}] No mini-sectors: {e}")
 
     status("Processing telemetry...")
 
@@ -265,7 +287,8 @@ def _process_session_sync(
         queue_radio(year, round_num, session_type)
     status("Done")
     logger.info(f"[{prefix}] Done")
-    return True
+    # No replay frames means nothing to watch, whatever else was stored
+    return frames is not None
 
 
 def process_core_sync(
@@ -297,6 +320,7 @@ def process_core_sync(
         _load_session(year, round_num, session_type, minimal=True)
     except Exception as e:
         logger.error(f"[{prefix}] Failed to load session: {e}")
+        download_problems.record(year, round_num, session_type, str(e))
         return False
     status(f"Session loaded in {_time.monotonic() - t0:.0f}s. Processing session info...")
 
@@ -338,8 +362,10 @@ def process_core_sync(
         logger.info(f"[{prefix}] Replay built: {len(frames)} frames in {elapsed:.1f}s")
     except Exception as e:
         logger.warning(f"[{prefix}] No replay data: {e}")
+        download_problems.record(year, round_num, session_type, f"No replay data: {e}")
         return False
 
+    download_problems.clear(year, round_num, session_type)
     total_elapsed = _time.monotonic() - t_total
     status(f"Replay ready in {total_elapsed:.0f}s — telemetry loading in background...")
     logger.info(f"[{prefix}] process_core_sync completed in {total_elapsed:.1f}s")
@@ -550,6 +576,7 @@ def delete_session(year: int, round_num: int, session_type: str) -> int:
     incomplete — the failure mode people hit deleting these files by hand.
     """
     base = f"sessions/{year}/{round_num}/{session_type}"
+    download_problems.clear(year, round_num, session_type)  # nothing to retry now
 
     freed = storage.delete(f"{base}/replay.json")
     freed += storage.delete_prefix(base)

@@ -1,7 +1,9 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import type { RadioMessage, ReplayDriver } from "@/hooks/useReplaySocket";
+import { apiUrl } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 interface Props {
   /** Transcribed clips, oldest first. */
@@ -17,6 +19,37 @@ interface Props {
   className: string;
   /** Small maps (phones, PiP): a lower-third strip instead of the tall card, so the track stays visible. */
   compact?: boolean;
+  /** API path the stored clips live under (".../radio/audio/{name}?type="); none live. */
+  audioPath?: (name: string) => string;
+  /** Play the clip's audio when its card comes up (replay playing at 1×, audio on). */
+  playAudio?: boolean;
+}
+
+// Only a card this fresh starts its audio (wall-clock s), so seeking into one stays silent
+const AUDIO_START_WINDOW = 1.5;
+
+/** Fetch a stored clip and play it. The API needs the app's sign-in, which an audio
+ *  element can't send, so it's fetched and played from memory. Returns a stop function. */
+function playClip(url: string): () => void {
+  let audio: HTMLAudioElement | null = null;
+  let objectUrl: string | null = null;
+  let stopped = false;
+  const token = getToken();
+  fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then((blob) => {
+      if (stopped) return;
+      objectUrl = URL.createObjectURL(blob);
+      audio = new Audio(objectUrl);
+      // Autoplay can be refused before the first click: the caption still shows
+      return audio.play();
+    })
+    .catch(() => {});
+  return () => {
+    stopped = true;
+    audio?.pause();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  };
 }
 
 // Equaliser bars: tallest in the middle, jittered so it reads as a voice
@@ -32,7 +65,7 @@ const FADE_OUT = 0.6; // exit animation (globals.css) runs 560 ms
 const MAX_QUEUE = 20;
 
 /** Team radio card in the style of the F1 TV graphic (car number where the team logo sits). */
-export default function RadioCaption({ messages, now, speed, drivers, roster, className, compact = false }: Props) {
+export default function RadioCaption({ messages, now, speed, drivers, roster, className, compact = false, audioPath, playAudio = false }: Props) {
   // Clips can land together (two drivers within a second): queue them as the broadcast does,
   // each starting when the previous one is off screen, so the newer doesn't hide the older.
   let card: { m: RadioMessage; start: number; hold: number } | null = null;
@@ -46,6 +79,19 @@ export default function RadioCaption({ messages, now, speed, drivers, roster, cl
     freeAt = start + hold;
     card = now < freeAt ? { m: x, start, hold } : null;
   }
+
+  // The clip's audio, once per card, while it plays at normal speed (sped up, clips would talk over each other)
+  const src = card?.m.audio && audioPath && playAudio && now - card.start < AUDIO_START_WINDOW * speed
+    ? audioPath(card.m.audio)
+    : null;
+  const cardKey = card ? `${card.m.timestamp}-${card.m.driver}` : "";
+  useEffect(() => {
+    if (!src) return;
+    return playClip(apiUrl(src));
+    // Keyed on the card, not src: the start window closing mustn't cut the clip off; a new card or pause does
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardKey, playAudio]);
+
   if (!card) return null;
   const { m, hold } = card;
   const age = now - card.start;

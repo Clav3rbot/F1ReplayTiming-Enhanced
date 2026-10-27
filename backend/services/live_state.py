@@ -18,6 +18,8 @@ from typing import Any
 import numpy as np
 from fastf1.utils import to_datetime
 
+from services.live_laps import LapRecorder
+from services.live_traces import LapTraceRecorder
 from services.team_radio import transcribe_capture
 
 logger = logging.getLogger(__name__)
@@ -66,6 +68,16 @@ def _parse_remaining(remaining: str) -> float:
         return 0.0
 
 
+def _utc_seconds(value: Any) -> float | None:
+    """A feed timestamp ("2026-10-24T21:05:01.123Z") as Unix seconds."""
+    if not value:
+        return None
+    try:
+        return to_datetime(value).replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        return None
+
+
 def _sanitize_value(val: Any) -> Any:
     """Replace NaN / Infinity floats with None."""
     if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
@@ -105,6 +117,13 @@ class _DriverState:
         "y",
         "relative_distance",
         "on_track",
+        "speed",
+        "throttle",
+        "brake",
+        "gear",
+        "rpm",
+        "drs",
+        "_mini",
         "_sector_best_personal",
         "_sector_best_overall",
         "_stint_count",
@@ -149,6 +168,15 @@ class _DriverState:
         self.y: float = 0.0
         self.relative_distance: float = 0.0
         self.on_track: bool = False
+        # Telemetry from CarData.z, only sent to an F1 TV sign-in
+        self.speed: float | None = None
+        self.throttle: float | None = None
+        self.brake: bool = False
+        self.gear: int | None = None
+        self.rpm: float | None = None
+        self.drs: int | None = None
+        # Mini-sector statuses as F1 colours them: (sector index, segment index) -> status
+        self._mini: dict[tuple[int, int], int] = {}
         # Internal tracking for sector colours
         self._sector_best_personal: dict[int, float] = {}  # sector_num -> best time
         self._sector_best_overall: dict[int, bool] = {}  # sector_num -> ever overall fastest
@@ -191,13 +219,13 @@ class _DriverState:
             "x": self.x,
             "y": self.y,
             "relative_distance": self.relative_distance,
-            # No telemetry data in live
-            "speed": None,
-            "throttle": None,
-            "brake": False,
-            "gear": None,
-            "rpm": None,
-            "drs": None,
+            "on_track": self.on_track,
+            "speed": self.speed,
+            "throttle": self.throttle,
+            "brake": self.brake,
+            "gear": self.gear,
+            "rpm": self.rpm,
+            "drs": self.drs,
         }
 
 
@@ -286,6 +314,16 @@ class LiveStateManager:
 
         # Overall sector bests (sector index 0-2 -> best time)
         self._overall_sector_bests: dict[int, float] = {}
+
+        # Lap history and each lap's telemetry trace, for Lap Analysis
+        self.laps = LapRecorder(self._is_race)
+        self.traces = LapTraceRecorder()
+        # Receive time minus the feed's UTC: maps a lap's completion onto the car data clock
+        self._utc_lag: float | None = None
+        # Marshal sector flags from race control: sector number -> {sector, flag, driver}
+        self._sector_flags: dict[int, dict[str, Any]] = {}
+        # Team radio audio of the clips in _radio_messages, by file name
+        self._radio_audio: dict[str, bytes] = {}
 
     def set_track(
         self,
@@ -394,7 +432,7 @@ class LiveStateManager:
 
     # --- TimingData ---------------------------------------------------
 
-    def _handle_timing_data(self, data: dict, _ts: float) -> None:
+    def _handle_timing_data(self, data: dict, ts: float) -> None:
         lines = data.get("Lines")
         if not lines:
             return
@@ -402,6 +440,7 @@ class LiveStateManager:
             if not isinstance(updates, dict):
                 continue
             drv = self._get_driver(str(number))
+            self._record_lap_data(str(number), drv, updates, ts)
 
             if "Position" in updates:
                 try:
@@ -464,6 +503,41 @@ class LiveStateManager:
                 drv.no_timing = True
             else:
                 drv.no_timing = False
+
+    def _record_lap_data(self, number: str, drv: _DriverState, updates: dict, ts: float) -> None:
+        """Lap history (live_laps) and mini-sector statuses from one TimingData line."""
+        if updates.get("InPit") is True:
+            self.laps.pit_in(number)
+        if updates.get("PitOut") is True:
+            self.laps.pit_out(number)
+        sectors = updates.get("Sectors")
+        if isinstance(sectors, list):
+            sectors = {str(i): v for i, v in enumerate(sectors)}
+        if isinstance(sectors, dict):
+            for idx_str, sec in sectors.items():
+                if not idx_str.isdigit() or not isinstance(sec, dict):
+                    continue
+                idx = int(idx_str)
+                if sec.get("Value"):
+                    self.laps.sector(number, idx, sec["Value"], ts)
+                segs = sec.get("Segments")
+                if isinstance(segs, list):
+                    segs = {str(j): v for j, v in enumerate(segs)}
+                if isinstance(segs, dict) and idx <= 2:
+                    for j_str, seg in segs.items():
+                        if j_str.isdigit() and isinstance(seg, dict) and "Status" in seg:
+                            drv._mini[(idx, int(j_str))] = seg["Status"]
+        llt = updates.get("LastLapTime")
+        if isinstance(llt, dict) and llt.get("Value"):
+            self.laps.lap_time(number, llt["Value"], ts)
+        if "NumberOfLaps" in updates:
+            try:
+                count = int(updates["NumberOfLaps"])
+            except (TypeError, ValueError):
+                return
+            lap_number = self.laps.laps_completed(number, count, ts, drv.compound)
+            if lap_number is not None and self._utc_lag is not None:
+                self.traces.lap_completed(number, lap_number, ts - self._utc_lag)
 
     def _process_sectors(self, drv: _DriverState, sectors: dict) -> None:
         """Update sector colour indicators for a driver.
@@ -748,11 +822,12 @@ class LiveStateManager:
             return
 
         # Collect all raw coordinates from this batch
-        raw_positions: list[tuple[str, float, float, str]] = []
+        raw_positions: list[tuple[str, float, float, str, float | None]] = []
         for sample in position_list:
             entries = sample.get("Entries")
             if not entries or not isinstance(entries, dict):
                 continue
+            utc = _utc_seconds(sample.get("Timestamp"))
             for number, pos_data in entries.items():
                 if not isinstance(pos_data, dict):
                     continue
@@ -761,7 +836,7 @@ class LiveStateManager:
                 if raw_x is None or raw_y is None:
                     continue
                 status = pos_data.get("Status", "")
-                raw_positions.append((str(number), float(raw_x), float(raw_y), status))
+                raw_positions.append((str(number), float(raw_x), float(raw_y), status, utc))
 
         if not raw_positions:
             return
@@ -769,7 +844,7 @@ class LiveStateManager:
 
         # If no precomputed track_norm, auto-compute from position data
         if self._track_norm is None:
-            for _, rx, ry, _ in raw_positions:
+            for _, rx, ry, _, _ in raw_positions:
                 self._raw_x_min = min(self._raw_x_min, rx)
                 self._raw_x_max = max(self._raw_x_max, rx)
                 self._raw_y_min = min(self._raw_y_min, ry)
@@ -794,7 +869,7 @@ class LiveStateManager:
             y_min = self._track_norm["y_min"]
             scale = self._track_norm["scale"]
 
-        for number, raw_x, raw_y, status in raw_positions:
+        for number, raw_x, raw_y, status, utc in raw_positions:
             drv = self._get_driver(number)
             drv.on_track = status == "OnTrack"
 
@@ -811,9 +886,66 @@ class LiveStateManager:
                 drv.x = snap_x
                 drv.y = snap_y
                 drv.relative_distance = rel_dist
+                if utc is not None and status == "OnTrack":
+                    self.traces.position(number, utc, rel_dist)
             else:
                 drv.x = norm_x
                 drv.y = norm_y
+
+    # --- CarData (decoded from CarData.z, F1 TV sign-in only) -----------
+
+    # Channel numbers in CarData entries, as FastF1 reads them
+    _CAR_CHANNELS = {"0": "rpm", "2": "speed", "3": "gear", "4": "throttle", "5": "brake", "45": "drs"}
+
+    def _handle_car_data(self, data: dict, ts: float) -> None:
+        """{"Entries": [{"Utc": "...", "Cars": {"1": {"Channels": {"0": 11000, "2": 290, ...}}}}]}:
+        every entry goes to the lap traces, the latest one to the frame."""
+        entries = data.get("Entries")
+        if not entries or not isinstance(entries, list):
+            return
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            utc = _utc_seconds(entry.get("Utc"))
+            cars = entry.get("Cars") or {}
+            if utc is None or not isinstance(cars, dict):
+                continue
+            for number, car in cars.items():
+                ch = (car or {}).get("Channels") or {}
+                self.traces.car_data(str(number), utc, ch.get("2"), ch.get("4"), ch.get("5"), ch.get("3"), ch.get("0"))
+        last = entries[-1] if isinstance(entries[-1], dict) else {}
+        utc = _utc_seconds(last.get("Utc"))
+        if utc is not None:
+            lag = ts - utc
+            # Data arrives in batches: the smallest lag is the closest to the clock offset
+            self._utc_lag = lag if self._utc_lag is None else min(lag, 0.98 * self._utc_lag + 0.02 * lag)
+        for number, car in (last.get("Cars") or {}).items():
+            channels = (car or {}).get("Channels") or {}
+            drv = self._get_driver(str(number))
+            for channel, name in self._CAR_CHANNELS.items():
+                if channel not in channels:
+                    continue
+                value = _sanitize_value(channels[channel])
+                if name == "brake":
+                    drv.brake = bool(value)  # 0 or 104
+                elif name in ("gear", "drs"):
+                    setattr(drv, name, int(value) if value is not None else None)
+                elif name == "throttle":
+                    drv.throttle = value if value is not None and value <= 100 else 0
+                else:
+                    setattr(drv, name, value)
+
+    def lap_trace(self, abbr: str, lap_number: int) -> dict[str, Any] | None:
+        """A completed lap's telemetry, in the replay's format."""
+        number = next((n for n, d in self._drivers.items() if d.abbr == abbr), None)
+        trace = self.traces.get(number, lap_number) if number else None
+        return {**trace, "driver": abbr} if trace else None
+
+    def laps_message(self) -> dict[str, Any]:
+        return {"laps": self.laps.entries({n: d.abbr for n, d in self._drivers.items() if d.abbr})}
+
+    def radio_audio(self, name: str) -> bytes | None:
+        return self._radio_audio.get(name)
 
     def _snap_to_track(self, x: float, y: float) -> tuple[float, float, float]:
         """Snap a position to the nearest point on the track outline.
@@ -953,17 +1085,22 @@ class LiveStateManager:
             threading.Thread(target=self._transcribe_radio, args=(self._api_path, cap), daemon=True).start()
 
     def _transcribe_radio(self, api_path: str, cap: dict) -> None:
+        drv = self._drivers.get(str(cap.get("RacingNumber")))
         try:
-            text = transcribe_capture(api_path, cap)
+            text, audio = transcribe_capture(api_path, cap)
         except Exception as e:
             logger.warning("Radio clip %s failed: %s", cap.get("Path"), e)
             return
         if not text:
             return
-        drv = self._drivers.get(str(cap.get("RacingNumber")))
+        name = str(cap.get("Path", "")).rsplit("/", 1)[-1]
+        self._radio_audio[name] = audio
+        # Only the clips still listed are kept
+        listed = {m.get("audio") for m in self._radio_messages[-19:]} | {name}
+        self._radio_audio = {k: v for k, v in self._radio_audio.items() if k in listed}
         # Stamped when the text is ready so the caption gets its full display time
         self._radio_messages = [*self._radio_messages[-19:], {
-            "timestamp": time.time(), "driver": drv.abbr if drv else "", "text": text,
+            "timestamp": time.time(), "driver": drv.abbr if drv else "", "text": text, "audio": name,
         }]
 
     # --- RaceControlMessages ------------------------------------------
@@ -987,6 +1124,8 @@ class LiveStateManager:
             racing_number = msg_data.get("RacingNumber")
             lap = msg_data.get("Lap")
             upper_msg = message.upper()
+            self.laps.race_control(upper_msg, ts)
+            self._track_sector_flag(msg_data)
 
             # Store the message for the RC feed
             if message:
@@ -1024,6 +1163,21 @@ class LiveStateManager:
                 drv.flag = "investigation"
             elif ("TIME PENALTY" in upper_msg or "PENALTY" in upper_msg) and "NO FURTHER" not in upper_msg:
                 drv.flag = "penalty"
+
+    def _track_sector_flag(self, msg: dict) -> None:
+        """Marshal sector flags, as the replay builds them (f1_data._get_sector_flags)."""
+        if msg.get("Scope") != "Sector" or msg.get("Sector") is None or not msg.get("Flag"):
+            return
+        try:
+            sector = int(msg["Sector"])
+        except (TypeError, ValueError):
+            return
+        flag = str(msg["Flag"]).upper()
+        if flag in ("CLEAR", "GREEN"):
+            self._sector_flags.pop(sector, None)
+            return
+        drv = self._drivers.get(str(msg.get("RacingNumber") or ""))
+        self._sector_flags[sector] = {"sector": sector, "flag": flag, "driver": drv.abbr if drv else ""}
 
     # --- TrackStatus --------------------------------------------------
 
@@ -1130,6 +1284,7 @@ class LiveStateManager:
         "SessionStatus": _handle_session_status,
         "SessionData": _handle_session_data,
         "Position": _handle_position,
+        "CarData": _handle_car_data,
         "SessionInfo": _handle_session_info,
         "TeamRadio": _handle_team_radio,
     }
@@ -1147,6 +1302,8 @@ class LiveStateManager:
         now = time.monotonic()
         positions_estimated = self._estimate_positions(now)
 
+        # Mini-sectors in practice and qualifying, once F1 has said how many there are
+        mini_counts = list(self._seg_counts) if not self._is_race and all(self._seg_counts) else None
         drivers_list: list[dict[str, Any]] = []
         for drv in self._drivers.values():
             # Skip phantom drivers with no identity (created by Position.z
@@ -1162,6 +1319,8 @@ class LiveStateManager:
             # Sanitize all values
             for key in list(d.keys()):
                 d[key] = _sanitize_value(d[key])
+            if mini_counts:
+                d["mini_sectors"] = [drv._mini.get((idx, j), 0) for idx in range(3) for j in range(mini_counts[idx])]
             drivers_list.append(d)
 
         # Sort by position (None positions go to the end)
@@ -1204,7 +1363,12 @@ class LiveStateManager:
             "rc_messages": list(reversed(self._rc_messages)),
             "radio_messages": self._radio_messages,
             "positions_estimated": positions_estimated,
+            "sector_flags": list(self._sector_flags.values()) or None,
         }
+        if mini_counts:
+            frame["mini_counts"] = mini_counts
+            # Where each mini-sector ends, as a fraction of the outline's points
+            frame["mini_ends"] = [self._boundary_frac(idx, j) for idx in range(3) for j in range(1, mini_counts[idx] + 1)]
 
         # Add pit predictions for race sessions
         if self._is_race and self._pit_loss_green > 0:

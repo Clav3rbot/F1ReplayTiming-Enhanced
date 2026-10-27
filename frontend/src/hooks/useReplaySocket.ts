@@ -40,6 +40,10 @@ export interface ReplayDriver {
   pit_prediction_margin: number | null;
   pit_prediction_free_air: number | null;
   sectors: { num: number; color: "purple" | "green" | "yellow" }[] | null;
+  /** Live only (practice and qualifying): mini-sector statuses in lap order. */
+  mini_sectors?: number[];
+  /** Live only: false while the car is parked (garage), so it's left off the map. */
+  on_track?: boolean;
 }
 
 export interface WeatherData {
@@ -70,6 +74,8 @@ export interface RadioMessage {
   timestamp: number;
   driver: string;
   text: string;
+  /** Stored clip's file name (replays processed with audio); played from /radio/audio/. */
+  audio?: string;
 }
 
 export interface ReplayFrame {
@@ -88,6 +94,11 @@ export interface ReplayFrame {
   positions_estimated?: boolean;
   red_flag_end?: number;
   sector_flags?: { sector: number; flag: string; driver: string }[];
+  /** Live only: the server is signed in to F1 TV, so positions and telemetry are real. */
+  signed_in?: boolean;
+  /** Live only (practice and qualifying): mini-sectors per sector, and where each ends (0–1 of the outline's points). */
+  mini_counts?: number[];
+  mini_ends?: number[];
 }
 
 export interface QualiPhaseInfo {

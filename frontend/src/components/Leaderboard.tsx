@@ -5,6 +5,7 @@ import { ReplayDriver } from "@/hooks/useReplaySocket";
 import { ReplaySettings } from "@/hooks/useSettings";
 import { TYRE_COLORS, TYRE_SHORT, TEAM_ABBR } from "@/lib/constants";
 import { lapColorClass, SectorMarkers, LapData } from "@/lib/lapTiming";
+import { MiniSectorMarkers, miniMarkersWidth } from "@/lib/miniSectors";
 
 export interface LapEntry {
   driver: string;
@@ -17,6 +18,16 @@ export interface LapEntry {
   compound: string | null;
   pit_in: boolean;
   pit_out: boolean;
+  /** Replay time race control deleted the lap at, and why (from the laps API). */
+  deleted_at?: number | null;
+  deleted_reason?: string;
+  reinstated_at?: number | null;
+}
+
+/** Deleted by the stewards as of replay time `now` (not yet, or reinstated since, counts as valid). */
+export function lapDeleted(lap: LapEntry, now: number): boolean {
+  if (lap.deleted_at == null || lap.deleted_at > now) return false;
+  return !(lap.reinstated_at != null && lap.reinstated_at >= lap.deleted_at && lap.reinstated_at <= now);
 }
 
 interface Props {
@@ -34,6 +45,10 @@ interface Props {
   lapData?: LapData;
   currentLap?: number;
   mobileTeamAbbrHidden?: boolean;
+  /** Drivers on an out-lap: OUT replaces their sector markers. */
+  outLap?: Set<string>;
+  /** Mini-sector colours per driver (qualifying, when on): replace the three sector markers. */
+  miniSectors?: { counts: number[]; states: Map<string, number[] | null> } | null;
 }
 
 function formatGap(gap: string | null): string {
@@ -92,7 +107,7 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, qualiPhase, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, qualiPhase, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden, outLap, miniSectors }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -323,23 +338,32 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
                 )
               )}
 
-              {/* Last lap time (race only) */}
-              {isRace && settings.showLastLapTime && (() => {
+              {/* Last lap time: races by lap number, practice/qualifying the latest lap completed by now */}
+              {settings.showLastLapTime && (() => {
                 const driverLaps = lapData?.get(drv.abbr);
-                if (!driverLaps || !currentLap || currentLap < 2) return (
+                if (!driverLaps || (isRace && (!currentLap || currentLap < 2))) return (
                   <span className="w-[52px] sm:w-[60px] flex-shrink-0" />
                 );
                 let lastLapTime: string | null = null;
                 let lastLapNum = 0;
-                for (let l = currentLap; l >= 1; l--) {
-                  const entry = driverLaps.get(l);
-                  if (entry) { lastLapTime = entry.time; lastLapNum = l; break; }
+                if (isRace) {
+                  for (let l = currentLap!; l >= 1; l--) {
+                    const entry = driverLaps.get(l);
+                    if (entry) { lastLapTime = entry.time; lastLapNum = l; break; }
+                  }
+                } else {
+                  let at = -Infinity;
+                  for (const [l, entry] of driverLaps) {
+                    if (entry.completedAt != null && entry.completedAt <= currentTime && entry.completedAt > at) {
+                      at = entry.completedAt; lastLapTime = entry.time; lastLapNum = l;
+                    }
+                  }
                 }
                 if (!lastLapTime || lastLapNum < 2 || drv.retired) return (
                   <span className="w-[52px] sm:w-[60px] flex-shrink-0" />
                 );
 
-                const color = lapColorClass(lastLapTime, drv.abbr, lapData, currentTime, currentLap, isRace, drv.has_fastest_lap);
+                const color = lapColorClass(lastLapTime, drv.abbr, lapData, currentTime, currentLap ?? 0, isRace, drv.has_fastest_lap);
 
                 return (
                   <span className={`w-[52px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums ${color}`} title="Last lap time">
@@ -350,7 +374,23 @@ export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick
 
               {/* Live sector indicators - fixed width (qualifying only) */}
               {isQualifying && settings.showSectors && (
-                <SectorMarkers sectors={drv.sectors} className="w-7 flex-shrink-0 mx-1 relative z-10" />
+                outLap?.has(drv.abbr) ? (
+                  <span
+                    className={`${miniSectors ? "" : "w-7"} flex-shrink-0 mx-1 relative z-10 text-center text-[9px] font-extrabold tracking-wider text-f1-muted`}
+                    style={miniSectors ? { width: miniMarkersWidth(miniSectors.counts) } : undefined}
+                    title="Out-lap"
+                  >
+                    OUT
+                  </span>
+                ) : miniSectors ? (
+                  <MiniSectorMarkers
+                    states={miniSectors.states.get(drv.abbr) ?? null}
+                    counts={miniSectors.counts}
+                    className="flex-shrink-0 mx-1 relative z-10"
+                  />
+                ) : (
+                  <SectorMarkers sectors={drv.sectors} className="w-7 flex-shrink-0 mx-1 relative z-10" />
+                )
               )}
 
               {/* Pit stops / chequered flag - 20px (race only) */}

@@ -230,6 +230,18 @@ async def reprocess_session_status(year: int, round_num: int, type: str = Query(
     return get_reprocess_status(year, round_num, type)
 
 
+@router.get("/downloads/problems")
+async def download_problems_list():
+    """Sessions that failed to download or reprocess, newest first, until they
+    next download. For the home page's warning, only where Retry (a reprocess)
+    is allowed: the reasons are server-side errors."""
+    from services import download_problems
+
+    if not _reprocess_allowed():
+        return {"problems": []}
+    return {"problems": await asyncio.to_thread(download_problems.all_problems)}
+
+
 @router.get("/storage")
 async def storage_usage():
     """Stored size of every downloaded session, plus the retention setting."""

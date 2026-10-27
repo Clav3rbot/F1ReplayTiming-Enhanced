@@ -11,14 +11,38 @@ import {
   ReferenceDot,
   ReferenceArea,
 } from "recharts";
-import { ReplayDriver } from "@/hooks/useReplaySocket";
-import { LapEntry } from "@/components/Leaderboard";
+import { ReplayDriver, type QualiPhaseInfo } from "@/hooks/useReplaySocket";
+import { LapEntry, lapDeleted } from "@/components/Leaderboard";
+import SpeedTrace from "@/components/SpeedTrace";
+import SectorAnalysis from "@/components/SectorAnalysis";
+import type { MiniSectorData } from "@/lib/miniSectors";
+import type { LapOverlay } from "@/lib/trackRenderer";
 import { TYRE_COLORS, TYRE_SHORT } from "@/lib/constants";
 
 interface Props {
   laps: LapEntry[];
   drivers: ReplayDriver[];
   currentLap: number;
+  year: number;
+  round: number;
+  sessionType: string;
+  /** Replay time (s), for the Compare tab. */
+  now: number;
+  /** Races get the lap chart and list; qualifying the sector analysis. */
+  isRace: boolean;
+  useImperial?: boolean;
+  /** Corners along the lap (0–1), for the speed trace's distance axis. */
+  corners?: { frac: number; label: string }[];
+  /** Where S1 and S2 end along the lap (0–1), for the Compare tab's gap and track dominance. */
+  sectorFracs?: [number, number];
+  /** Qualifying segment starts, for the Sectors tab's Q1/Q2/Q3 filter. */
+  phases?: QualiPhaseInfo[];
+  /** Mini-sectors for the Sectors tab's lap on the map (qualifying and practice). */
+  mini?: MiniSectorData | null;
+  /** Live timing: lap traces come from the live session, and only completed laps have one. */
+  live?: boolean;
+  /** Colours the track map: a lap's sectors (Sectors) or track dominance (Compare). */
+  onMapOverlay?: (o: LapOverlay | null) => void;
   onClose?: () => void;
 }
 
@@ -115,8 +139,16 @@ const LAP_RANGES = [
   { label: "Last 20", value: 20 },
 ] as const;
 
-export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }: Props) {
+const TRACE_MODES = [
+  { label: "Best lap", value: "best" },
+  { label: "Current lap", value: "current" },
+] as const;
+
+export default function LapAnalysisPanel({ laps, drivers, currentLap, year, round, sessionType, now, isRace, useImperial, corners, sectorFracs, phases, mini, live, onMapOverlay, onClose }: Props) {
   const [selectedDrivers, setSelectedDrivers] = useState<[string | null, string | null]>([null, null]);
+  const tabs = isRace ? (["laps", "compare"] as const) : (["sectors", "compare"] as const);
+  const [tab, setTab] = useState<"laps" | "sectors" | "compare">(tabs[0]);
+  const [traceMode, setTraceMode] = useState<"best" | "current">("best");
   const [lapRange, setLapRange] = useState<number>(0); // 0 = all
   const [lapOrder, setLapOrder] = useState<"asc" | "desc">(() => {
     if (typeof window !== "undefined") {
@@ -344,27 +376,95 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
         </div>
       )}
 
-      {/* Driver selectors */}
-      <div className="px-3 py-2 space-y-1.5 flex-shrink-0 border-b border-f1-border">
-        <DriverDropdown
-          value={selectedDrivers[0]}
-          onChange={(abbr) => setSelectedDrivers((prev) => [abbr, prev[1]])}
-          drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[1])}
-          placeholder="Select driver..."
-          getColor={getDriverColor}
-        />
-        <DriverDropdown
-          value={selectedDrivers[1]}
-          onChange={(abbr) => setSelectedDrivers((prev) => [prev[0], abbr])}
-          drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[0])}
-          placeholder="Compare with..."
-          getColor={getDriverColor}
-        />
+      <div className="flex flex-shrink-0 border-b border-f1-border">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors border-b-2 ${
+              tab === t ? "border-f1-red text-ink" : "border-transparent text-f1-muted hover:text-ink"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
+
+      {/* Driver selectors; the Sectors tab shows its own single pick further down */}
+      {tab !== "sectors" && (
+        <div className="px-3 py-2 space-y-1.5 flex-shrink-0 border-b border-f1-border">
+          <DriverDropdown
+            value={selectedDrivers[0]}
+            onChange={(abbr) => setSelectedDrivers((prev) => [abbr, prev[1]])}
+            drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[1])}
+            placeholder="Select driver..."
+            getColor={getDriverColor}
+          />
+          <DriverDropdown
+            value={selectedDrivers[1]}
+            onChange={(abbr) => setSelectedDrivers((prev) => [prev[0], abbr])}
+            drivers={sortedDrivers.filter((d) => d.abbr !== selectedDrivers[0])}
+            placeholder="Compare with..."
+            getColor={getDriverColor}
+          />
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {activeDrivers.length === 0 ? (
+        {tab === "compare" ? (
+          <>
+            <div className="flex items-center gap-1 px-3 pt-2">
+              {TRACE_MODES.filter(({ value }) => !live || value === "best").map(({ label, value }) => (
+                <button
+                  key={value}
+                  onClick={() => setTraceMode(value)}
+                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition-colors ${
+                    traceMode === value
+                      ? "bg-f1-red text-white"
+                      : "bg-f1-dark border border-f1-border text-f1-muted hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <SpeedTrace
+              year={year}
+              round={round}
+              sessionType={sessionType}
+              drivers={activeDrivers.flatMap((a) => drivers.filter((d) => d.abbr === a))}
+              laps={laps}
+              now={now}
+              mode={live ? "best" : traceMode}
+              live={live}
+              useImperial={useImperial}
+              corners={corners}
+              sectorFracs={sectorFracs}
+              onMapOverlay={onMapOverlay}
+            />
+          </>
+        ) : tab === "sectors" ? (
+          <SectorAnalysis
+            laps={laps}
+            drivers={drivers}
+            now={now}
+            driver={selectedDrivers[0]}
+            onDriver={(abbr) => setSelectedDrivers((prev) => [abbr, prev[1] === abbr ? null : prev[1]])}
+            picker={
+              <DriverDropdown
+                value={selectedDrivers[0]}
+                onChange={(abbr) => setSelectedDrivers((prev) => [abbr, prev[1] === abbr ? null : prev[1]])}
+                drivers={sortedDrivers}
+                placeholder="Select driver..."
+                getColor={getDriverColor}
+              />
+            }
+            phases={phases ?? []}
+            mini={mini}
+            onMapOverlay={onMapOverlay}
+          />
+        ) : activeDrivers.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-f1-muted">
             Select a driver to view lap times
           </div>
@@ -557,6 +657,7 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                         const dl = driverLaps.get(abbr) || [];
                         const entry = dl.find((l) => l.lap_number === lap);
                         const isPit = entry?.pit_in || entry?.pit_out;
+                        const deleted = entry ? lapDeleted(entry, now) : false;
                         const compound = entry?.compound;
                         const tyreColor = compound ? TYRE_COLORS[compound] || "#888" : undefined;
                         const tyreLabel = compound ? TYRE_SHORT[compound] || "?" : null;
@@ -565,8 +666,9 @@ export default function LapAnalysisPanel({ laps, drivers, currentLap, onClose }:
                           <div key={abbr} className="flex-1 flex items-center gap-1">
                             <span
                               className={`text-[10px] tabular-nums ${
-                                isPit ? "text-yellow-400" : "text-ink"
+                                deleted ? "text-f1-muted line-through" : isPit ? "text-yellow-400" : "text-ink"
                               }`}
+                              title={deleted ? `Deleted: ${entry?.deleted_reason ?? "by the stewards"}` : undefined}
                             >
                               {entry?.lap_time || "—"}
                             </span>
